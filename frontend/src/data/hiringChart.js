@@ -1,0 +1,51 @@
+export const hiringChartData = [
+  {
+    day: "Mon",
+    Applied: 14,
+    Interviewing: 4,
+    Offer: 2,
+    Onboarded: 1,
+  },
+  {
+    day: "Tue",
+    Applied: 8,
+    Interviewing: 6,
+    Offer: 4,
+    Onboarded: 2,
+  },
+  {
+    day: "Wed",
+    Applied: 10,
+    Interviewing: 3,
+    Offer: 5,
+    Onboarded: 1,
+  },
+  {
+    day: "Thu",
+    Applied: 7,
+    Interviewing: 5,
+    Offer: 3,
+    Onboarded: 2,
+  },
+  {
+    day: "Fri",
+    Applied: 13,
+    Interviewing: 7,
+    Offer: 5,
+    Onboarded: 3,
+  },
+  {
+    day: "Sat",
+    Applied: 9,
+    Interviewing: 4,
+    Offer: 2,
+    Onboarded: 2,
+  },
+  {
+    day: "Sun",
+    Applied: 6,
+    Interviewing: 3,
+    Offer: 2,
+    Onboarded: 1,
+  },
+];
