@@ -3,17 +3,38 @@ import Navbar from "./Navbar";
 
 export default function MainLayout({ children }) {
   return (
-    <div className="flex h-screen bg-[#F6F8FC]">
-  <Sidebar />
+    <div
+      style={{
+        display: "flex",
+        height: "100vh",
+        background: "var(--background)",
+        overflow: "hidden",
+      }}
+    >
+      <Sidebar />
 
-  <div className="flex-1 flex flex-col overflow-auto">
-    <Navbar />
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          minWidth: 0,
+          overflow: "hidden",
+        }}
+      >
+        <Navbar />
 
-    <main className="flex-1 bg-[#F8FAFC] p-8 pt-10 overflow-y-auto">
-    {children}
-
-    </main>
-  </div>
-</div>
+        <main
+          style={{
+            flex: 1,
+            background: "var(--background)",
+            padding: "28px 32px",
+            overflowY: "auto",
+          }}
+        >
+          {children}
+        </main>
+      </div>
+    </div>
   );
 }

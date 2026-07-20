@@ -1,12 +1,12 @@
 export const people = [
   {
     id: 1,
-    name: "Jane M.",
+    name: "Matsya M.",
     img: "https://i.pravatar.cc/100?img=1",
   },
   {
     id: 2,
-    name: "Alex D.",
+    name: "vijay D.",
     img: "https://i.pravatar.cc/100?img=2",
   },
   {

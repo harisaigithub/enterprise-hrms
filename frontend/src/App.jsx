@@ -1,9 +1,19 @@
-import DashboardRouter from "./routes/DashboardRouter";
+/**
+ * App — Root component.
+ * Wraps the application with AuthProvider and SearchProvider,
+ * then renders the AppRouter (BrowserRouter with all 23 module routes).
+ */
 
-function App() {
-  const role = "HR"; // Later this will come from the backend
+import { AuthProvider } from "./context/AuthContext";
+import { SearchProvider } from "./context/SearchContext";
+import AppRouter from "./routes/AppRouter";
 
-  return <DashboardRouter role={role} />;
+export default function App() {
+  return (
+    <AuthProvider>
+      <SearchProvider>
+        <AppRouter />
+      </SearchProvider>
+    </AuthProvider>
+  );
 }
-
-export default App;
