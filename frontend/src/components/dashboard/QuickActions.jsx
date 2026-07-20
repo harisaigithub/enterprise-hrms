@@ -8,46 +8,100 @@ import {
 } from "lucide-react";
 
 const actions = [
-  { icon: Calendar, title: "Accrual History" },
-  { icon: Clock3, title: "Time Tracking" },
-  { icon: Wallet, title: "Estimate Balance" },
-  { icon: MapPin, title: "Add Location" },
-  { icon: HeartHandshake, title: "Benefits Review" },
-  { icon: Phone, title: "Contact HR" },
+  { icon: Calendar,      title: "Accrual History" },
+  { icon: Clock3,        title: "Time Tracking" },
+  { icon: Wallet,        title: "Est. Balance" },
+  { icon: MapPin,        title: "Add Location" },
+  { icon: HeartHandshake, title: "Benefits" },
+  { icon: Phone,         title: "Contact HR" },
 ];
 
 export default function QuickActions() {
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
-
-      <h2 className="font-bold text-lg mb-6">
+    <div
+      style={{
+        background: "var(--card)",
+        borderRadius: "var(--radius-lg)",
+        border: "1px solid var(--border)",
+        boxShadow: "var(--shadow-sm)",
+        padding: "20px",
+        transition: "box-shadow 0.2s ease",
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.boxShadow = "var(--shadow-md)")}
+      onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "var(--shadow-sm)")}
+    >
+      <h2
+        style={{
+          fontSize: "14px",
+          fontWeight: 700,
+          color: "var(--text)",
+          marginBottom: "16px",
+        }}
+      >
         Quick Actions
       </h2>
 
-     <div className="grid grid-cols-3 gap-y-8 gap-x-4">
-
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: "10px",
+        }}
+      >
         {actions.map((item, index) => (
-          <div
+          <button
             key={index}
-            className="flex flex-col items-center text-center cursor-pointer hover:-translate-y-2 transition-all duration-300 "
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "8px",
+              padding: "14px 8px",
+              background: "var(--background)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius)",
+              cursor: "pointer",
+              transition: "background 0.15s ease, border-color 0.15s ease, transform 0.15s ease",
+              color: "var(--label)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "var(--primary-light)";
+              e.currentTarget.style.borderColor = "var(--border-focus)";
+              e.currentTarget.style.transform = "translateY(-2px)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "var(--background)";
+              e.currentTarget.style.borderColor = "var(--border)";
+              e.currentTarget.style.transform = "none";
+            }}
           >
-<div className="w-14 h-14 rounded-full bg-orange-50 flex items-center justify-center hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
-              <item.icon
-                size={24}
-                className="text-orange-500"
-              />
-
+            <div
+              style={{
+                width: "36px",
+                height: "36px",
+                borderRadius: "var(--radius-sm)",
+                background: "var(--primary-light)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <item.icon size={18} style={{ color: "var(--primary)" }} />
             </div>
-
-           <p className="text-sm mt-3 font-medium text-gray-700">
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 500,
+                color: "var(--label)",
+                textAlign: "center",
+                lineHeight: 1.3,
+              }}
+            >
               {item.title}
-            </p>
-
-          </div>
+            </span>
+          </button>
         ))}
-
       </div>
-
     </div>
   );
 }

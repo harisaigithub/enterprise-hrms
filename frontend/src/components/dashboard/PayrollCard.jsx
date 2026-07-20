@@ -1,32 +1,109 @@
-import { Wallet } from "lucide-react";
+import { Wallet, TrendingUp } from "lucide-react";
 import { payroll } from "../../data/payroll";
 
 export default function PayrollCard() {
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:-translate-y-1 hover:shadow-xl transition-all duration-300">
-
-      <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold">
+    <div
+      style={{
+        background: "var(--card)",
+        borderRadius: "var(--radius-lg)",
+        border: "1px solid var(--border)",
+        boxShadow: "var(--shadow-sm)",
+        padding: "20px",
+        transition: "box-shadow 0.2s ease",
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.boxShadow = "var(--shadow-md)")}
+      onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "var(--shadow-sm)")}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: "14px",
+        }}
+      >
+        <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>
           {payroll.title}
         </h2>
-
-        <Wallet className="text-green-600" />
+        <div
+          style={{
+            width: "34px",
+            height: "34px",
+            borderRadius: "var(--radius-sm)",
+            background: "var(--green-light)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Wallet size={17} style={{ color: "var(--green)" }} />
+        </div>
       </div>
 
-      <h1 className="text-5xl font-bold mt-6">
+      <p
+        style={{
+          fontSize: "26px",
+          fontWeight: 800,
+          color: "var(--text)",
+          lineHeight: 1.1,
+          letterSpacing: "-0.5px",
+        }}
+      >
         {payroll.totalPayroll}
-      </h1>
+      </p>
 
-      <p className="text-gray-500 mt-2">
+      <p
+        style={{
+          fontSize: "12px",
+          color: "var(--subtext)",
+          marginTop: "5px",
+          marginBottom: "16px",
+        }}
+      >
         {payroll.description}
       </p>
 
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "5px",
+          marginBottom: "16px",
+          background: "var(--green-light)",
+          padding: "6px 10px",
+          borderRadius: "var(--radius-sm)",
+        }}
+      >
+        <TrendingUp size={13} style={{ color: "var(--green)" }} />
+        <span style={{ fontSize: "11.5px", color: "var(--green)", fontWeight: 600 }}>
+          +4.2% vs last month
+        </span>
+      </div>
+
       <button
-        className="mt-6 bg-[#ff7a1a] hover:bg-[#ff8d3a] text-white px-6 py-3 rounded-xl font-semibold hover:scale-105 transition-all duration-300"
+        id="run-payroll-btn"
+        style={{
+          width: "100%",
+          padding: "9px",
+          background: "var(--primary)",
+          color: "#fff",
+          border: "none",
+          borderRadius: "var(--radius-sm)",
+          fontSize: "12.5px",
+          fontWeight: 600,
+          cursor: "pointer",
+          transition: "background 0.15s ease",
+        }}
+        onMouseEnter={(e) =>
+          (e.currentTarget.style.background = "var(--primary-hover)")
+        }
+        onMouseLeave={(e) =>
+          (e.currentTarget.style.background = "var(--primary)")
+        }
       >
         {payroll.buttonText}
       </button>
-
     </div>
   );
 }

@@ -10,26 +10,30 @@ import ResourcesCard from "../../components/dashboard/ResourcesCard";
 export default function Dashboard() {
   return (
     <MainLayout>
-      <div className="max-w-[1600px] mx-auto">
-
+      <div style={{ maxWidth: "1480px", margin: "0 auto" }}>
         <WelcomeCard />
 
-        <div className="grid grid-cols-12 gap-8 mt-8">
-
-          {/* Left */}
-          <div className="col-span-9 flex flex-col gap-8">
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1fr) 280px",
+            gap: "24px",
+            alignItems: "start",
+          }}
+        >
+          {/* Left column */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "20px", minWidth: 0 }}>
             <AlertCard />
             <HiringInsights />
           </div>
 
-          {/* Right */}
-          <div className="col-span-3 flex flex-col gap-8">
+          {/* Right column */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
             <QuickActions />
             <PeopleCard />
             <PayrollCard />
             <ResourcesCard />
           </div>
-
         </div>
       </div>
     </MainLayout>
