@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Onboarding Checklist Page
  * Module 4 — Onboarding
  * Features: summary stat cards, new-joiner list with progress, per-employee
