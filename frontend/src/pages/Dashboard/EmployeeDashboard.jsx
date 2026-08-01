@@ -1,13 +1,36 @@
+/**
+ * Employee Dashboard — spec 3.5.1
+ */
 import MainLayout from "../../components/layout/MainLayout";
+import AttendanceWidget from "../../components/dashboard/AttendanceWidget";
+import LeaveBalanceWidget from "../../components/dashboard/LeaveBalanceWidget";
+import PayslipWidget from "../../components/dashboard/PayslipWidget";
+import HolidaysWidget from "../../components/dashboard/HolidaysWidget";
+import AnnouncementsWidget from "../../components/dashboard/AnnouncementsWidget";
+import BirthdaysWidget from "../../components/dashboard/BirthdaysWidget";
+import SelfAssessmentWidget from "../../components/dashboard/SelfAssessmentWidget";
+import ComplianceCoursesWidget from "../../components/dashboard/ComplianceCoursesWidget";
+import { user } from "../../data/user";
 
 export default function EmployeeDashboard() {
   return (
     <MainLayout>
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-4xl font-bold">Employee Dashboard</h1>
-        <p className="text-gray-500 mt-2">
-          Welcome! Your dashboard will include attendance, leave, payslips, and announcements.
-        </p>
+      <div style={{ maxWidth: "1480px", margin: "0 auto" }}>
+        <div style={{ marginBottom: "24px" }}>
+          <h1 style={{ fontSize: "26px", fontWeight: 800, color: "var(--text)" }}>{user.greeting}, {user.firstName} 👋</h1>
+          <p style={{ fontSize: "14px", color: "var(--subtext)", marginTop: "4px" }}>Here's what's on your plate today</p>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px" }}>
+          <AttendanceWidget />
+          <LeaveBalanceWidget />
+          <PayslipWidget />
+          <HolidaysWidget />
+          <AnnouncementsWidget />
+          <BirthdaysWidget />
+          <SelfAssessmentWidget />
+          <ComplianceCoursesWidget />
+        </div>
       </div>
     </MainLayout>
   );
