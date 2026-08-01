@@ -1,5 +1,5 @@
 import MainLayout from "../../components/layout/MainLayout";
-import WelcomeCard from "../../components/dashboard/WelcomeCard";
+import WelcomeCard from "../../components/shared/Dashboardgreeting";
 import AlertCard from "../../components/dashboard/AlertCard";
 import HiringInsights from "../../components/dashboard/HiringInsights";
 import QuickActions from "../../components/dashboard/QuickActions";
@@ -7,10 +7,11 @@ import PeopleCard from "../../components/dashboard/PeopleCard";
 import PayrollCard from "../../components/dashboard/PayrollCard";
 import ResourcesCard from "../../components/dashboard/ResourcesCard";
 
-export default function Dashboard() {
+export default function HRDashboard({ topSlot = null }) {
   return (
     <MainLayout>
       <div style={{ maxWidth: "1480px", margin: "0 auto" }}>
+        {topSlot}
         <WelcomeCard />
 
         <div

@@ -1,8 +1,3 @@
-/**
- * OnboardingCard — Dashboard widget
- * "Onboarding — X of Y items complete for new joiners this week" (spec 6.5 step 9)
- */
-
 import { useState, useEffect } from "react";
 import { UserPlus, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
