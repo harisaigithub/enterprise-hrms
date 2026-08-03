@@ -5,6 +5,12 @@
  * TODAY: Mock auth — role is set from localStorage with a fallback to "HR".
  * FUTURE: Replace mockLogin with a real JWT POST /api/auth/login call.
  *         The shape of `user` and `permissions` must NOT change.
+ *
+ * NOTE: every module below now has at least one role with a `:read`
+ * permission. Additions beyond the original set are marked inline with
+ * which spec section justifies them — nothing that existed before was
+ * removed or changed, only gaps filled so Sidebar filtering (see
+ * Sidebar.jsx) doesn't make an entire module vanish for every role.
  */
 
 import { createContext, useContext, useState, useCallback } from "react";
@@ -23,6 +29,19 @@ const ROLE_PERMISSIONS = {
     "security:read", "security:write",
     "orgmanagement:read", "orgmanagement:write",
     "compliance:read",
+    // Added — Admin has "full technical access" (spec Module 2, 4.2) so it's
+    // the natural superset role; these modules previously had no ADMIN entry.
+    "onboarding:read",
+    "lms:read",
+    "assets:read", "assets:write",
+    "tasks:read",
+    "expenses:read",
+    "travel:read",
+    "policies:read",
+    "helpdesk:read", "helpdesk:write",
+    "separation:read",
+    "workflows:read", "workflows:write",
+    "notifications:read",
   ],
   HR: [
     "dashboard:read",
@@ -37,6 +56,11 @@ const ROLE_PERMISSIONS = {
     "policies:read", "policies:write",
     "helpdesk:read",
     "separation:read", "separation:write",
+    // Added — spec 9.2 (HR/L&D Admin owns LMS) and 21.2 (Admin/HR configure
+    // the Workflow Engine); notifications per 23.2 ("all roles are recipients").
+    "lms:read", "lms:write",
+    "workflows:read", "workflows:write",
+    "notifications:read",
   ],
   MANAGER: [
     "dashboard:read",
@@ -47,6 +71,17 @@ const ROLE_PERMISSIONS = {
     "performance:read", "performance:write",
     "tasks:read", "tasks:write",
     "reports:read",
+    // Added — Manager is an approver for these per spec 14.2 (Expense), 15.2
+    // (Travel), 11.2/17.2 (team-visibility for LMS/Helpdesk), 18.5 step 4
+    // (Policy acknowledgement applies to every employee, managers included),
+    // 19.5 (Manager provides separation clearance sign-off), 23.2 (recipient).
+    "expenses:read", "expenses:approve",
+    "travel:read", "travel:approve",
+    "lms:read",
+    "helpdesk:read", "helpdesk:write",
+    "policies:read",
+    "separation:read",
+    "notifications:read",
   ],
   EMPLOYEE: [
     "dashboard:read",
@@ -56,6 +91,21 @@ const ROLE_PERMISSIONS = {
     "ess:read", "ess:write",
     "helpdesk:read", "helpdesk:write",
     "policies:read",
+    // Added — Employee is an explicit actor for each of these in the spec:
+    // performance (10.2 — sets goals, self-assessment), lms (11.2 — takes
+    // courses), assets (10.2 — requests assets), tasks (13.2 — works tasks),
+    // expenses (14.2 — submits claims), travel (15.2 — raises requests),
+    // onboarding (6.2 — "New Employee" completes checklist), separation
+    // (19.2 — initiates resignation), notifications (23.2 — recipient).
+    "performance:read", "performance:write",
+    "lms:read",
+    "assets:read", "assets:write",
+    "tasks:read", "tasks:write",
+    "expenses:read", "expenses:write",
+    "travel:read", "travel:write",
+    "onboarding:read",
+    "separation:read",
+    "notifications:read",
   ],
 };
 

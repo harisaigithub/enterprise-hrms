@@ -1,6 +1,12 @@
 /**
  * Sidebar — All 23 HRMS modules, grouped by category.
  * Active state driven by current URL (useLocation from React Router).
+ *
+ * Each item now declares `permission`, the module key checked against
+ * useAuth().permissions as `${permission}:read`. An item — and, if every
+ * item in it is hidden, the whole group — is only rendered when the
+ * current role actually has that permission. This was previously not
+ * happening at all: every item rendered unconditionally regardless of role.
  */
 
 import {
@@ -16,49 +22,49 @@ const NAV_GROUPS = [
   {
     label: "Core HR",
     items: [
-      { icon: LayoutDashboard, title: "Dashboard",   href: "/"           },
-      { icon: Users,           title: "Employees",   href: "/employees"  },
-      { icon: UserCheck,       title: "Attendance",  href: "/attendance" },
-      { icon: CalendarDays,    title: "Leave",       href: "/leave"      },
-      { icon: Wallet,          title: "Payroll",     href: "/payroll"    },
-      { icon: TrendingUp,      title: "Performance", href: "/performance"},
+      { icon: LayoutDashboard, title: "Dashboard",   href: "/",           permission: "dashboard"  },
+      { icon: Users,           title: "Employees",   href: "/employees",  permission: "employees"  },
+      { icon: UserCheck,       title: "Attendance",  href: "/attendance", permission: "attendance" },
+      { icon: CalendarDays,    title: "Leave",       href: "/leave",      permission: "leave"      },
+      { icon: Wallet,          title: "Payroll",     href: "/payroll",    permission: "payroll"    },
+      { icon: TrendingUp,      title: "Performance", href: "/performance",permission: "performance"},
     ],
   },
   {
     label: "Talent",
     items: [
-      { icon: UserPlus,        title: "Recruitment", href: "/recruitment"},
-      { icon: ClipboardList,   title: "Onboarding",  href: "/onboarding" },
-      { icon: GraduationCap,   title: "LMS",         href: "/lms"        },
+      { icon: UserPlus,        title: "Recruitment", href: "/recruitment", permission: "recruitment" },
+      { icon: ClipboardList,   title: "Onboarding",  href: "/onboarding",  permission: "onboarding"  },
+      { icon: GraduationCap,   title: "LMS",         href: "/lms",         permission: "lms"         },
     ],
   },
   {
     label: "Operations",
     items: [
-      { icon: Laptop,          title: "Assets",      href: "/assets"   },
-      { icon: CheckSquare,     title: "Tasks",       href: "/tasks"    },
-      { icon: Receipt,         title: "Expenses",    href: "/expenses" },
-      { icon: Plane,           title: "Travel",      href: "/travel"   },
+      { icon: Laptop,          title: "Assets",      href: "/assets",   permission: "assets"   },
+      { icon: CheckSquare,     title: "Tasks",       href: "/tasks",    permission: "tasks"    },
+      { icon: Receipt,         title: "Expenses",    href: "/expenses", permission: "expenses" },
+      { icon: Plane,           title: "Travel",      href: "/travel",   permission: "travel"   },
     ],
   },
   {
     label: "Employee",
     items: [
-      { icon: Home,        title: "Self Service", href: "/ess"      },
-      { icon: Headphones,  title: "Helpdesk",     href: "/helpdesk" },
-      { icon: FileText,    title: "Policies",     href: "/policies" },
+      { icon: Home,        title: "Self Service", href: "/ess",      permission: "ess"      },
+      { icon: Headphones,  title: "Helpdesk",     href: "/helpdesk", permission: "helpdesk" },
+      { icon: FileText,    title: "Policies",     href: "/policies", permission: "policies" },
     ],
   },
   {
     label: "Admin",
     items: [
-      { icon: LogOut,      title: "Separation",    href: "/separation"      },
-      { icon: Building2,   title: "Org Management",href: "/org-management"  },
-      { icon: GitBranch,   title: "Workflows",     href: "/workflows"       },
-      { icon: BarChart3,   title: "Reports",       href: "/reports"         },
-      { icon: Bell,        title: "Notifications", href: "/notifications"   },
-      { icon: Shield,      title: "Compliance",    href: "/compliance"      },
-      { icon: Shield,      title: "Security",      href: "/security"        },
+      { icon: LogOut,      title: "Separation",    href: "/separation",     permission: "separation"     },
+      { icon: Building2,   title: "Org Management",href: "/org-management", permission: "orgmanagement"  },
+      { icon: GitBranch,   title: "Workflows",     href: "/workflows",      permission: "workflows"      },
+      { icon: BarChart3,   title: "Reports",       href: "/reports",        permission: "reports"        },
+      { icon: Bell,        title: "Notifications", href: "/notifications",  permission: "notifications"  },
+      { icon: Shield,      title: "Compliance",    href: "/compliance",     permission: "compliance"     },
+      { icon: Shield,      title: "Security",      href: "/security",       permission: "security"       },
     ],
   },
 ];
@@ -107,12 +113,21 @@ function NavItem({ item, isActive, onClick }) {
 export default function Sidebar() {
   const navigate  = useNavigate();
   const location  = useLocation();
-  const { user }  = useAuth();
+  const { user, permissions } = useAuth();
 
   const isActive = (href) => {
     if (href === "/") return location.pathname === "/";
     return location.pathname.startsWith(href);
   };
+
+  const canView = (item) => permissions.includes(`${item.permission}:read`);
+
+  // Filter items per group by permission, then drop any group left with
+  // nothing visible (e.g. "Admin" group shouldn't render its label at all
+  // for an EMPLOYEE who can't see any item inside it).
+  const visibleGroups = NAV_GROUPS
+    .map((group) => ({ ...group, items: group.items.filter(canView) }))
+    .filter((group) => group.items.length > 0);
 
   return (
     <aside
@@ -136,7 +151,7 @@ export default function Sidebar() {
 
       {/* Navigation groups */}
       <nav style={{ flex: 1, padding: "10px 8px", overflowY: "auto" }}>
-        {NAV_GROUPS.map((group) => (
+        {visibleGroups.map((group) => (
           <div key={group.label} style={{ marginBottom: "6px" }}>
             <p style={{ fontSize: "9.5px", fontWeight: 700, color: "rgba(148,163,184,0.6)", textTransform: "uppercase", letterSpacing: "0.7px", padding: "8px 12px 4px" }}>
               {group.label}
