@@ -8,9 +8,9 @@ import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Spinner from "../components/shared/Spinner";
 import RequireAuth from "../components/auth/RequireAuth";
+import DashboardRouter from "./DashboardRouter";
 
 // ── Eagerly loaded (critical path) ─────────────────────────────────────────
-import HRDashboard        from "../pages/Dashboard/HRDashboard";
 import Login              from "../pages/Auth/Login";
 
 // ── Lazily loaded modules ────────────────────────────────────────────────────
@@ -55,8 +55,8 @@ export default function AppRouter() {
           {/* Public */}
           <Route path="/login" element={<Login />} />
 
-          {/* Authenticated */}
-          <Route path="/" element={<RequireAuth><HRDashboard /></RequireAuth>} />
+          {/* Authenticated — dashboard chosen by the logged-in user's real role */}
+          <Route path="/" element={<RequireAuth><DashboardRouter /></RequireAuth>} />
 
           {/* Core HR */}
           <Route path="/employees"           element={<RequireAuth><Employees /></RequireAuth>} />

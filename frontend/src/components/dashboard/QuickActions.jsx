@@ -1,107 +1,60 @@
-import {
-  Calendar,
-  Clock3,
-  Wallet,
-  MapPin,
-  HeartHandshake,
-  Phone,
-} from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Grid2x2, UserPlus, Briefcase, Wallet, CalendarCheck, ClipboardList, BarChart3 } from "lucide-react";
+import DashboardWidgetCard from "./DashboardWidgetCard";
+import { useDashboardWidget } from "../../hooks/useDashboardWidget";
+import { getHRDashboardSnapshot } from "../../services/hrDashboardService";
 
-const actions = [
-  { icon: Calendar,      title: "Accrual History" },
-  { icon: Clock3,        title: "Time Tracking" },
-  { icon: Wallet,        title: "Est. Balance" },
-  { icon: MapPin,        title: "Add Location" },
-  { icon: HeartHandshake, title: "Benefits" },
-  { icon: Phone,         title: "Contact HR" },
-];
+// Maps the iconName string stored in the mock data to an actual lucide icon
+// component, so the data layer stays framework-agnostic (JSON-serializable).
+const ICONS = {
+  UserPlus,
+  Briefcase,
+  Wallet,
+  CalendarCheck,
+  ClipboardList,
+  BarChart3,
+};
 
 export default function QuickActions() {
-  return (
-    <div
-      style={{
-        background: "var(--card)",
-        borderRadius: "var(--radius-lg)",
-        border: "1px solid var(--border)",
-        boxShadow: "var(--shadow-sm)",
-        padding: "20px",
-        transition: "box-shadow 0.2s ease",
-      }}
-      onMouseEnter={(e) => (e.currentTarget.style.boxShadow = "var(--shadow-md)")}
-      onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "var(--shadow-sm)")}
-    >
-      <h2
-        style={{
-          fontSize: "14px",
-          fontWeight: 700,
-          color: "var(--text)",
-          marginBottom: "16px",
-        }}
-      >
-        Quick Actions
-      </h2>
+  const navigate = useNavigate();
+  const { data, loading, error, retry } = useDashboardWidget(getHRDashboardSnapshot);
+  const actions = data?.quickActions?.actions || [];
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: "10px",
-        }}
-      >
-        {actions.map((item, index) => (
-          <button
-            key={index}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "8px",
-              padding: "14px 8px",
-              background: "var(--background)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius)",
-              cursor: "pointer",
-              transition: "background 0.15s ease, border-color 0.15s ease, transform 0.15s ease",
-              color: "var(--label)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "var(--primary-light)";
-              e.currentTarget.style.borderColor = "var(--border-focus)";
-              e.currentTarget.style.transform = "translateY(-2px)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "var(--background)";
-              e.currentTarget.style.borderColor = "var(--border)";
-              e.currentTarget.style.transform = "none";
-            }}
-          >
-            <div
+  return (
+    <DashboardWidgetCard
+      icon={Grid2x2}
+      title="Quick Actions"
+      loading={loading}
+      error={error}
+      onRetry={retry}
+      isEmpty={!loading && !error && actions.length === 0}
+      emptyLabel="No quick actions available."
+    >
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
+        {actions.map((action) => {
+          const Icon = ICONS[action.iconName] || Grid2x2;
+          return (
+            <button
+              key={action.id}
+              id={`quick-action-${action.id}`}
+              onClick={(e) => { e.stopPropagation(); navigate(action.path); }}
               style={{
-                width: "36px",
-                height: "36px",
-                borderRadius: "var(--radius-sm)",
-                background: "var(--primary-light)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <item.icon size={18} style={{ color: "var(--primary)" }} />
-            </div>
-            <span
-              style={{
-                fontSize: "11px",
-                fontWeight: 500,
-                color: "var(--label)",
+                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start",
+                gap: "8px", padding: "14px 6px", background: "var(--primary-light)", border: "none",
+                borderRadius: "var(--radius-sm)", cursor: "pointer", transition: "background 0.15s, transform 0.1s",
                 textAlign: "center",
-                lineHeight: 1.3,
               }}
+              onMouseEnter={(e) => (e.currentTarget.style.transform = "translateY(-1px)")}
+              onMouseLeave={(e) => (e.currentTarget.style.transform = "translateY(0)")}
             >
-              {item.title}
-            </span>
-          </button>
-        ))}
+              <Icon size={20} style={{ color: "var(--primary)" }} />
+              <span style={{ fontSize: "11.5px", fontWeight: 500, color: "var(--text)", lineHeight: 1.25 }}>
+                {action.label}
+              </span>
+            </button>
+          );
+        })}
       </div>
-    </div>
+    </DashboardWidgetCard>
   );
 }
