@@ -12,6 +12,7 @@ import StatusBadge from "../../components/shared/StatusBadge";
 import Spinner from "../../components/shared/Spinner";
 import EmptyState from "../../components/shared/EmptyState";
 import { getMyAttendance, getTeamSummary, checkIn, checkOut } from "../../services/attendanceService";
+import { useAuth } from "../../context/AuthContext";
 import { attendanceStatusMeta } from "../../mock/attendance";
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -31,6 +32,7 @@ function StatCard({ icon: Icon, label, value, color, bg }) {
 }
 
 export default function Attendance() {
+  const { user } = useAuth();
   const now = new Date();
   const [month, setMonth]     = useState(now.getMonth() + 1);
   const [year, setYear]       = useState(now.getFullYear());
@@ -43,26 +45,32 @@ export default function Attendance() {
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      getMyAttendance({ month, year }),
+      getMyAttendance({ employeeId: user.id, month, year }),
       getTeamSummary(),
     ]).then(([recRes, sumRes]) => {
       setRecords(recRes.data);
       setSummary(sumRes.data);
-    }).finally(() => setLoading(false));
-  }, [month, year]);
+    }).catch(() => setLoading(false)).finally(() => setLoading(false));
+  }, [user.id, month, year]);
 
   const handleCheckIn = async () => {
     setChecking(true);
-    await checkIn("EMP001");
-    setCheckedIn(true);
-    setChecking(false);
+    try {
+      await checkIn(user.id);
+      setCheckedIn(true);
+    } finally {
+      setChecking(false);
+    }
   };
 
   const handleCheckOut = async () => {
     setChecking(true);
-    await checkOut("EMP001");
-    setCheckedIn(false);
-    setChecking(false);
+    try {
+      await checkOut(user.id);
+      setCheckedIn(false);
+    } finally {
+      setChecking(false);
+    }
   };
 
   const countStatus = (s) => records.filter((r) => r.status === s).length;

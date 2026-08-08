@@ -11,9 +11,10 @@ import Spinner from "../../components/shared/Spinner";
 import EmptyState from "../../components/shared/EmptyState";
 import Modal from "../../components/shared/Modal";
 import { getMyLeaveBalance, getLeaveRequests, getLeaveTypes, applyLeave } from "../../services/leaveService";
+import { useAuth } from "../../context/AuthContext";
 import { leaveStatusMeta } from "../../mock/leave";
 
-function ApplyLeaveModal({ isOpen, onClose, leaveTypes }) {
+function ApplyLeaveModal({ isOpen, onClose, leaveTypes, employeeId }) {
   const [form, setForm] = useState({ leaveTypeId: "", startDate: "", endDate: "", reason: "" });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -39,8 +40,7 @@ function ApplyLeaveModal({ isOpen, onClose, leaveTypes }) {
     e.preventDefault();
     if (!validate()) return;
     setSaving(true);
-    const lt = leaveTypes.find((t) => t.id === form.leaveTypeId);
-    await applyLeave({ ...form, leaveTypeName: lt?.name, days: daysBetween(), employeeId: "EMP001", employeeName: "Matsya Singh" });
+    await applyLeave({ ...form, employeeId, days: daysBetween() });
     setSaving(false);
     onClose();
     setForm({ leaveTypeId: "", startDate: "", endDate: "", reason: "" });
@@ -101,6 +101,7 @@ function ApplyLeaveModal({ isOpen, onClose, leaveTypes }) {
 }
 
 export default function Leave() {
+  const { user } = useAuth();
   const [balances, setBalances] = useState([]);
   const [requests, setRequests] = useState([]);
   const [leaveTypes, setLeaveTypes] = useState([]);
@@ -111,15 +112,15 @@ export default function Leave() {
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      getMyLeaveBalance("EMP001"),
-      getLeaveRequests({ employeeId: "EMP001" }),
+      getMyLeaveBalance(user.id),
+      getLeaveRequests({ employeeId: user.id }),
       getLeaveTypes(),
     ]).then(([balRes, reqRes, ltRes]) => {
       setBalances(balRes.data);
       setRequests(reqRes.data);
       setLeaveTypes(ltRes.data);
-    }).finally(() => setLoading(false));
-  }, []);
+    }).catch(() => setLoading(false)).finally(() => setLoading(false));
+  }, [user.id]);
 
   const filtered = statusFilter ? requests.filter((r) => r.status === statusFilter) : requests;
 
@@ -208,7 +209,12 @@ export default function Leave() {
         </div>
       </div>
 
-      <ApplyLeaveModal isOpen={showApply} onClose={() => setShowApply(false)} leaveTypes={leaveTypes} />
+      <ApplyLeaveModal
+        isOpen={showApply}
+        onClose={() => setShowApply(false)}
+        leaveTypes={leaveTypes}
+        employeeId={user.id}
+      />
     </MainLayout>
   );
 }

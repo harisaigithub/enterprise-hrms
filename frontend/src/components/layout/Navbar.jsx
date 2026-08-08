@@ -1,13 +1,14 @@
 /**
- * Navbar — Global search (Ctrl+K), notifications, user menu
+ * Navbar — Global search (Ctrl+K), notifications dropdown, user menu with logout
  * Reads from SearchContext for unified search state.
  */
 
-import { Bell, Search, ChevronDown, X } from "lucide-react";
-import { useRef, useEffect } from "react";
+import { Bell, Search, ChevronDown, X, LogOut, UserRound, CheckCheck, Settings } from "lucide-react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSearch } from "../../context/SearchContext";
 import { useAuth } from "../../context/AuthContext";
+import { RAW_INBOX } from "../../mock/Notifications";
 
 const TYPE_COLOR = {
   Employee:     { color: "#4f46e5", bg: "#eef2ff" },
@@ -15,12 +16,36 @@ const TYPE_COLOR = {
   "Payroll Run":   { color: "#16a34a", bg: "#f0fdf4" },
 };
 
+function timeAgo(iso) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
 export default function Navbar() {
   const { query, setQuery, results, isOpen, setIsOpen, clear } = useSearch();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const inputRef = useRef(null);
   const dropRef  = useRef(null);
+  const notifRef = useRef(null);
+  const menuRef  = useRef(null);
+  const [openMenu, setOpenMenu] = useState(null); // "notif" | "user" | null
+
+  const [inbox, setInbox] = useState(() =>
+    [...RAW_INBOX].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+  );
+
+  const unreadCount = inbox.filter((n) => !n.read).length;
+
+  const markAllRead = useCallback(() => {
+    setInbox((prev) => prev.map((n) => ({ ...n, read: true })));
+  }, []);
 
   // Ctrl+K / Cmd+K focuses search
   useEffect(() => {
@@ -30,18 +55,18 @@ export default function Navbar() {
         inputRef.current?.focus();
         setIsOpen(true);
       }
-      if (e.key === "Escape") clear();
+      if (e.key === "Escape") { clear(); setOpenMenu(null); }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [clear, setIsOpen]);
 
-  // Close dropdown on outside click
+  // Close dropdowns on outside click
   useEffect(() => {
     const handler = (e) => {
-      if (dropRef.current && !dropRef.current.contains(e.target)) {
-        setIsOpen(false);
-      }
+      if (dropRef.current && !dropRef.current.contains(e.target)) setIsOpen(false);
+      if (notifRef.current && !notifRef.current.contains(e.target)) setOpenMenu((m) => (m === "notif" ? null : m));
+      if (menuRef.current && !menuRef.current.contains(e.target)) setOpenMenu((m) => (m === "user" ? null : m));
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -50,6 +75,24 @@ export default function Navbar() {
   const handleSelect = (entry) => {
     navigate(entry.href);
     clear();
+  };
+
+  const handleLogout = async () => {
+    setOpenMenu(null);
+    await logout();
+    navigate("/login", { replace: true });
+  };
+
+  const handleNotificationClick = (n) => {
+    setInbox((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
+    setOpenMenu(null);
+    if (n.link) navigate(n.link);
+  };
+
+  const iconBtn = {
+    position: "relative", background: "none", border: "none", cursor: "pointer",
+    padding: "8px", borderRadius: "var(--radius)", color: "var(--label)",
+    display: "flex", alignItems: "center", transition: "background 0.15s",
   };
 
   return (
@@ -162,30 +205,167 @@ export default function Navbar() {
 
       {/* Right section */}
       <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-        <button id="notification-btn" aria-label="Notifications"
-          style={{ position: "relative", background: "none", border: "none", cursor: "pointer", padding: "8px", borderRadius: "var(--radius)", color: "var(--label)", display: "flex", alignItems: "center", transition: "background 0.15s" }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "var(--background)")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "none")}>
-          <Bell size={20} />
-          <span style={{ position: "absolute", top: "5px", right: "5px", background: "var(--red)", color: "#fff", borderRadius: "99px", fontSize: "10px", fontWeight: 700, minWidth: "16px", height: "16px", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid #fff" }}>
-            3
-          </span>
-        </button>
+        {/* Notifications */}
+        <div ref={notifRef} style={{ position: "relative" }}>
+          <button
+            id="notification-btn"
+            aria-label="Notifications"
+            onClick={() => setOpenMenu((m) => (m === "notif" ? null : "notif"))}
+            style={iconBtn}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--background)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+          >
+            <Bell size={20} />
+            {unreadCount > 0 && (
+              <span style={{ position: "absolute", top: "5px", right: "5px", background: "var(--red)", color: "#fff", borderRadius: "99px", fontSize: "10px", fontWeight: 700, minWidth: "16px", height: "16px", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid #fff" }}>
+                {unreadCount}
+              </span>
+            )}
+          </button>
+
+          {openMenu === "notif" && (
+            <div
+              style={{
+                position: "absolute", right: 0, top: "calc(100% + 6px)",
+                width: "360px", maxHeight: "440px", overflowY: "auto",
+                background: "#fff", border: "1px solid var(--border)",
+                borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg)",
+                zIndex: 200, animation: "dialog-in 0.15s ease",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
+                <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)" }}>Notifications</p>
+                {unreadCount > 0 && (
+                  <button onClick={markAllRead} style={{ display: "flex", alignItems: "center", gap: "5px", background: "none", border: "none", cursor: "pointer", color: "var(--primary)", fontSize: "12px", fontWeight: 600 }}>
+                    <CheckCheck size={14} /> Mark all read
+                  </button>
+                )}
+              </div>
+
+              {inbox.length === 0 ? (
+                <div style={{ padding: "24px", textAlign: "center", color: "var(--subtext)", fontSize: "13px" }}>You're all caught up 🎉</div>
+              ) : (
+                inbox.map((n) => (
+                  <button
+                    key={n.id}
+                    onClick={() => handleNotificationClick(n)}
+                    style={{
+                      display: "flex", gap: "12px", width: "100%", padding: "12px 16px",
+                      background: n.read ? "none" : "var(--primary-light)",
+                      border: "none", borderBottom: "1px solid var(--border)",
+                      cursor: "pointer", textAlign: "left",
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--text)" }}>{n.title}</p>
+                        {!n.read && <span style={{ width: "7px", height: "7px", borderRadius: "99px", background: "var(--primary)", flexShrink: 0 }} />}
+                      </div>
+                      <p style={{ fontSize: "12.5px", color: "var(--label)", marginTop: "2px", lineHeight: 1.45 }}>{n.body}</p>
+                      <p style={{ fontSize: "11px", color: "var(--subtext)", marginTop: "4px" }}>{timeAgo(n.timestamp)}</p>
+                    </div>
+                  </button>
+                ))
+              )}
+
+              <button
+                onClick={() => { setOpenMenu(null); navigate("/notifications"); }}
+                style={{ width: "100%", padding: "11px 16px", background: "var(--background)", border: "none", borderTop: "1px solid var(--border)", cursor: "pointer", color: "var(--primary)", fontSize: "12.5px", fontWeight: 700 }}
+              >
+                View all notifications
+              </button>
+            </div>
+          )}
+        </div>
 
         <div style={{ width: "1px", height: "28px", background: "var(--border)", margin: "0 4px" }} />
 
-        <button id="user-menu-btn" aria-label="User menu"
-          style={{ display: "flex", alignItems: "center", gap: "10px", background: "none", border: "none", cursor: "pointer", padding: "6px 10px", borderRadius: "var(--radius)", transition: "background 0.15s" }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "var(--background)")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "none")}>
-          <img src={user.avatar} alt={user.firstName} style={{ width: "34px", height: "34px", borderRadius: "50%", objectFit: "cover", border: "2px solid var(--border)" }} />
-          <div style={{ textAlign: "left" }}>
-            <p style={{ fontWeight: 600, fontSize: "13.5px", color: "var(--text)", lineHeight: 1.3 }}>{user.firstName} {user.lastName}</p>
-            <p style={{ fontSize: "11.5px", color: "var(--subtext)", lineHeight: 1.3 }}>{user.designation}</p>
-          </div>
-          <ChevronDown size={15} style={{ color: "var(--subtext)" }} />
-        </button>
+        {/* User menu */}
+        <div ref={menuRef} style={{ position: "relative" }}>
+          <button
+            id="user-menu-btn"
+            aria-label="User menu"
+            onClick={() => setOpenMenu((m) => (m === "user" ? null : "user"))}
+            style={{ display: "flex", alignItems: "center", gap: "10px", background: "none", border: "none", cursor: "pointer", padding: "6px 10px", borderRadius: "var(--radius)", transition: "background 0.15s" }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--background)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+          >
+            <img src={user.avatar} alt={user.firstName} style={{ width: "34px", height: "34px", borderRadius: "50%", objectFit: "cover", border: "2px solid var(--border)" }} />
+            <div style={{ textAlign: "left" }}>
+              <p style={{ fontWeight: 600, fontSize: "13.5px", color: "var(--text)", lineHeight: 1.3 }}>{user.firstName} {user.lastName}</p>
+              <p style={{ fontSize: "11.5px", color: "var(--subtext)", lineHeight: 1.3 }}>{user.designation}</p>
+            </div>
+            <ChevronDown size={15} style={{ color: "var(--subtext)" }} />
+          </button>
+
+          {openMenu === "user" && (
+            <div
+              style={{
+                position: "absolute", right: 0, top: "calc(100% + 6px)",
+                width: "240px", background: "#fff", border: "1px solid var(--border)",
+                borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg)",
+                zIndex: 200, overflow: "hidden", animation: "dialog-in 0.15s ease",
+              }}
+            >
+              <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", background: "var(--background)" }}>
+                <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)", lineHeight: 1.3 }}>
+                  {user.firstName} {user.lastName}
+                </p>
+                <p style={{ fontSize: "11.5px", color: "var(--subtext)", marginTop: "2px" }}>{user.email}</p>
+                <span style={{ display: "inline-block", marginTop: "8px", fontSize: "10.5px", fontWeight: 700, color: "var(--primary)", background: "var(--primary-light)", padding: "2px 8px", borderRadius: "99px" }}>
+                  {user.role}
+                </span>
+              </div>
+
+              <button
+                onClick={() => { setOpenMenu(null); navigate(`/employees/${user.id}`); }}
+                style={menuItemStyle}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "var(--background)")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+              >
+                <UserRound size={16} /> My Profile
+              </button>
+
+              <button
+                onClick={() => { setOpenMenu(null); navigate("/notifications"); }}
+                style={menuItemStyle}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "var(--background)")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+              >
+                <Bell size={16} /> Notifications
+              </button>
+
+              <button
+                onClick={() => { setOpenMenu(null); navigate("/ess"); }}
+                style={menuItemStyle}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "var(--background)")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+              >
+                <Settings size={16} /> My Profile Settings
+              </button>
+
+              <div style={{ height: "1px", background: "var(--border)" }} />
+
+              <button
+                onClick={handleLogout}
+                style={{ ...menuItemStyle, color: "var(--red)" }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "var(--red-light)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "none"; }}
+              >
+                <LogOut size={16} /> Logout
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );
 }
+
+const menuItemStyle = {
+  display: "flex", alignItems: "center", gap: "10px",
+  width: "100%", padding: "10px 16px",
+  background: "none", border: "none", cursor: "pointer",
+  fontSize: "13px", fontWeight: 600, color: "var(--label)",
+  textAlign: "left", transition: "background 0.12s",
+};

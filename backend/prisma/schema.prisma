@@ -1,0 +1,450 @@
+// Proteccio Enterprise HRMS — Prisma schema
+// Based on docs/03_Database_Design.md (15 tables) plus schema additions
+// derived from the functional spec:
+//   - salary_structures, payroll_runs, payslips   (Module 7 — Payroll)
+//   - refresh_tokens                              (Module 23 / §26 — rotating refresh tokens)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Core Organization ──────────────────────────────────────────────────────
+
+model Company {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name               String   @db.VarChar(150)
+  registrationNumber String?  @map("registration_number") @db.VarChar(50)
+  country            String   @default("India") @db.VarChar(50)
+  currency           String   @default("INR") @db.VarChar(10)
+  isActive           Boolean  @default(true) @map("is_active")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  departments Department[]
+  locations   Location[]
+
+  @@map("companies")
+}
+
+model Department {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  name      String   @db.VarChar(100)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employees Employee[]
+
+  @@index([companyId])
+  @@map("departments")
+}
+
+model Location {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  name      String   @db.VarChar(100)
+  address   String?
+  isActive  Boolean  @default(true) @map("is_active")
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  employees Employee[]
+
+  @@index([companyId])
+  @@map("locations")
+}
+
+model Designation {
+  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title    String  @db.VarChar(100)
+  grade    String? @db.VarChar(20)
+  isActive Boolean @default(true) @map("is_active")
+
+  employees Employee[]
+
+  @@map("designations")
+}
+
+// ── Identity & RBAC ────────────────────────────────────────────────────────
+
+model Role {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String  @unique @db.VarChar(50)
+  description String?
+
+  users           User[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String  @unique @db.VarChar(80)
+  description String?
+
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String @map("role_id") @db.Uuid
+  permissionId String @map("permission_id") @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model User {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String    @unique @db.VarChar(150)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  roleId       String    @map("role_id") @db.Uuid
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLogin    DateTime? @map("last_login")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+
+  role          Role           @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  employee      Employee?
+  auditLogs     AuditLog[]
+  refreshTokens RefreshToken[]
+
+  @@index([roleId])
+  @@map("users")
+}
+
+model Employee {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId             String?   @unique @map("user_id") @db.Uuid
+  employeeCode       String    @unique @map("employee_code") @db.VarChar(20)
+  firstName          String    @map("first_name") @db.VarChar(80)
+  lastName           String    @map("last_name") @db.VarChar(80)
+  dateOfBirth        DateTime? @map("date_of_birth") @db.Date
+  gender             String?   @db.VarChar(20)
+  personalEmail      String?   @map("personal_email") @db.VarChar(150)
+  personalMobile     String?   @map("personal_mobile") @db.VarChar(20)
+  address            String?
+  departmentId       String?   @map("department_id") @db.Uuid
+  designationId      String?   @map("designation_id") @db.Uuid
+  locationId         String?   @map("location_id") @db.Uuid
+  reportingManagerId String?   @map("reporting_manager_id") @db.Uuid
+  dateOfJoining      DateTime  @map("date_of_joining") @db.Date
+  employmentType     String    @default("Full-Time") @map("employment_type") @db.VarChar(30)
+  status             String    @default("Active") @db.VarChar(20)
+  isDepartmentHead   Boolean   @default(false) @map("is_department_head")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+
+  user             User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  department       Department?      @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  designation      Designation?     @relation(fields: [designationId], references: [id], onDelete: SetNull)
+  location         Location?        @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  reportingManager Employee?        @relation("EmployeeReports", fields: [reportingManagerId], references: [id], onDelete: SetNull)
+  reports          Employee[]       @relation("EmployeeReports")
+  leaveBalances    LeaveBalance[]
+  leaveRequests    LeaveRequest[]   @relation("LeaveRequestsSubmitted")
+  approvedLeaves   LeaveRequest[]   @relation("LeaveRequestsApproved")
+  attendancePunches AttendancePunch[]
+  salaryStructures SalaryStructure[]
+  payslips         Payslip[]
+  approvedRuns     PayrollRun[]     @relation("PayrollRunApprovedBy")
+  workflowRequests WorkflowInstance[]
+
+  @@index([departmentId])
+  @@index([designationId])
+  @@index([reportingManagerId])
+  @@index([status])
+  @@map("employees")
+}
+
+model AuditLog {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorUserId  String?  @map("actor_user_id") @db.Uuid
+  action       String   @db.VarChar(50)
+  entityType   String   @map("entity_type") @db.VarChar(50)
+  entityId     String?  @map("entity_id") @db.Uuid
+  oldValue     Json?    @map("old_value") @db.JsonB
+  newValue     Json?    @map("new_value") @db.JsonB
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  actor User? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId])
+  @@index([entityType])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ── Leave Management ───────────────────────────────────────────────────────
+
+model LeaveType {
+  id                String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String  @db.VarChar(50)
+  code              String  @unique @db.VarChar(10)
+  defaultAnnualDays Int     @default(0) @map("default_annual_days")
+  carryForward      Boolean @default(false) @map("carry_forward")
+
+  leaveBalances LeaveBalance[]
+  leaveRequests LeaveRequest[]
+
+  @@map("leave_types")
+}
+
+model LeaveBalance {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId  String   @map("employee_id") @db.Uuid
+  leaveTypeId String   @map("leave_type_id") @db.Uuid
+  year        Int
+  totalDays   Decimal  @default(0) @map("total_days") @db.Decimal(5, 1)
+  usedDays    Decimal  @default(0) @map("used_days") @db.Decimal(5, 1)
+
+  employee  Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+
+  @@unique([employeeId, leaveTypeId, year])
+  @@map("leave_balances")
+}
+
+model LeaveRequest {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId  String   @map("employee_id") @db.Uuid
+  leaveTypeId String   @map("leave_type_id") @db.Uuid
+  startDate   DateTime @map("start_date") @db.Date
+  endDate     DateTime @map("end_date") @db.Date
+  reason      String?
+  status      String   @default("Pending") @db.VarChar(20)
+  approvedBy  String?  @map("approved_by") @db.Uuid
+  approvedOn  DateTime? @map("approved_on") @db.Date
+  comments    String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  employee  Employee  @relation("LeaveRequestsSubmitted", fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+  approver  Employee? @relation("LeaveRequestsApproved", fields: [approvedBy], references: [id], onDelete: SetNull)
+
+  @@index([employeeId])
+  @@index([status])
+  @@map("leave_requests")
+}
+
+// ── Attendance Tracking ────────────────────────────────────────────────────
+
+model AttendanceShift {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String   @db.VarChar(50)
+  startTime DateTime @map("start_time") @db.Time(0)
+  endTime   DateTime @map("end_time") @db.Time(0)
+
+  @@map("attendance_shifts")
+}
+
+model AttendancePunch {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId String    @map("employee_id") @db.Uuid
+  punchDate  DateTime  @map("punch_date") @db.Date
+  punchIn    DateTime? @map("punch_in") @db.Timestamp(6)
+  punchOut   DateTime? @map("punch_out") @db.Timestamp(6)
+  method     String    @default("Web") @db.VarChar(20)
+  // Derived status (Module 5): Present | Late | WFH | Absent | Holiday | Weekend
+  // Not derivable from punches alone, so stored. Computed at check-in/seed time.
+  status     String    @default("Present") @db.VarChar(20)
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, punchDate])
+  @@index([punchDate])
+  @@index([status])
+  @@map("attendance_punches")
+}
+
+// ── Payroll (Module 7) ─────────────────────────────────────────────────────
+
+model SalaryStructure {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId          String   @map("employee_id") @db.Uuid
+  effectiveFrom       DateTime @map("effective_from") @db.Date
+  basicSalary         Decimal  @map("basic_salary") @db.Decimal(12, 2)
+  hra                 Decimal  @map("hra") @db.Decimal(12, 2)
+  conveyanceAllowance Decimal  @default(0) @map("conveyance_allowance") @db.Decimal(12, 2)
+  medicalAllowance    Decimal  @default(0) @map("medical_allowance") @db.Decimal(12, 2)
+  performanceBonus    Decimal  @default(0) @map("performance_bonus") @db.Decimal(12, 2)
+  otherAllowances     Decimal  @default(0) @map("other_allowances") @db.Decimal(12, 2)
+  providentFund       Decimal  @default(0) @map("provident_fund") @db.Decimal(12, 2)
+  professionalTax     Decimal  @default(0) @map("professional_tax") @db.Decimal(12, 2)
+  incomeTax           Decimal  @default(0) @map("income_tax") @db.Decimal(12, 2)
+  healthInsurance     Decimal  @default(0) @map("health_insurance") @db.Decimal(12, 2)
+  isActive            Boolean  @default(true) @map("is_active")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  employee Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  payslips Payslip[]
+
+  @@index([employeeId])
+  @@map("salary_structures")
+}
+
+model PayrollRun {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  period          String    @db.VarChar(20)
+  month           Int
+  year            Int
+  status          String    @default("Draft") @db.VarChar(20)
+  processedOn     DateTime? @map("processed_on") @db.Date
+  approvedBy      String?   @map("approved_by") @db.Uuid
+  totalEmployees  Int       @default(0) @map("total_employees")
+  grossPayroll    Decimal   @default(0) @map("gross_payroll") @db.Decimal(14, 2)
+  totalDeductions Decimal   @default(0) @map("total_deductions") @db.Decimal(14, 2)
+  netPayroll      Decimal   @default(0) @map("net_payroll") @db.Decimal(14, 2)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+
+  approvedByEmployee Employee? @relation("PayrollRunApprovedBy", fields: [approvedBy], references: [id], onDelete: SetNull)
+  payslips           Payslip[]
+
+  @@unique([month, year])
+  @@index([status])
+  @@map("payroll_runs")
+}
+
+model Payslip {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  payrollRunId     String   @map("payroll_run_id") @db.Uuid
+  employeeId       String   @map("employee_id") @db.Uuid
+  salaryStructureId String  @map("salary_structure_id") @db.Uuid
+  period           String   @db.VarChar(20)
+  earnings         Json     @db.JsonB
+  deductions       Json     @db.JsonB
+  netPay           Decimal  @map("net_pay") @db.Decimal(12, 2)
+  status           String   @default("Paid") @db.VarChar(20)
+  paidOn           DateTime? @map("paid_on") @db.Date
+  paymentMode      String   @default("Bank Transfer") @map("payment_mode") @db.VarChar(50)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  payrollRun      PayrollRun      @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employee        Employee        @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  salaryStructure SalaryStructure @relation(fields: [salaryStructureId], references: [id], onDelete: Restrict)
+
+  @@unique([payrollRunId, employeeId])
+  @@index([employeeId])
+  @@map("payslips")
+}
+
+// ── Workflow Engine (Module 21) ────────────────────────────────────────────
+// A generic approval workflow engine. Definitions hold the approval template
+// (ordered/parallel steps with approver rules + optional conditions on the
+// request attributes); instances capture a concrete request snapshot so
+// in-flight requests complete against the version they were submitted on.
+
+model WorkflowDefinition {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requestType String   @map("request_type") @db.VarChar(150)
+  status      String   @default("Active") @db.VarChar(20)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  steps     WorkflowDefinitionStep[]
+  instances WorkflowInstance[]
+
+  @@map("workflow_definitions")
+}
+
+model WorkflowDefinitionStep {
+  id            String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  definitionId  String  @map("definition_id") @db.Uuid
+  name          String  @db.VarChar(120)
+  approverRule  String  @map("approver_rule") @db.VarChar(80)
+  slaHours      Int     @default(24) @map("sla_hours")
+  parallelGroup String? @map("parallel_group") @db.VarChar(20)
+  condition     Json?
+  orderIndex    Int     @map("order_index")
+
+  definition    WorkflowDefinition     @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+  instanceSteps WorkflowInstanceStep[]
+
+  @@index([definitionId])
+  @@map("workflow_definition_steps")
+}
+
+model WorkflowInstance {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  definitionId      String   @map("definition_id") @db.Uuid
+  requesterId       String   @map("requester_id") @db.Uuid
+  attributes        Json     @map("attributes")
+  status            String   @default("In Progress") @map("status") @db.VarChar(30)
+  currentStepIndex  Int      @default(0) @map("current_step_index")
+  resolutionFailure String?  @map("resolution_failure") @db.Text
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  definition WorkflowDefinition     @relation(fields: [definitionId], references: [id], onDelete: Restrict)
+  requester  Employee               @relation(fields: [requesterId], references: [id], onDelete: Restrict)
+  steps      WorkflowInstanceStep[]
+  events     WorkflowEvent[]
+
+  @@index([requesterId])
+  @@index([status])
+  @@map("workflow_instances")
+}
+
+model WorkflowInstanceStep {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  instanceId          String    @map("instance_id") @db.Uuid
+  definitionStepId    String    @map("definition_step_id") @db.Uuid
+  name                String    @db.VarChar(120)
+  approverRule        String    @map("approver_rule") @db.VarChar(80)
+  parallelGroup       String?   @map("parallel_group") @db.VarChar(20)
+  slaHours            Int       @map("sla_hours")
+  approverId          String?   @map("approver_id") @db.VarChar(80)
+  approverName        String?   @map("approver_name") @db.VarChar(120)
+  selfApprovalBlocked Boolean   @default(false) @map("self_approval_blocked")
+  escalatedTo         String?   @map("escalated_to") @db.VarChar(80)
+  escalatedToName     String?   @map("escalated_to_name") @db.VarChar(120)
+  status              String    @default("Pending") @db.VarChar(20)
+  actedBy             String?   @map("acted_by") @db.VarChar(80)
+  actedByName         String?   @map("acted_by_name") @db.VarChar(120)
+  actedAt             DateTime? @map("acted_at") @db.Timestamp(6)
+  rejectionReason     String?   @map("rejection_reason") @db.Text
+  startedAt           DateTime  @default(now()) @map("started_at") @db.Timestamp(6)
+
+  instance       WorkflowInstance       @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  definitionStep WorkflowDefinitionStep @relation(fields: [definitionStepId], references: [id], onDelete: Restrict)
+
+  @@index([instanceId])
+  @@map("workflow_instance_steps")
+}
+
+model WorkflowEvent {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  instanceId String   @map("instance_id") @db.Uuid
+  type       String   @db.VarChar(120)
+  detail     String   @db.Text
+  actorName  String?  @map("actor_name") @db.VarChar(120)
+  at         DateTime @default(now()) @map("at") @db.Timestamp(6)
+
+  instance WorkflowInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  @@index([instanceId])
+  @@index([at])
+  @@map("workflow_events")
+}
+
+// ── Session (Module 23) ────────────────────────────────────────────────────
+
+model RefreshToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @map("token_hash") @db.VarChar(255)
+  expiresAt DateTime  @map("expires_at") @db.Timestamp(6)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamp(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}

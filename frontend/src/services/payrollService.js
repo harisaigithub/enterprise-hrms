@@ -1,35 +1,29 @@
 /**
  * Payroll Service
- * FUTURE: import api from './api';
- * export const getPayrollRuns = () => api.get('/payroll/runs');
+ * Talks to the real backend (VITE_API_URL → /api).
  */
 
-import { payrollRuns, payslips } from "../mock/payroll";
-
-const delay = (ms = 300) => new Promise((res) => setTimeout(res, ms));
+import api from "./api";
 
 export const getPayrollRuns = async () => {
-  await delay();
-  return { data: payrollRuns };
+  const res = await api.get("/payroll/runs");
+  return res.data;
 };
 
 export const getPayslips = async (employeeId = "EMP001") => {
-  await delay();
-  const data = payslips.filter((p) => p.employeeId === employeeId);
-  return { data };
+  const res = await api.get("/payroll/payslips", { params: { employeeId } });
+  return res.data;
 };
 
 export const getPayslip = async (id) => {
-  await delay();
-  const payslip = payslips.find((p) => p.id === id);
-  if (!payslip) throw { status: 404, message: "Payslip not found" };
-  return { data: payslip };
+  const res = await api.get(`/payroll/payslips/${id}`);
+  return res.data;
 };
 
 /**
  * Run Payroll (high-impact — requires 4-eyes confirmation in the UI)
  */
 export const runPayroll = async (payrollRunId) => {
-  await delay(1000);
-  return { data: { id: payrollRunId, status: "Processing", startedAt: new Date().toISOString() } };
+  const res = await api.post(`/payroll/runs/${payrollRunId}/process`);
+  return res.data;
 };
