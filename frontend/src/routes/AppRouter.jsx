@@ -7,9 +7,11 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Spinner from "../components/shared/Spinner";
+import RequireAuth from "../components/auth/RequireAuth";
 
 // ── Eagerly loaded (critical path) ─────────────────────────────────────────
 import HRDashboard        from "../pages/Dashboard/HRDashboard";
+import Login              from "../pages/Auth/Login";
 
 // ── Lazily loaded modules ────────────────────────────────────────────────────
 const Employees           = lazy(() => import("../pages/Employees/Employees"));
@@ -50,41 +52,44 @@ export default function AppRouter() {
     <BrowserRouter>
       <Suspense fallback={<Loading />}>
         <Routes>
-          {/* Dashboard */}
-          <Route path="/"             element={<HRDashboard />} />
+          {/* Public */}
+          <Route path="/login" element={<Login />} />
+
+          {/* Authenticated */}
+          <Route path="/" element={<RequireAuth><HRDashboard /></RequireAuth>} />
 
           {/* Core HR */}
-          <Route path="/employees"           element={<Employees />} />
-          <Route path="/employees/:id"       element={<EmployeeProfile />} />
-          <Route path="/attendance"          element={<Attendance />} />
-          <Route path="/leave"               element={<Leave />} />
-          <Route path="/payroll"             element={<Payroll />} />
-          <Route path="/performance"         element={<Performance />} />
+          <Route path="/employees"           element={<RequireAuth><Employees /></RequireAuth>} />
+          <Route path="/employees/:id"       element={<RequireAuth><EmployeeProfile /></RequireAuth>} />
+          <Route path="/attendance"          element={<RequireAuth><Attendance /></RequireAuth>} />
+          <Route path="/leave"               element={<RequireAuth><Leave /></RequireAuth>} />
+          <Route path="/payroll"             element={<RequireAuth><Payroll /></RequireAuth>} />
+          <Route path="/performance"         element={<RequireAuth><Performance /></RequireAuth>} />
 
           {/* Talent */}
-          <Route path="/recruitment"         element={<Recruitment />} />
-          <Route path="/onboarding"          element={<Onboarding />} />
-          <Route path="/lms"                 element={<LMS />} />
+          <Route path="/recruitment"         element={<RequireAuth><Recruitment /></RequireAuth>} />
+          <Route path="/onboarding"          element={<RequireAuth><Onboarding /></RequireAuth>} />
+          <Route path="/lms"                 element={<RequireAuth><LMS /></RequireAuth>} />
 
           {/* Operations */}
-          <Route path="/assets"              element={<Assets />} />
-          <Route path="/tasks"               element={<Tasks />} />
-          <Route path="/expenses"            element={<Expenses />} />
-          <Route path="/travel"              element={<Travel />} />
+          <Route path="/assets"              element={<RequireAuth><Assets /></RequireAuth>} />
+          <Route path="/tasks"               element={<RequireAuth><Tasks /></RequireAuth>} />
+          <Route path="/expenses"            element={<RequireAuth><Expenses /></RequireAuth>} />
+          <Route path="/travel"              element={<RequireAuth><Travel /></RequireAuth>} />
 
           {/* Employee */}
-          <Route path="/ess"                 element={<ESS />} />
-          <Route path="/helpdesk"            element={<Helpdesk />} />
-          <Route path="/policies"            element={<Policies />} />
+          <Route path="/ess"                 element={<RequireAuth><ESS /></RequireAuth>} />
+          <Route path="/helpdesk"            element={<RequireAuth><Helpdesk /></RequireAuth>} />
+          <Route path="/policies"            element={<RequireAuth><Policies /></RequireAuth>} />
 
           {/* Admin */}
-          <Route path="/separation"          element={<Separation />} />
-          <Route path="/org-management"      element={<OrgManagement />} />
-          <Route path="/workflows"           element={<WorkflowEngine />} />
-          <Route path="/reports"             element={<Reports />} />
-          <Route path="/notifications"       element={<Notifications />} />
-          <Route path="/compliance"          element={<Compliance />} />
-          <Route path="/security"            element={<SecurityAdmin />} />
+          <Route path="/separation"          element={<RequireAuth><Separation /></RequireAuth>} />
+          <Route path="/org-management"      element={<RequireAuth><OrgManagement /></RequireAuth>} />
+          <Route path="/workflows"           element={<RequireAuth><WorkflowEngine /></RequireAuth>} />
+          <Route path="/reports"             element={<RequireAuth><Reports /></RequireAuth>} />
+          <Route path="/notifications"       element={<RequireAuth><Notifications /></RequireAuth>} />
+          <Route path="/compliance"          element={<RequireAuth><Compliance /></RequireAuth>} />
+          <Route path="/security"            element={<RequireAuth><SecurityAdmin /></RequireAuth>} />
 
           {/* Fallback — redirect unknown routes to dashboard */}
           <Route path="*"                    element={<Navigate to="/" replace />} />

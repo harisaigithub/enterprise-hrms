@@ -1,52 +1,33 @@
 /**
  * Employee Service
- * FUTURE: Swap the mock import for real API calls (one line change).
- * import api from './api';
- * export const getEmployees = (params) => api.get('/employees', { params });
+ * Talks to the real backend (VITE_API_URL → /api).
  */
 
-import { employees } from "../mock/employees";
-
-const delay = (ms = 300) => new Promise((res) => setTimeout(res, ms));
+import api from "./api";
 
 export const getEmployees = async ({ search = "", department = "", status = "" } = {}) => {
-  await delay();
-  let data = [...employees];
-  if (search) {
-    const q = search.toLowerCase();
-    data = data.filter(
-      (e) =>
-        `${e.firstName} ${e.lastName}`.toLowerCase().includes(q) ||
-        e.email.toLowerCase().includes(q) ||
-        e.id.toLowerCase().includes(q) ||
-        e.designation.toLowerCase().includes(q)
-    );
-  }
-  if (department) data = data.filter((e) => e.department === department);
-  if (status) data = data.filter((e) => e.status === status);
-  return { data, total: data.length };
+  const res = await api.get("/employees", {
+    params: { search, department, status, limit: 100 },
+  });
+  return res.data; // { data, total }
 };
 
 export const getEmployee = async (id) => {
-  await delay();
-  const emp = employees.find((e) => e.id === id);
-  if (!emp) throw { status: 404, message: "Employee not found" };
-  return { data: emp };
+  const res = await api.get(`/employees/${id}`);
+  return res.data;
 };
 
 export const createEmployee = async (payload) => {
-  await delay(500);
-  // Mock: returns the payload with a generated id
-  const newEmp = { ...payload, id: `EMP${String(Date.now()).slice(-4)}` };
-  return { data: newEmp };
+  const res = await api.post("/employees", payload);
+  return res.data;
 };
 
 export const updateEmployee = async (id, payload) => {
-  await delay(400);
-  return { data: { id, ...payload } };
+  const res = await api.put(`/employees/${id}`, payload);
+  return res.data;
 };
 
 export const deleteEmployee = async (id) => {
-  await delay(400);
-  return { data: { id, deleted: true } };
+  const res = await api.delete(`/employees/${id}`);
+  return res.data;
 };

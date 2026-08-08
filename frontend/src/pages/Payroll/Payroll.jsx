@@ -11,12 +11,14 @@ import StatusBadge from "../../components/shared/StatusBadge";
 import Spinner from "../../components/shared/Spinner";
 import ConfirmDialog from "../../components/shared/ConfirmDialog";
 import { getPayrollRuns, getPayslips, runPayroll } from "../../services/payrollService";
+import { useAuth } from "../../context/AuthContext";
 import { payrollStatusMeta } from "../../mock/payroll";
 
 const fmt = (n) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
 
 export default function Payroll() {
+  const { user } = useAuth();
   const [runs, setRuns]         = useState([]);
   const [payslips, setPayslips] = useState([]);
   const [loading, setLoading]   = useState(true);
@@ -27,13 +29,14 @@ export default function Payroll() {
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([getPayrollRuns(), getPayslips("EMP001")])
+    Promise.all([getPayrollRuns(), getPayslips(user.id)])
       .then(([runRes, slipRes]) => {
         setRuns(runRes.data);
         setPayslips(slipRes.data);
       })
+      .catch(() => setLoading(false))
       .finally(() => setLoading(false));
-  }, []);
+  }, [user.id]);
 
   const handleRunPayroll = async () => {
     if (!activeRun) return;

@@ -14,7 +14,7 @@ import StatusBadge from "../../components/shared/StatusBadge";
 import Spinner from "../../components/shared/Spinner";
 import EmptyState from "../../components/shared/EmptyState";
 import Modal from "../../components/shared/Modal";
-import { getEmployees } from "../../services/employeeService";
+import { getEmployees, createEmployee } from "../../services/employeeService";
 import { departments, statuses } from "../../mock/employees";
 
 const EMPLOYEE_STATUS_META = {
@@ -25,12 +25,13 @@ const EMPLOYEE_STATUS_META = {
 };
 
 // ─── Add Employee Form (minimal; expands in a later sprint) ─────────────────
-function AddEmployeeModal({ isOpen, onClose }) {
+function AddEmployeeModal({ isOpen, onClose, onCreated }) {
   const [form, setForm] = useState({
     firstName: "", lastName: "", email: "", designation: "", department: "",
   });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   const validate = () => {
     const e = {};
@@ -47,10 +48,23 @@ function AddEmployeeModal({ isOpen, onClose }) {
     e.preventDefault();
     if (!validate()) return;
     setSaving(true);
-    await new Promise((r) => setTimeout(r, 600)); // simulate API
-    setSaving(false);
-    onClose();
-    setForm({ firstName: "", lastName: "", email: "", designation: "", department: "" });
+    setError("");
+    try {
+      await createEmployee({
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        email: form.email.trim(),
+        designation: form.designation.trim(),
+        department: form.department,
+      });
+      onCreated();
+      onClose();
+      setForm({ firstName: "", lastName: "", email: "", designation: "", department: "" });
+    } catch (err) {
+      setError(err.message || "Could not create employee");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const field = (label, key, type = "text") => (
@@ -102,6 +116,12 @@ function AddEmployeeModal({ isOpen, onClose }) {
           </select>
           {errors.department && <span style={{ fontSize: "11px", color: "var(--red)" }}>{errors.department}</span>}
         </div>
+
+        {error && (
+          <div style={{ background: "var(--red-light)", color: "var(--red)", borderRadius: "var(--radius-sm)", padding: "10px 14px", fontSize: "12.5px", fontWeight: 600 }}>
+            {error}
+          </div>
+        )}
 
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "8px" }}>
           <button type="button" onClick={onClose}
@@ -341,7 +361,7 @@ export default function Employees() {
         </div>
       </div>
 
-      <AddEmployeeModal isOpen={showAdd} onClose={() => setShowAdd(false)} />
+      <AddEmployeeModal isOpen={showAdd} onClose={() => setShowAdd(false)} onCreated={load} />
     </MainLayout>
   );
 }

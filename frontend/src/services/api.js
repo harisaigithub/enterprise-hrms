@@ -1,10 +1,14 @@
 /**
  * API base instance
- * TODAY: All calls resolve with mock data — no real network request.
- * FUTURE: Set VITE_API_URL in .env and remove the mock imports from each service file.
+ * Talks to the real backend (see .env → VITE_API_URL).
  *
- * Interceptors are already wired up so when the backend is connected,
- * auth headers, error handling, and loading states work automatically.
+ * Auth flow:
+ *   - Request interceptor attaches the JWT access token (hrms_token).
+ *   - Response interceptor rotates the access token via the refresh token
+ *     (hrms_refresh) when a 401 is returned, then retries the original request.
+ *   - If rotation fails, the session is cleared and the user is sent to /login.
+ *
+ * AuthContext calls this for login/logout; every module service calls it too.
  */
 
 import axios from "axios";
@@ -27,15 +31,46 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// ── Response interceptor ────────────────────────────────────────────────────
+// ── Response interceptor (silent token refresh on 401) ─────────────────────
+let refreshing = null;
+
+async function tryRefresh() {
+  const refreshToken = localStorage.getItem("hrms_refresh");
+  if (!refreshToken) throw new Error("No refresh token");
+  const res = await axios.post(`${api.defaults.baseURL}/auth/refresh`, { refreshToken });
+  const { token, refreshToken: newRefresh, permissions } = res.data?.data ?? {};
+  if (!token) throw new Error("Refresh failed");
+  localStorage.setItem("hrms_token", token);
+  if (newRefresh) localStorage.setItem("hrms_refresh", newRefresh);
+  if (permissions) localStorage.setItem("hrms_permissions", JSON.stringify(permissions));
+  return token;
+}
+
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem("hrms_token");
-      localStorage.removeItem("hrms_role");
-      // FUTURE: window.location.href = '/login';
+  async (error) => {
+    const original = error.config;
+
+    // Only attempt rotation for real auth failures, once per request.
+    if (error.response?.status === 401 && original && !original._retried) {
+      original._retried = true;
+      try {
+        // Single-flight: concurrent 401s share one refresh call.
+        refreshing = refreshing || tryRefresh().finally(() => { refreshing = null; });
+        const token = await refreshing;
+        original.headers.Authorization = `Bearer ${token}`;
+        return api(original);
+      } catch {
+        localStorage.removeItem("hrms_token");
+        localStorage.removeItem("hrms_refresh");
+        localStorage.removeItem("hrms_role");
+        localStorage.removeItem("hrms_permissions");
+        if (window.location.pathname !== "/login") {
+          window.location.href = "/login";
+        }
+      }
     }
+
     // Do NOT expose raw stack traces — re-throw a clean object
     return Promise.reject({
       status: error.response?.status || 0,

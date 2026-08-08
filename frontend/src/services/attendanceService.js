@@ -1,47 +1,26 @@
 /**
  * Attendance Service
- * FUTURE: import api from './api';
- * export const getAttendance = (params) => api.get('/attendance', { params });
+ * Talks to the real backend (VITE_API_URL → /api).
  */
 
-import { attendanceRecords, teamAttendanceSummary } from "../mock/attendance";
+import api from "./api";
 
-const delay = (ms = 300) => new Promise((res) => setTimeout(res, ms));
-
-export const getMyAttendance = async ({ employeeId = "EMP001", month, year } = {}) => {
-  await delay();
-  let data = attendanceRecords.filter((r) => r.employeeId === employeeId);
-  if (month && year) {
-    data = data.filter((r) => {
-      const d = new Date(r.date);
-      return d.getMonth() + 1 === Number(month) && d.getFullYear() === Number(year);
-    });
-  }
-  return { data };
+export const getMyAttendance = async ({ employeeId, month, year } = {}) => {
+  const res = await api.get("/attendance", { params: { employeeId, month, year, limit: 100 } });
+  return res.data; // { data, total }
 };
 
 export const getTeamSummary = async () => {
-  await delay(200);
-  return { data: teamAttendanceSummary };
+  const res = await api.get("/attendance/summary");
+  return res.data; // { data }
 };
 
-export const checkIn = async (employeeId) => {
-  await delay(500);
-  const now = new Date();
-  return {
-    data: {
-      employeeId,
-      date: now.toISOString().split("T")[0],
-      checkIn: now.toTimeString().slice(0, 5),
-      status: "Present",
-    },
-  };
+export const checkIn = async (employeeId, method = "Web") => {
+  const res = await api.post("/attendance/check-in", { employeeId, method });
+  return res.data;
 };
 
 export const checkOut = async (employeeId) => {
-  await delay(500);
-  const now = new Date();
-  return {
-    data: { employeeId, checkOut: now.toTimeString().slice(0, 5) },
-  };
+  const res = await api.post("/attendance/check-out", { employeeId });
+  return res.data;
 };

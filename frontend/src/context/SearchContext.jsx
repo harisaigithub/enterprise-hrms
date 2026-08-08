@@ -1,10 +1,11 @@
 /**
  * SearchContext
  * Provides global search state shared between Navbar input and SearchResults page.
+ * Debounced calls hit the real backend /search endpoint.
  */
 
-import { createContext, useContext, useState, useMemo, useRef, useEffect } from "react";
-import { buildSearchIndex, searchIndex } from "../mock/searchIndex";
+import { createContext, useContext, useState, useRef, useEffect } from "react";
+import api from "../services/api";
 
 const SearchContext = createContext(null);
 
@@ -12,20 +13,27 @@ export function SearchProvider({ children }) {
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);  // controls the dropdown
 
-  // Build the index once at startup
-  const index = useMemo(() => buildSearchIndex(), []);
-
   // Debounced search results
   const [results, setResults] = useState([]);
   const debounceRef = useRef(null);
 
   useEffect(() => {
     clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setResults(searchIndex(index, query));
+    const q = query.trim();
+    if (q.length < 2) return;
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await api.get("/search", { params: { q } });
+        setResults(res.data?.data || []);
+      } catch {
+        setResults([]);
+      }
     }, 150);
     return () => clearTimeout(debounceRef.current);
-  }, [query, index]);
+  }, [query]);
+
+  // Keep the dropdown empty while the query is too short (no sync setState).
+  const visibleResults = query.trim().length >= 2 ? results : [];
 
   const clear = () => {
     setQuery("");
@@ -34,7 +42,7 @@ export function SearchProvider({ children }) {
   };
 
   return (
-    <SearchContext.Provider value={{ query, setQuery, results, isOpen, setIsOpen, clear }}>
+    <SearchContext.Provider value={{ query, setQuery, results: visibleResults, isOpen, setIsOpen, clear }}>
       {children}
     </SearchContext.Provider>
   );
