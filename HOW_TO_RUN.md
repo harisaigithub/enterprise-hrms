@@ -20,9 +20,13 @@ start-all.cmd
 ```
 
 That single command:
-1. starts the Postgres container (`docker compose up -d db`)
-2. opens a **Backend** window → http://localhost:4000
-3. opens a **Frontend** window → http://localhost:5173
+1. performs first-time setup automatically — installs dependencies, creates
+   `backend/.env` and `frontend/.env` from their `.env.example` files
+2. starts the Postgres container (`docker compose up -d db`)
+3. applies migrations and seeds demo data **once** (guarded by a `.hrms-seeded`
+   marker; delete it to re-seed)
+4. opens a **Backend** window → http://localhost:4000
+5. opens a **Frontend** window → http://localhost:5173
 
 Then open http://localhost:5173 and log in.
 
@@ -55,7 +59,7 @@ docker compose ps        # look for "db ... Up ... (healthy)"
 cd backend
 npm install              # only the first time
 copy .env.example .env   # only the first time (already done on this machine)
-npm run prisma:migrate -- --name init   # only the first time
+npx prisma migrate deploy  # only the first time — applies committed migrations
 npm run prisma:seed      # only the first time — loads demo data
 npm run build            # compiles TypeScript -> dist/
 npm run start            # node dist/index.js
@@ -116,6 +120,6 @@ docker compose down      # stops the database container
 | Problem | Fix |
 |---------|-----|
 | `P1000: Authentication failed` when migrating | Docker Postgres port is shadowed by a local install → `docker compose up -d db`, confirm `docker compose ps` shows healthy, check `DATABASE_URL` in `backend/.env` uses port **5433** |
-| `prisma migrate dev` hangs asking for a name | Run `npm run prisma:migrate -- --name init` |
+| `prisma migrate dev` hangs asking for a name | Run `npx prisma migrate deploy` to apply committed migrations |
 | Frontend can't reach API | Confirm `frontend/.env` has `VITE_API_URL=http://localhost:4000/api` and the backend is running |
 | Port 4000 in use | `netstat -ano \| findstr :4000`, kill the PID, or change `PORT` in `backend/.env` |

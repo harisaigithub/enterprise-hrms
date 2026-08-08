@@ -1,169 +1,96 @@
 # Enterprise HRMS
 
-A comprehensive Enterprise Human Resource Management System with 23 modules covering the complete employee lifecycle — from recruitment through separation.
+A full-stack Enterprise Human Resource Management System covering the employee lifecycle — from recruitment through separation. React (Vite) frontend + Node.js/Express + TypeScript + Prisma/PostgreSQL backend, with JWT auth and role-based access control.
 
 ## Current Status
 
-**Frontend-only prototype with mock data.** This is an internship project with a fully designed frontend UI but no backend implementation. The application demonstrates the planned UX, data models, and workflows.
+Production-shaped, demo-complete. The core modules are wired to a **real REST API + PostgreSQL**:
 
-## Features (Implemented)
+- Authentication & RBAC (JWT, admin / hr / manager / employee roles)
+- Employees (list, profile, add)
+- Attendance, Leave, Payroll
+- Global search
+- **Workflow Engine** (definitions, instances, approval steps, parallel groups, conditions, SLA escalation, event log) — fully implemented on backend + frontend
 
-- **Dashboard**: Role-based HR dashboard with alerts, hiring insights, quick actions, team snapshot, payroll summary
-- **Employee Management**: Searchable/filterable table, add employee modal, employee profile with 3 tabs
-- **Attendance Tracking**: Check-in/out toggle, team summary, monthly records with status badges
-- **Leave Management**: Leave balances with usage bars, apply for leave modal, requests table
-- **Payroll**: Payroll runs, payslip detail view, run payroll with confirmation dialog
-- **Global Search**: Ctrl+K command palette searching employees, leave, and payroll
-
-## Features (Planned — 18 modules)
-
-Recruitment (ATS), Onboarding, Performance Management, LMS, Asset Management, Task Management, Expense Management, Travel Management, Employee Self Service, Helpdesk, Policy Management, Separation Management, Organization Management, Workflow Engine, Reports & Analytics, Notifications, Compliance, Security & Administration
+Remaining modules are frontend placeholders only. See `LEARN.md` §11 for the real-vs-mock module list.
 
 ## Tech Stack
 
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| React | 19.2.7 | UI framework |
-| Vite | 8.1.1 | Build tool |
-| React Router | 7.18.1 | Routing |
-| Tailwind CSS | 4.3.3 | Styling |
-| TanStack React Query | 5.101.2 | State management |
-| Axios | 1.18.1 | HTTP client |
-| Recharts | 3.9.2 | Charts |
-| Lucide React | 1.25.0 | Icons |
-| React Hook Form | 7.82.0 | Forms |
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 19, Vite 8, Tailwind CSS 4, React Router, TanStack Query, Axios, Recharts |
+| Backend | Node.js, Express, TypeScript, Prisma ORM |
+| Database | PostgreSQL 16 (Docker) |
+| Auth | JWT access + rotating refresh tokens, RBAC |
 
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                 React SPA (Vite)                        │
-│  ┌──────────┐  ┌────────────┐  ┌───────────────────┐  │
-│  │ Auth     │  │ Search     │  │ 23 Page Modules   │  │
-│  │ Context  │  │ Context    │  │ (5 complete)      │  │
-│  └──────────┘  └────────────┘  └───────────────────┘  │
-│         ↓              ↓              ↓                 │
-│  ┌─────────────────────────────────────────────────┐  │
-│  │              Service Layer (Mock)                │  │
-│  └──────────────────────┬──────────────────────────┘  │
-│                         ↓                              │
-│              ┌────────────────────┐                    │
-│              │   Mock Data (5)    │                    │
-│              └────────────────────┘                    │
-└─────────────────────────────────────────────────────────┘
-```
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full architecture diagram.
-
-## Folder Structure
+## Repository Layout
 
 ```
 enterprise-hrms/
-├── frontend/                    # React application
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── dashboard/       # Dashboard widgets (8)
-│   │   │   ├── layout/          # App shell (Sidebar, Navbar, MainLayout)
-│   │   │   └── shared/          # Reusable UI (7 components)
-│   │   ├── context/             # AuthContext, SearchContext
-│   │   ├── data/                # Static dashboard data
-│   │   ├── mock/                # Mock API data (employees, leave, etc.)
-│   │   ├── pages/               # 28 page components (23 modules)
-│   │   │   ├── Dashboard/       # HR, Admin, Manager, Employee
-│   │   │   ├── Employees/       # List + Profile
-│   │   │   ├── Attendance/      # Check-in/out, records
-│   │   │   ├── Leave/           # Balances, requests
-│   │   │   ├── Payroll/         # Runs, payslips
-│   │   │   └── ...              # 18 stub pages
-│   │   ├── routes/              # AppRouter, DashboardRouter (deprecated)
-│   │   ├── services/            # API service layer (5 services)
-│   │   └── styles/              # CSS variables, global styles
-│   ├── index.html
-│   ├── package.json
-│   └── vite.config.js
-├── docs/                        # Documentation
-├── .env.example                 # Empty — no env vars yet
-├── docker-compose.yml           # Empty
-└── README.md
+├── backend/        # Express + TS API, Prisma schema + migrations + seed
+├── frontend/       # React SPA (Vite)
+├── docs/           # Design docs (ARCHITECTURE, API, DATABASE, ...)
+├── start-all.cmd   # One-command startup (Windows)
+├── stop-all.cmd    # Stop servers
+├── HOW_TO_RUN.md   # Step-by-step run guide
+├── DEMO_CREDENTIALS.md
+├── LEARN.md        # 0-knowledge codebase walkthrough
+└── docker-compose.yml
 ```
 
-## Installation
+## Quick Start (Windows)
+
+Requirements: **Node.js 18+**, **Docker Desktop running**, Git.
 
 ```bash
-# Clone the repository
 git clone <repo-url>
-cd enterprise-hrms/frontend
+cd enterprise-hrms
+start-all.cmd
+```
 
-# Install dependencies
+`start-all.cmd` performs first-time setup automatically (installs deps, creates `.env` files, starts PostgreSQL, applies migrations, seeds demo data) then launches backend (`:4000`) and frontend (`:5173`).
+
+Open `http://localhost:5173` and log in — accounts are in `DEMO_CREDENTIALS.md` (password `Password@123`).
+
+To reset demo data later: delete `.hrms-seeded` and run `start-all.cmd` again.
+
+## Manual Setup (non-Windows / custom)
+
+```bash
+# 1. Database
+docker compose up -d db
+
+# 2. Backend
+cd backend
+cp .env.example .env        # edit if needed
 npm install
+npx prisma migrate deploy
+npm run prisma:seed
+npm run dev                 # http://localhost:4000
 
-# Start development server
-npm run dev
+# 3. Frontend (separate terminal)
+cd frontend
+cp .env.example .env
+npm install
+npm run dev                 # http://localhost:5173
 ```
 
 ## Environment Variables
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `VITE_API_URL` | `/api` | Backend API base URL |
-
-Copy `.env.example` to `.env` to customize.
-
-## Running Locally
-
-```bash
-cd enterprise-hrms/frontend
-npm install
-npm run dev
-```
-
-The app starts at `http://localhost:5173`.
-
-## Build for Production
-
-```bash
-npm run build
-npm run preview
-```
-
-## Database Setup (Planned)
-
-The intended database is PostgreSQL. The schema design document is at `docs/DATABASE.md`.
-
-To apply the schema when backend is ready:
-
-```bash
-psql -U hrms_admin -d hrms_db -f schema.sql
-```
-
-## API Documentation
-
-See [docs/API.md](docs/API.md) for detailed API documentation.
+| File | Variable | Default | Purpose |
+|------|----------|---------|---------|
+| `backend/.env` | `DATABASE_URL` | `postgresql://hrms_admin:hrms_password@localhost:5433/hrms_db` | Postgres DSN (host port 5433 per docker-compose) |
+| `backend/.env` | `JWT_SECRET` / `REFRESH_SECRET` | demo secrets | Signing keys |
+| `frontend/.env` | `VITE_API_URL` | `http://localhost:4000/api` | Backend base URL |
 
 ## Documentation Index
 
 | Document | Description |
 |----------|-------------|
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture and design |
-| [API.md](docs/API.md) | API endpoints and service layer |
-| [DATABASE.md](docs/DATABASE.md) | Database schema and ER diagram |
-| [BACKEND.md](docs/BACKEND.md) | Backend analysis and plan |
-| [FRONTEND.md](docs/FRONTEND.md) | Frontend analysis and pages |
-| [AUTHENTICATION.md](docs/AUTHENTICATION.md) | Auth flow and security |
-| [FEATURES.md](docs/FEATURES.md) | Feature inventory |
-| [PROGRESS.md](docs/PROGRESS.md) | Project completion status |
-| [TODO.md](docs/TODO.md) | TODOs and code quality issues |
-| [SECURITY.md](docs/SECURITY.md) | Security analysis |
-
-## Future Improvements
-
-1. **Backend Implementation**: Node.js/Express REST API with PostgreSQL
-2. **Real Authentication**: JWT-based login with role-based access control
-3. **Remaining 18 Modules**: Full feature implementation
-4. **TypeScript Migration**: Add type safety
-5. **Unit & Integration Tests**: Test coverage
-6. **CI/CD Pipeline**: Automated build, test, deploy
-7. **Docker Setup**: Containerized deployment
-8. **Internationalization**: Multi-language support
-9. **Dark Mode**: Theme toggle
-10. **Accessibility**: WCAG compliance
+| [HOW_TO_RUN.md](HOW_TO_RUN.md) | Step-by-step run guide |
+| [LEARN.md](LEARN.md) | 0-knowledge codebase walkthrough |
+| [DEMO_CREDENTIALS.md](DEMO_CREDENTIALS.md) | Demo login accounts |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture and design |
+| [docs/API.md](docs/API.md) | API endpoints and service layer |
+| [docs/DATABASE.md](docs/DATABASE.md) | Database schema and ER diagram |
+| [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md) | Auth flow and security |
