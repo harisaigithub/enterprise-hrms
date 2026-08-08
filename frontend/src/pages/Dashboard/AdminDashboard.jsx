@@ -15,14 +15,16 @@ import HiringFunnelWidget from "../../components/dashboard/HiringFunnelWidget";
 import PayrollCostTrendWidget from "../../components/dashboard/PayrollCostTrendWidget";
 import SatisfactionWidget from "../../components/dashboard/SatisfactionWidget";
 import ProductivityWidget from "../../components/dashboard/ProductivityWidget";
-import { user } from "../../data/user";
 
-export default function AdminDashboard() {
+
+export default function AdminDashboard({ user }) {
   return (
     <MainLayout>
       <div style={{ maxWidth: "1480px", margin: "0 auto" }}>
         <div style={{ marginBottom: "24px" }}>
-          <h1 style={{ fontSize: "26px", fontWeight: 800, color: "var(--text)" }}>{user.greeting}, {user.firstName} 👋</h1>
+          <h1 style={{ fontSize: "26px", fontWeight: 800, color: "var(--text)" }}>
+            {user?.greeting || "Good day"}, {user?.firstName || user?.name || ""} 👋
+          </h1>
           <p style={{ fontSize: "14px", color: "var(--subtext)", marginTop: "4px" }}>Here's your org-wide overview</p>
         </div>
 

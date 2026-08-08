@@ -1,69 +1,48 @@
-import { ChevronRight } from "lucide-react";
-import { resources } from "../../data/resources";
+import { useNavigate } from "react-router-dom";
+import { ShieldCheck, ChevronRight } from "lucide-react";
+import DashboardWidgetCard from "./DashboardWidgetCard";
+import { useDashboardWidget } from "../../hooks/useDashboardWidget";
+import { getHRDashboardSnapshot } from "../../services/hrDashboardService";
 
-export default function ResourcesCard() {
+export default function Resources() {
+  const navigate = useNavigate();
+  const { data, loading, error, retry } = useDashboardWidget(getHRDashboardSnapshot);
+  const resources = data?.resources;
+  const list = resources?.list || [];
+
   return (
-    <div
-      style={{
-        background: "var(--card)",
-        borderRadius: "var(--radius-lg)",
-        border: "1px solid var(--border)",
-        boxShadow: "var(--shadow-sm)",
-        padding: "20px",
-        transition: "box-shadow 0.2s ease",
-      }}
-      onMouseEnter={(e) => (e.currentTarget.style.boxShadow = "var(--shadow-md)")}
-      onMouseLeave={(e) => (e.currentTarget.style.boxShadow = "var(--shadow-sm)")}
+    <DashboardWidgetCard
+      icon={ShieldCheck}
+      title="Policy Compliance"
+      loading={loading}
+      error={error}
+      onRetry={retry}
+      isEmpty={!loading && !error && list.length === 0}
+      emptyLabel="No policy items need attention."
     >
-      <h2
-        style={{
-          fontSize: "14px",
-          fontWeight: 700,
-          color: "var(--text)",
-          marginBottom: "12px",
-        }}
-      >
-        Resources
-      </h2>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-        {resources.map((item) => (
+      <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+        {list.map((item) => (
           <button
-            key={item}
+            key={item.name}
+            onClick={(e) => { e.stopPropagation(); navigate(item.link); }}
             style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "10px 12px",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-sm)",
-              background: "var(--background)",
-              cursor: "pointer",
-              transition: "background 0.15s ease, border-color 0.15s ease",
-              textAlign: "left",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "var(--primary-light)";
-              e.currentTarget.style.borderColor = "var(--border-focus)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "var(--background)";
-              e.currentTarget.style.borderColor = "var(--border)";
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              width: "100%", padding: "10px 4px", background: "transparent", border: "none",
+              borderBottom: "1px solid var(--border)", cursor: "pointer", textAlign: "left",
             }}
           >
-            <span
-              style={{
-                fontSize: "12.5px",
-                color: "var(--text)",
-                fontWeight: 500,
-              }}
-            >
-              {item}
+            <span style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+              <span style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--text)" }}>
+                {item.name}
+              </span>
+              <span style={{ fontSize: "11px", color: "var(--subtext)" }}>
+                {item.note}
+              </span>
             </span>
-            <ChevronRight size={14} style={{ color: "var(--subtext)", flexShrink: 0 }} />
+            <ChevronRight size={15} style={{ color: "var(--subtext)", flexShrink: 0 }} />
           </button>
         ))}
       </div>
-    </div>
+    </DashboardWidgetCard>
   );
 }

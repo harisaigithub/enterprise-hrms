@@ -1,25 +1,28 @@
-import { useState } from "react";
-import RoleSwitcher from "../components/dashboard/shared/RoleSwitcher";
-import EmployeeDashboard from "./dashboard/EmployeeDashboard";
-import HRDashboard from "./dashboard/HRDashboard";
-import ManagementDashboard from "./dashboard/ManagementDashboard";
-import { ROLES, MOCK_USERS } from "../mock/dashboard";
- 
-export default function Dashboard() {
-  const [role, setRole] = useState(ROLES.EMPLOYEE);
-  const user = MOCK_USERS[role];
-  const topSlot = <RoleSwitcher role={role} onChange={setRole} />;
- 
-  switch (role) {
-    case ROLES.MANAGER:
-      return <EmployeeDashboard user={user} isManager topSlot={topSlot} />;
-    case ROLES.HR:
-      return <HRDashboard topSlot={topSlot} />;
-    case ROLES.MANAGEMENT:
-      return <ManagementDashboard user={user} topSlot={topSlot} />;
-    case ROLES.EMPLOYEE:
+import { useAuth } from "../context/AuthContext";
+import EmployeeDashboard from "../pages/Dashboard/EmployeeDashboard";
+import HRDashboard from "../pages/Dashboard/HRDashboard";
+import ManagerDashboard from "../pages/Dashboard/ManagerDashboard";
+import AdminDashboard from "../pages/Dashboard/Admindashboard";
+
+/**
+ * Picks which dashboard to render based on the logged-in user's real role
+ * (from AuthContext, set at /auth/login). Each role has its own dedicated
+ * dashboard component — Manager and Admin are NOT variants of
+ * EmployeeDashboard, they're separate files (ManagerDashboard.jsx,
+ * Admindashboard.jsx).
+ */
+export default function DashboardRouter() {
+  const { user, role } = useAuth();
+
+  switch (role?.toUpperCase()) {
+    case "MANAGER":
+      return <ManagerDashboard user={user} />;
+    case "HR":
+      return <HRDashboard user={user} />;
+    case "ADMIN":
+      return <AdminDashboard user={user} />;
+    case "EMPLOYEE":
     default:
-      return <EmployeeDashboard user={user} isManager={false} topSlot={topSlot} />;
+      return <EmployeeDashboard user={user} />;
   }
 }
- 

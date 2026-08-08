@@ -6,13 +6,16 @@ import QuickActions from "../../components/dashboard/QuickActions";
 import PeopleCard from "../../components/dashboard/PeopleCard";
 import PayrollCard from "../../components/dashboard/PayrollCard";
 import ResourcesCard from "../../components/dashboard/ResourcesCard";
+import HiringChart from "../../components/dashboard/HiringChart";
 
 export default function HRDashboard({ topSlot = null }) {
   return (
-    <MainLayout>
+    
+       <MainLayout>
       <div style={{ maxWidth: "1480px", margin: "0 auto" }}>
         {topSlot}
         <WelcomeCard />
+        <AlertCard />
 
         <div
           style={{
@@ -24,7 +27,6 @@ export default function HRDashboard({ topSlot = null }) {
         >
           {/* Left column */}
           <div style={{ display: "flex", flexDirection: "column", gap: "20px", minWidth: 0 }}>
-            <AlertCard />
             <HiringInsights />
           </div>
 

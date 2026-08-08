@@ -15,14 +15,16 @@ import AnnouncementsWidget from "../../components/dashboard/AnnouncementsWidget"
 import BirthdaysWidget from "../../components/dashboard/BirthdaysWidget";
 import SelfAssessmentWidget from "../../components/dashboard/SelfAssessmentWidget";
 import ComplianceCoursesWidget from "../../components/dashboard/ComplianceCoursesWidget";
-import { user } from "../../data/user";
 
-export default function ManagerDashboard() {
+
+export default function ManagerDashboard({ user }) {
   return (
     <MainLayout>
       <div style={{ maxWidth: "1480px", margin: "0 auto" }}>
         <div style={{ marginBottom: "24px" }}>
-          <h1 style={{ fontSize: "26px", fontWeight: 800, color: "var(--text)" }}>{user.greeting}, {user.firstName} 👋</h1>
+          <h1 style={{ fontSize: "26px", fontWeight: 800, color: "var(--text)" }}>
+            {user?.greeting || "Good day"}, {user?.firstName || user?.name || ""} 👋
+          </h1>
           <p style={{ fontSize: "14px", color: "var(--subtext)", marginTop: "4px" }}>Here's your team and your day at a glance</p>
         </div>
 
