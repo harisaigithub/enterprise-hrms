@@ -1,5 +1,5 @@
 /**
- * Mock data — Module 23: Notifications
+ * Mock data — Notifications
  */
 
 export const CHANNELS = ["Email", "SMS", "WhatsApp", "Push", "Teams", "Slack", "In-app"];
@@ -9,14 +9,14 @@ export const NOTIFICATION_CATEGORIES = [
   "New Device Login", "Compliance Training Due", "Expense Approved", "Onboarding Reminder",
 ];
 
-// spec 23.5 step 2 — these always also go to Email regardless of the
+// 
 // recipient's channel preference, including a full opt-out.
 export const SECURITY_CRITICAL_CATEGORIES = ["New Device Login"];
 
 export const CURRENT_USER = { id: "EMP014", name: "Ananya Verma" };
 
 /**
- * Approved merge-field catalog for notification templates (spec 23.6).
+ * Approved merge-field catalog for notification templates .
  * Deliberately includes L3/L4 entries (unlike the Reports catalog, which
  * just omits them) because the linter needs real disallowed fields to
  * demonstrate rejecting — this list IS what lintTemplateBody checks against.

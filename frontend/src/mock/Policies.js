@@ -1,5 +1,5 @@
 /**
- * Mock data — Policy Management (Module 18)
+ * Mock data — Policy Management 
  */
 
 export const policyStatusMeta = {

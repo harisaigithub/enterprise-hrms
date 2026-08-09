@@ -1,5 +1,5 @@
 /**
- * Mock data — Compliance (Module 24)
+ * Mock data — Compliance 
  *
  * Case file contents here are deliberately minimal and administrative only
  * (case number, status, dates, named investigators) — no names of parties

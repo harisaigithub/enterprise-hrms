@@ -1,6 +1,6 @@
 /**
- * Mock data for the Admin (Management) Dashboard — spec 3.5.3
- * Pre-aggregated nightly by the Analytics Engine into materialized summary
+ * Admin (Management) Dashboard — 
+ * aggregated by the Analytics Engine into materialized summary
  * tables rather than computed live — the "asOf" timestamp models that.
  */
 

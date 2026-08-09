@@ -4,8 +4,7 @@ import DashboardWidgetCard from "./DashboardWidgetCard";
 import { useDashboardWidget } from "../../hooks/useDashboardWidget";
 import { getHRDashboardSnapshot } from "../../services/hrDashboardService";
 
-// Maps the iconName string stored in the mock data to an actual lucide icon
-// component, so the data layer stays framework-agnostic (JSON-serializable).
+// Maps action id to icon component.
 const ICONS = {
   UserPlus,
   Briefcase,

@@ -22,7 +22,7 @@ let _tickets = [...RAW_TICKETS];
 
 /**
  * Derives the effective status/escalation state of a ticket without mutating
- * it, per spec 17.5 steps 4-5:
+ * it, per 
  *   - SLA breached + not resolved/closed → escalated=true, but status and
  *     assignedAgent are untouched (escalation never removes ownership).
  *   - Resolved ticket past the reopen window with no reopen → effectively Closed.
@@ -58,7 +58,7 @@ export function getMyTickets(employeeId) {
 
 /**
  * Tickets for a given queue. Confidential-category tickets only ever
- * surface in the restricted queue (spec 17.5 step 6) — a general agent
+ * surface in the restricted queue  — a general agent
  * fetching "HR" never sees them, regardless of what's asked for.
  */
 export function getAgentQueue(queueName) {
@@ -76,7 +76,7 @@ export function getAllQueueNames() {
 
 /**
  * Raises a new ticket. Category drives queue assignment and SLA clock start
- * (spec 17.5 step 2); the confidential category is always force-routed to
+ * ; the confidential category is always force-routed to
  * the restricted queue, never left to the submitter to choose a queue.
  */
 export function raiseTicket(input) {
@@ -103,8 +103,7 @@ export function raiseTicket(input) {
 }
 
 /**
- * Resolves a ticket. Blocked without resolution notes (spec 17.6 — hard
- * validation rule, not a UI nicety).
+ * Resolves a ticket. Blocked without resolution notes .
  */
 export function resolveTicket(ticketId, notes) {
   if (!notes || !notes.trim()) {
@@ -120,7 +119,7 @@ export function resolveTicket(ticketId, notes) {
   return delay(deriveTicketView(ticket));
 }
 
-/** Employee reopens within the window (spec 17.5 step 5). */
+/** Employee reopens within the window . */
 export function reopenTicket(ticketId, message) {
   const ticket = _tickets.find((t) => t.id === ticketId);
   if (!ticket) return delay(null);
@@ -138,7 +137,7 @@ export function reopenTicket(ticketId, message) {
 
 /**
  * Reassigns a ticket to a different queue. Confidential tickets can only be
- * reassigned by the restricted queue's own owner/Admin (spec 17.6) — this
+ * reassigned by the restricted queue's own owner/Admin  — this
  * function is the enforcement point, independent of what the UI allows.
  */
 export function reassignTicket(ticketId, newQueue, actorRole) {

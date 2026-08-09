@@ -1,5 +1,5 @@
 /**
- * Mock data — Organization Management (Module 20)
+ * Mock data — Organization Management 
  */
 
 export const statusMeta = {

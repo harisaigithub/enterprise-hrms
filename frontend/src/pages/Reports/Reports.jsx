@@ -1,8 +1,8 @@
-ï»¿/**
- * Reports & Analytics Page â€” Module 22
+/**
+ * Reports & Analytics Page — Module 22
  * Tabs: Standard Reports (pre-built templates), Custom Builder (approved
  * field catalog only). Scope filtering, small-cell suppression, and field
- * validation are enforced in reportsService.js â€” this page just renders
+ * validation are enforced in reportsService.js — this page just renders
  * whatever the service already decided is safe to show.
  */
 
@@ -25,7 +25,7 @@ function DataAsOfBanner({ dataAsOf, stale }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "7px", fontSize: "12px", color: stale ? "var(--red)" : "var(--subtext)", marginBottom: "14px" }}>
       <Clock size={13} />
-      Data as of {fmtDateTime(dataAsOf)}{stale && " â€” refresh pending"}
+      Data as of {fmtDateTime(dataAsOf)}{stale && " — refresh pending"}
     </div>
   );
 }
@@ -159,12 +159,12 @@ function StandardReportsTab({ role }) {
               </div>
               <button id="run-report-btn" onClick={runReport} disabled={loading}
                 style={{ display: "flex", alignItems: "center", gap: "6px", padding: "9px 16px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: "13px", cursor: loading ? "not-allowed" : "pointer" }}>
-                <Play size={14} /> {loading ? "Runningâ€¦" : "Run Report"}
+                <Play size={14} /> {loading ? "Running…" : "Run Report"}
               </button>
             </div>
             {scope.departments.length < DEPARTMENTS.length && (
               <p style={{ fontSize: "11px", color: "var(--subtext)", marginTop: "10px", display: "flex", alignItems: "center", gap: "5px" }}>
-                <Lock size={10} /> Departments outside your reporting line are locked â€” this is enforced server-side, not just hidden here.
+                <Lock size={10} /> Departments outside your reporting line are locked — this is enforced server-side, not just hidden here.
               </p>
             )}
           </div>
@@ -186,11 +186,11 @@ function StandardReportsTab({ role }) {
                 style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px", background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: "12.5px", cursor: "pointer", color: "var(--text)" }}>
                 <Download size={13} /> Export CSV
               </button>
-              <button disabled title="Simulated in this build â€” CSV is the only real export"
+              <button disabled title="Simulated in this build — CSV is the only real export"
                 style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px", background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: "12.5px", color: "var(--subtext)", cursor: "not-allowed", opacity: 0.6 }}>
                 <Download size={13} /> Export PDF
               </button>
-              <button disabled title="Simulated in this build â€” CSV is the only real export"
+              <button disabled title="Simulated in this build — CSV is the only real export"
                 style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px", background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: "12.5px", color: "var(--subtext)", cursor: "not-allowed", opacity: 0.6 }}>
                 <Download size={13} /> Export Excel
               </button>
@@ -294,7 +294,7 @@ function CustomBuilderTab({ role }) {
 
         <button onClick={run} disabled={loading}
           style={{ display: "flex", alignItems: "center", gap: "6px", padding: "9px 16px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: "13px", cursor: loading ? "not-allowed" : "pointer" }}>
-          <Play size={14} /> {loading ? "Runningâ€¦" : "Run Custom Report"}
+          <Play size={14} /> {loading ? "Running…" : "Run Custom Report"}
         </button>
       </div>
 

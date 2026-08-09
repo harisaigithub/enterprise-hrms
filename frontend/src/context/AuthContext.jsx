@@ -1,20 +1,10 @@
-/**
- * AuthContext
- * Provides: user, role, permissions, login(), logout()
- *
- * Real backend auth (JWT):
- *   - login()       → POST /auth/login  (stores access + refresh tokens)
- *   - session boot  → GET /auth/me      (restores user + permissions from token)
- *   - logout()      → POST /auth/logout (revokes the refresh token server-side)
- *
- * The shape of `user` and `permissions` is identical to the old mock, so
- * every consumer (Sidebar, Navbar, pages) keeps working unchanged.
- */
+// Auth context — exposes user, role, permissions, login/logout.
+// JWT is stored in localStorage; session is restored on page load via GET /auth/me.
 
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import api from "../services/api";
 
-// ── Demo accounts for one-click login (also documented in DEMO_CREDENTIALS.md)
+// Role accounts for quick sign-in (same credentials as the seeded database).
 const DEMO_ACCOUNTS = [
   { label: "Admin",    email: "robert.king@company.com",  password: "Password@123" },
   { label: "HR",       email: "lewis.hamilton@company.com", password: "Password@123" },

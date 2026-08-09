@@ -1,12 +1,12 @@
 /**
- * Mock data — Module 22: Reports & Analytics
+ * Mock data — Reports & Analytics
  */
 
 export const DEPARTMENTS = ["Engineering", "Sales", "Design", "Finance"];
 export const LOCATIONS = ["Bengaluru", "Mumbai", "Remote"];
 export const SMALL_CELL_THRESHOLD = 5;
 
-// spec 22.2/22.3 — mock roles + org scope, standing in for real auth/ABAC
+// 
 export const ROLES = {
   MANAGER: "Manager",
   HR: "HR",
@@ -15,7 +15,7 @@ export const ROLES = {
 };
 
 // A Manager's scope is deliberately narrow — used to prove filters can't
-// escape it even if a wider department is requested (spec 22.5 step 2).
+// escape it even if a wider department is requested .
 export const ORG_SCOPES = {
   [ROLES.MANAGER]:    { name: "Rohan Kapoor",  departments: ["Engineering"] },
   [ROLES.HR]:          { name: "Priya Iyer",    departments: DEPARTMENTS },
@@ -23,7 +23,7 @@ export const ORG_SCOPES = {
   [ROLES.MANAGEMENT]: { name: "Vikram Rathore", departments: DEPARTMENTS },
 };
 
-// spec 22.5 step 1 — pre-built templates over nightly-aggregated tables.
+// 
 // requiresRoles gates which "Viewing as" roles can even see/select the template.
 export const REPORT_TEMPLATES = [
   { id: "headcount",   name: "Headcount",             domain: "Headcount",    groupBy: "department", metricField: "active",       metricAgg: "count", metricLabel: "Active Headcount", requiresRoles: [ROLES.MANAGER, ROLES.HR, ROLES.MANAGEMENT] },
@@ -40,7 +40,7 @@ export const REPORT_TEMPLATES = [
 // department — reported separately since its shape doesn't fit the others.
 export const RECRUITMENT_SNAPSHOT = { applied: 340, screening: 92, interview: 38, offer: 9, hired: 5 };
 
-// When the nightly ETL last succeeded, per domain (spec 22.8).
+// When the ETL job last succeeded, per domain .
 // "attrition" is deliberately stale to demonstrate the refresh-pending state.
 export const LAST_AGGREGATION = {
   headcount: "2026-07-31T02:00:00",

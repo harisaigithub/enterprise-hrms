@@ -1,5 +1,5 @@
 /**
- * Mock data — Travel Management (Module 15)
+ * Mock data — Travel Management 
  */
 
 export const TRAVEL_MODES = ["Air", "Rail", "Road"];

@@ -1,5 +1,5 @@
 /**
- * Manager Dashboard service — spec 3.2, 3.6
+ * Manager Dashboard service — 
  * ABAC note: real implementation must scope these server-side to the
  * manager's direct/indirect reports only (never company-wide).
  */

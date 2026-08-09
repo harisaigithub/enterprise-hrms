@@ -1,5 +1,5 @@
 /**
- * Mock data — Security & Administration (Module 25)
+ * Mock data — Security & Administration 
  *
  * This is a frontend-only mock: there is no real authentication backend,
  * no real password hashing, and no real KMS/SSO integration here. Fields

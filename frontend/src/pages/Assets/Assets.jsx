@@ -1,6 +1,6 @@
-ï»¿/**
- * Asset Management Page â€” Module 12
- * Tabs: Inventory Â· Requests Â· My Assets
+/**
+ * Asset Management Page — Module 12
+ * Tabs: Inventory · Requests · My Assets
  */
 
 import { useState, useEffect } from "react";
@@ -174,7 +174,7 @@ function AddInventoryModal({ isOpen, onClose, onSaved }) {
         )}
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Savingâ€¦" : "Add to Inventory"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving…" : "Add to Inventory"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -194,7 +194,7 @@ function InventoryTab({ inventory, licenseAlerts, onItemAdded }) {
           </div>
           {licenseAlerts.map(({ asset, alerts }) => (
             <p key={asset.id} style={{ fontSize: "12.5px", color: "#92400e", margin: "2px 0" }}>
-              <strong>{asset.model}</strong> ({asset.serial}) â€” {alerts.join(" Â· ")}
+              <strong>{asset.model}</strong> ({asset.serial}) — {alerts.join(" · ")}
             </p>
           ))}
         </div>
@@ -217,12 +217,12 @@ function InventoryTab({ inventory, licenseAlerts, onItemAdded }) {
                   <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>{item.make} {item.model}</h3>
                   <StatusBadge label={item.status} color={meta.color} bg={meta.bg} />
                 </div>
-                <p style={{ fontSize: "12px", color: "var(--subtext)", marginBottom: "6px" }}>{item.category} Â· {item.serial}</p>
+                <p style={{ fontSize: "12px", color: "var(--subtext)", marginBottom: "6px" }}>{item.category} · {item.serial}</p>
                 {item.currentHolderName && (
                   <p style={{ fontSize: "12px", color: "var(--text)" }}>Holder: <strong>{item.currentHolderName}</strong>{item.acknowledged === false ? " (not yet acknowledged)" : ""}</p>
                 )}
                 {item.category === "Software License" && (
-                  <p style={{ fontSize: "12px", color: "var(--subtext)" }}>Seats {item.seatsUsed}/{item.seats} Â· expires {fmtDate(item.licenseExpiry)}</p>
+                  <p style={{ fontSize: "12px", color: "var(--subtext)" }}>Seats {item.seatsUsed}/{item.seats} · expires {fmtDate(item.licenseExpiry)}</p>
                 )}
               </div>
             );
@@ -255,7 +255,7 @@ function FulfillModal({ isOpen, onClose, request, inventory, onSaved }) {
   if (!request) return null;
 
   return (
-    <Modal isOpen={isOpen} title={`Fulfill â€” ${request.category} request`} onClose={onClose}>
+    <Modal isOpen={isOpen} title={`Fulfill — ${request.category} request`} onClose={onClose}>
       <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         {available.length === 0 ? (
           <p style={{ fontSize: "13px", color: "var(--red)" }}>
@@ -266,14 +266,14 @@ function FulfillModal({ isOpen, onClose, request, inventory, onSaved }) {
             {fieldLabel("Select unit to assign *")}
             <select value={assetId} onChange={(e) => setAssetId(e.target.value)} style={{ ...inputStyle(), height: "38px", cursor: "pointer" }}>
               <option value="">Select unit</option>
-              {available.map((i) => <option key={i.id} value={i.id}>{i.serial} â€” {i.make} {i.model}</option>)}
+              {available.map((i) => <option key={i.id} value={i.id}>{i.serial} — {i.make} {i.model}</option>)}
             </select>
           </div>
         )}
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
           <PrimaryButton onClick={handleFulfill} disabled={saving || (available.length > 0 && !assetId)}>
-            {saving ? "Fulfillingâ€¦" : available.length === 0 ? "Mark Pending Procurement" : "Assign Unit"}
+            {saving ? "Fulfilling…" : available.length === 0 ? "Mark Pending Procurement" : "Assign Unit"}
           </PrimaryButton>
         </div>
       </div>
@@ -305,9 +305,9 @@ function RequestsTab({ requests, inventory, onRequestUpdated }) {
           return (
             <div key={r.id} style={{ ...cardStyle, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
               <div>
-                <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)" }}>{r.employeeName} â€” {r.category}</p>
+                <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)" }}>{r.employeeName} — {r.category}</p>
                 <p style={{ fontSize: "12px", color: "var(--subtext)" }}>{r.justification}</p>
-                <p style={{ fontSize: "11px", color: "var(--subtext)" }}>Raised {fmtDate(r.raisedAt)}{needsApproval ? " Â· requires manager approval" : " Â· auto-approved"}</p>
+                <p style={{ fontSize: "11px", color: "var(--subtext)" }}>Raised {fmtDate(r.raisedAt)}{needsApproval ? " · requires manager approval" : " · auto-approved"}</p>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <StatusBadge label={r.status} color={meta.color} bg={meta.bg} />
@@ -366,7 +366,7 @@ function RaiseRequestModal({ isOpen, onClose, onSaved }) {
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Submittingâ€¦" : "Submit Request"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Submitting…" : "Submit Request"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -399,19 +399,19 @@ function ReturnAssetModal({ isOpen, onClose, asset, onSaved }) {
   if (!asset) return null;
 
   return (
-    <Modal isOpen={isOpen} title={`Return â€” ${asset.make} ${asset.model}`} onClose={onClose}>
+    <Modal isOpen={isOpen} title={`Return — ${asset.make} ${asset.model}`} onClose={onClose}>
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           {fieldLabel("Condition on return *")}
           <select value={condition} onChange={(e) => setCondition(e.target.value)} style={{ ...inputStyle(), height: "38px", cursor: "pointer" }}>
-            <option value="Good">Good â€” return to stock</option>
+            <option value="Good">Good — return to stock</option>
             <option value="Damaged">Damaged / write-off</option>
           </select>
         </div>
         {isDataBearing && condition === "Good" && (
           <label style={{ display: "flex", alignItems: "flex-start", gap: "8px", fontSize: "12.5px", color: "var(--label)", cursor: "pointer" }}>
             <input type="checkbox" checked={wipeCompleted} onChange={(e) => setWipeCompleted(e.target.checked)} style={{ marginTop: "2px" }} />
-            <span>Disk wipe / reimage checklist completed â€” required before this device can go back into stock.</span>
+            <span>Disk wipe / reimage checklist completed — required before this device can go back into stock.</span>
           </label>
         )}
         {error && (
@@ -421,7 +421,7 @@ function ReturnAssetModal({ isOpen, onClose, asset, onSaved }) {
         )}
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Loggingâ€¦" : "Log Return"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Logging…" : "Log Return"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -451,7 +451,7 @@ function MyAssetsTab({ myAssets, onAssetAdded, onAssetUpdated }) {
           {myAssets.map((item) => (
             <div key={item.id} style={{ ...cardStyle, padding: "16px 18px" }}>
               <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)", marginBottom: "6px" }}>{item.make} {item.model}</h3>
-              <p style={{ fontSize: "12px", color: "var(--subtext)", marginBottom: "10px" }}>{item.category} Â· {item.serial}</p>
+              <p style={{ fontSize: "12px", color: "var(--subtext)", marginBottom: "10px" }}>{item.category} · {item.serial}</p>
               {!item.acknowledged ? (
                 <PrimaryButton onClick={() => handleAcknowledge(item.id)} style={{ padding: "7px 14px", fontSize: "12px" }}>
                   <CheckCircle2 size={14} /> Acknowledge Receipt

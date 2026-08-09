@@ -64,7 +64,7 @@ function aggregate(records, metricField, metricAgg) {
 
 /**
  * Groups by department and applies small-cell suppression per group
- * (spec 22.5 step 4, 22.6 — enforced here, unconditionally, on every row).
+ * .
  */
 function groupByDepartmentWithSuppression(scopedDepartments, filteredRecords, metricField, metricAgg) {
   return scopedDepartments.map((dept) => {
@@ -167,7 +167,7 @@ export function runCustomReport({ dimensionId, metricIds, filters }, role) {
  * CSV export. Operates ONLY on already-aggregated, already-suppressed report
  * output — never on raw records — so an export can't leak anything the
  * on-screen report itself didn't already show. Watermarked and logged per
- * spec 22.5 step 4 / Section 1.5.
+ * 
  */
 const _exportLog = [];
 export function exportReportCsv(reportOutput, reportName, exportedBy) {

@@ -1,14 +1,8 @@
 /**
- * Admin Dashboard — mapped to spec 3.5.3 "Management Dashboard"
- * (Org KPIs, department-wise performance, hiring funnel, payroll cost trend,
- * satisfaction score, productivity — pre-aggregated nightly).
- *
- * Note: spec 3.2 separately describes an Admin/Auditor "System Health
- * Dashboard" covered in Module 23, not detailed in Module 3. This file is
- * built against the Management Dashboard spec since that's what's fully
- * specified here — flag if you actually want the System Health variant instead.
+ * Admin/Management dashboard — org-wide KPIs, hiring funnel, payroll trends.
  */
 import MainLayout from "../../components/layout/MainLayout";
+import WelcomeCard from "../../components/shared/Dashboardgreeting";
 import OrgKpisWidget from "../../components/dashboard/OrgKpisWidget";
 import DepartmentPerformanceWidget from "../../components/dashboard/DepartmentPerformanceWidget";
 import HiringFunnelWidget from "../../components/dashboard/HiringFunnelWidget";
@@ -16,19 +10,19 @@ import PayrollCostTrendWidget from "../../components/dashboard/PayrollCostTrendW
 import SatisfactionWidget from "../../components/dashboard/SatisfactionWidget";
 import ProductivityWidget from "../../components/dashboard/ProductivityWidget";
 
-
-export default function AdminDashboard({ user }) {
+export default function AdminDashboard() {
   return (
     <MainLayout>
       <div style={{ maxWidth: "1480px", margin: "0 auto" }}>
-        <div style={{ marginBottom: "24px" }}>
-          <h1 style={{ fontSize: "26px", fontWeight: 800, color: "var(--text)" }}>
-            {user?.greeting || "Good day"}, {user?.firstName || user?.name || ""} 👋
-          </h1>
-          <p style={{ fontSize: "14px", color: "var(--subtext)", marginTop: "4px" }}>Here's your org-wide overview</p>
-        </div>
+        {/* Hero greeting banner */}
+        <WelcomeCard />
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "16px" }}>
+        {/* Widget grid — responsive: 3 columns on desktop, 2 on tablet, 1 on mobile */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+          gap: "18px",
+        }}>
           <OrgKpisWidget />
           <DepartmentPerformanceWidget />
           <HiringFunnelWidget />

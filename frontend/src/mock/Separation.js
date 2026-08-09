@@ -1,5 +1,5 @@
 /**
- * Mock data — Separation Management (Module 19)
+ * Mock data — Separation Management 
  */
 
 export const separationStatusMeta = {

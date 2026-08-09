@@ -64,7 +64,7 @@ export default function HiringChart() {
           />
           <Bar dataKey="Applied"      fill="#c7d2fe" radius={[4, 4, 0, 0]} />
           <Bar dataKey="Interviewing" fill="#818cf8" radius={[4, 4, 0, 0]} />
-          <Bar dataKey="Offer"        fill="#4f46e5" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="Offer"        fill="#0f766e" radius={[4, 4, 0, 0]} />
           <Bar dataKey="Onboarded"    fill="#312e81" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>

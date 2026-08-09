@@ -1,5 +1,5 @@
 /**
- * Employee Dashboard service — spec 3.5.1
+ * Employee Dashboard service — 
  * Each export is an independent, parallel-fetchable query (the backend "fires
  * parallel read-only queries, not sequential, to keep load time low"). Every
  * function resolves { data } after a simulated delay, matching onboardingService.js.
@@ -14,7 +14,7 @@ function delay(value, ms = 400) {
 }
 
 // Simulates a service that times out on first load, to exercise the
-// "Unable to load — tap to retry" partial-failure path (spec 3.5.1 step 3).
+// "Unable to load — tap to retry" partial-failure path .
 // Succeeds on retry so the demo isn't permanently broken.
 let _learningAttempts = 0;
 function unreliableDelay(value) {

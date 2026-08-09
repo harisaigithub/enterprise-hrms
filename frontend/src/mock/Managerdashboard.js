@@ -1,5 +1,5 @@
 /**
- * Mock data for the Manager Dashboard — spec 3.2, 3.6
+ * Manager Dashboard — 
  * ABAC note: in a real backend these must be scoped server-side to the
  * manager's direct/indirect reports only, never company-wide.
  */

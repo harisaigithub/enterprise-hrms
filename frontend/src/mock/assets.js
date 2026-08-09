@@ -1,5 +1,5 @@
 /**
- * Mock data — Asset Management (Module 12)
+ * Mock data — Asset Management 
  */
 
 export const ASSET_CATEGORIES = ["Laptop", "Mobile", "SIM", "Access Card", "Software License", "Accessories"];
@@ -169,7 +169,7 @@ export function _acknowledgeReceipt(assetId, employeeId) {
 
 // 12.7: data-bearing assets must pass the wipe/reimage checklist before they
 // can go back to "Returned — In Stock". 12.6: return must be logged before
-// Separation Clearance (Module 17) can complete.
+// Separation Clearance  can complete.
 export function _returnAsset(assetId, condition, wipeCompleted) {
   const item = inventory.find((i) => i.id === assetId);
   if (!item) return { error: "Asset not found." };
