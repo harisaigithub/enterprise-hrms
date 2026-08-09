@@ -7,7 +7,7 @@ import { getHRDashboardSnapshot } from "../../services/hrDashboardService";
 const SEVERITY_STYLES = {
   warning: { iconColor: "#d97706", iconBg: "#fef3c7", buttonBg: "var(--primary)", Icon: AlertTriangle },
   urgent: { iconColor: "#dc2626", iconBg: "#fee2e2", buttonBg: "var(--primary)", Icon: AlertTriangle },
-  info: { iconColor: "#4f46e5", iconBg: "#eef2ff", buttonBg: "var(--primary)", Icon: Info },
+  info: { iconColor: "#0f766e", iconBg: "#f0fdfa", buttonBg: "var(--primary)", Icon: Info },
 };
 
 function AlertRow({ alert, onDismiss }) {

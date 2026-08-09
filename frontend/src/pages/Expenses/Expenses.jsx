@@ -1,8 +1,8 @@
-ï»¿/**
- * Expense Management Page â€” Module 14
+/**
+ * Expense Management Page — Module 14
  * Tabs: My Claims (submit + track), Approvals (Manager/Finance queue).
  * Policy violations and possible duplicates are surfaced for approver
- * judgment, never used to silently block or auto-reject (spec 14.5, 14.6).
+ * judgment, never used to silently block or auto-reject .
  */
 
 import { useState, useEffect } from "react";
@@ -20,7 +20,7 @@ import { EXPENSE_CATEGORIES, EXPENSE_POLICY, expenseStatusMeta, LOCKED_STATUSES 
 
 const CURRENT_EMPLOYEE = { id: "EMP014", name: "Ananya Verma" };
 const fmtDate = (d) => new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-const fmtAmount = (n) => `â‚¹${n.toLocaleString("en-IN")}`;
+const fmtAmount = (n) => `?${n.toLocaleString("en-IN")}`;
 
 function SubmitClaimModal({ isOpen, onClose, onSubmitted }) {
   const [form, setForm] = useState({ category: "", amount: "", expenseDate: "", businessPurpose: "", receiptFileName: "" });
@@ -83,7 +83,7 @@ function SubmitClaimModal({ isOpen, onClose, onSubmitted }) {
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-            <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Amount (â‚¹) *</label>
+            <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Amount (?) *</label>
             <input type="number" min="0" value={form.amount} onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))} style={inputStyle("amount")} />
             {errors.amount && <span style={{ fontSize: "11px", color: "var(--red)" }}>{errors.amount}</span>}
           </div>
@@ -121,14 +121,14 @@ function SubmitClaimModal({ isOpen, onClose, onSubmitted }) {
             </p>
             {willFlagLimit && <p style={{ fontSize: "12px", color: "#92400e" }}>Amount exceeds the {form.category} limit of {fmtAmount(policy.limit)}</p>}
             {receiptRequired && !form.receiptFileName && <p style={{ fontSize: "12px", color: "#92400e" }}>Receipt required above {fmtAmount(policy.receiptThreshold)} for this category</p>}
-            <p style={{ fontSize: "11.5px", color: "#92400e" }}>You can still submit â€” your approver can review and approve exceptions.</p>
+            <p style={{ fontSize: "11.5px", color: "#92400e" }}>You can still submit — your approver can review and approve exceptions.</p>
           </div>
         )}
 
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <button type="button" onClick={onClose} style={{ padding: "9px 20px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "none", color: "var(--label)", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>Cancel</button>
           <button id="submit-claim-btn" type="submit" disabled={saving} style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "#fff", fontWeight: 600, fontSize: "13px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
-            {saving ? "Submittingâ€¦" : "Submit Claim"}
+            {saving ? "Submitting…" : "Submit Claim"}
           </button>
         </div>
       </form>
@@ -173,13 +173,13 @@ function RejectModal({ claim, onClose, onRejected }) {
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Reason *</label>
           <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3}
-            placeholder="Let the employee know why this was rejectedâ€¦"
+            placeholder="Let the employee know why this was rejected…"
             style={{ width: "100%", padding: "10px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontSize: "13.5px", color: "var(--text)", outline: "none", resize: "vertical", fontFamily: "inherit" }} />
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <button onClick={onClose} style={{ padding: "9px 20px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "none", color: "var(--label)", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>Cancel</button>
           <button onClick={handleReject} disabled={saving || !reason.trim()} style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--red)", color: "#fff", fontWeight: 600, fontSize: "13px", cursor: saving ? "not-allowed" : "pointer", opacity: saving || !reason.trim() ? 0.6 : 1 }}>
-            {saving ? "Rejectingâ€¦" : "Reject Claim"}
+            {saving ? "Rejecting…" : "Reject Claim"}
           </button>
         </div>
       </div>
@@ -305,7 +305,7 @@ export default function Expenses() {
                                 <Paperclip size={12} /> {claim.receiptFileName}
                               </span>
                             ) : (
-                              <span style={{ fontSize: "12px", color: "var(--subtext)" }}>â€”</span>
+                              <span style={{ fontSize: "12px", color: "var(--subtext)" }}>—</span>
                             )}
                           </td>
                         )}

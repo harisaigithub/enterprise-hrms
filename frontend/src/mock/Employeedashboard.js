@@ -1,5 +1,5 @@
 /**
- * Mock data for the Employee Dashboard — spec 3.5.1
+ * Employee Dashboard — 
  * One file per dashboard (matches the granularity of alerts.js/payroll.js/etc.)
  */
 

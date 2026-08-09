@@ -21,7 +21,7 @@ function daysBetween(dateStr, refStr) {
 }
 
 /**
- * Runs the automated policy checks from spec 14.5 step 2.
+ * Runs the automated policy checks from 
  * Violations are ALWAYS surfaced for approver judgment, never used to
  * silently block or auto-reject a submission.
  */
@@ -43,7 +43,7 @@ function checkPolicyViolations(claim) {
   return violations;
 }
 
-/** Duplicate-receipt detection (spec 14.6): same amount + date + category already on file. */
+/** Duplicate-receipt detection : same amount + date + category already on file. */
 function findPossibleDuplicate(claim) {
   const match = _claims.find((c) =>
     c.id !== claim.id &&
@@ -73,7 +73,7 @@ export function getExpensePolicy() {
 
 /**
  * Submits a new claim. Policy violations and possible duplicates are computed
- * and attached to the claim, but never block submission (spec 14.5 step 2).
+ * and attached to the claim, but never block submission .
  */
 export function submitExpenseClaim(input) {
   const claim = {
@@ -101,7 +101,7 @@ export function submitExpenseClaim(input) {
 }
 
 /**
- * Advances a claim through the approval chain (spec 14.5 step 3-4):
+ * Advances a claim through the approval chain :
  * Manager approval → Pending Finance Approval → Finance approval → Approved
  * for Reimbursement (locked, queues into next payroll cycle).
  */
@@ -119,7 +119,7 @@ export function approveClaim(claimId, stage) {
   return delay(claim);
 }
 
-/** Rejection at any stage (spec 14.5 step 5) — employee can amend and resubmit. */
+/** Rejection at any stage  — employee can amend and resubmit. */
 export function rejectClaim(claimId, stage, reason) {
   const claim = _claims.find((c) => c.id === claimId);
   if (!claim || LOCKED_STATUSES.includes(claim.status)) return delay(claim || null);

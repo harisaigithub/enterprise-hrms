@@ -1,5 +1,5 @@
 /**
- * useDashboardWidget — per-widget timeout + partial-failure tolerance (spec 3.5.1 step 3):
+ * useDashboardWidget — per-widget timeout + partial-failure tolerance :
  * "Each query has a timeout. If a service times out, that specific widget shows
  * 'Unable to load — tap to retry' while the rest of the dashboard renders normally."
  *

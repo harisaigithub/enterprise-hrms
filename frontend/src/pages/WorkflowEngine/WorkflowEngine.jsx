@@ -1,8 +1,8 @@
-﻿/**
+/**
  * Workflow Engine Page
- * Module 21 — Generic approval engine
+ * Module 21 � Generic approval engine
  * Tabs: Instances & Approvals | Definitions | Event Log
- * Wired to the real backend via Workflowengineservice (→ /api/workflow).
+ * Wired to the real backend via Workflowengineservice (? /api/workflow).
  *
  * Golden Rule #5 is enforced server-side: an approver can never approve their
  * own request (data anomalies auto-escalate one level up instead).
@@ -183,7 +183,7 @@ export default function WorkflowEngine() {
     }
   };
 
-  // ── Approver logic (mirrors backend eligibility) ─────────────────────────
+  // -- Approver logic (mirrors backend eligibility) -------------------------
   const actionableIds = (inst) => {
     if (inst.status !== "In Progress") return new Set();
     const current = inst.steps[inst.currentStepIndex];
@@ -219,7 +219,7 @@ export default function WorkflowEngine() {
     setBusy("sla");
     try {
       const res = await runSlaCheck();
-      flash(`SLA check complete — ${res.data?.escalatedCount ?? 0} step(s) escalated`);
+      flash(`SLA check complete � ${res.data?.escalatedCount ?? 0} step(s) escalated`);
       await refresh("sla");
     } catch (err) {
       flash(err.message || "SLA check failed");
@@ -232,7 +232,7 @@ export default function WorkflowEngine() {
     setBusy("assign");
     try {
       await manuallyAssignApprover(assignFor.id, approverId, approverName);
-      flash("Approver assigned — instance resumed");
+      flash("Approver assigned � instance resumed");
       setAssignFor(null);
       await refresh("assign");
     } catch (err) {
@@ -264,7 +264,7 @@ export default function WorkflowEngine() {
       if (res.data?.deleted) flash("Definition deleted");
       await refresh("def");
     } catch (err) {
-      flash(err.message || "Cannot delete — active instances reference it");
+      flash(err.message || "Cannot delete � active instances reference it");
     } finally {
       setBusy(null);
     }
@@ -291,8 +291,8 @@ export default function WorkflowEngine() {
             <div style={{ minWidth: 0 }}>
               <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>{s.name}</p>
               <p style={{ fontSize: "12px", color: "var(--subtext)", marginTop: "2px" }}>
-                {s.approverName ?? "Unassigned"} {s.selfApprovalBlocked && <span style={{ color: "#dc2626", fontWeight: 600 }}>· self-approval blocked</span>}
-                {s.escalatedToName && <span style={{ color: "#d97706", fontWeight: 600 }}> · escalated → {s.escalatedToName}</span>}
+                {s.approverName ?? "Unassigned"} {s.selfApprovalBlocked && <span style={{ color: "#dc2626", fontWeight: 600 }}>� self-approval blocked</span>}
+                {s.escalatedToName && <span style={{ color: "#d97706", fontWeight: 600 }}> � escalated ? {s.escalatedToName}</span>}
               </p>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
@@ -418,10 +418,10 @@ export default function WorkflowEngine() {
                         <div key={s.id} style={{ fontSize: "12.5px", color: "var(--text)", display: "flex", alignItems: "center", gap: "6px" }}>
                           <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: "var(--primary)", flexShrink: 0 }} />
                           {s.name}
-                          <span style={{ color: "var(--subtext)" }}>· {s.approverRule}</span>
-                          {s.parallelGroup && <span style={{ color: "#d97706" }}>· parallel {s.parallelGroup}</span>}
+                          <span style={{ color: "var(--subtext)" }}>� {s.approverRule}</span>
+                          {s.parallelGroup && <span style={{ color: "#d97706" }}>� parallel {s.parallelGroup}</span>}
                           {s.condition && (
-                            <span style={{ color: "#0284c7" }}>· if {s.condition.field} {s.condition.operator} {s.condition.value}</span>
+                            <span style={{ color: "#0284c7" }}>� if {s.condition.field} {s.condition.operator} {s.condition.value}</span>
                           )}
                         </div>
                       ))}
@@ -473,7 +473,7 @@ export default function WorkflowEngine() {
     </SectionCard>
   );
 
-  // ── Submit request modal ────────────────────────────────────────────────
+  // -- Submit request modal ------------------------------------------------
   const [submitDef, setSubmitDef] = useState("");
   const [submitRequester, setSubmitRequester] = useState("");
   const [submitAttrs, setSubmitAttrs] = useState("{\n  \"duration_days\": 7\n}");
@@ -508,7 +508,7 @@ export default function WorkflowEngine() {
     }
   };
 
-  // ── Add definition modal ─────────────────────────────────────────────────
+  // -- Add definition modal -------------------------------------------------
   const [newDef, setNewDef] = useState({ requestType: "", steps: [{ name: "Manager Approval", approverRule: APPROVER_RULES[0], slaHours: 24, parallelGroup: "", condition: "" }] });
 
   const openAddDef = () => {
@@ -565,12 +565,12 @@ export default function WorkflowEngine() {
           <label style={labelStyle}>Requester</label>
           <select style={inputStyle} value={submitRequester} onChange={(e) => setSubmitRequester(e.target.value)}>
             {roster.map((r) => (
-              <option key={r.id} value={r.id}>{r.id} — {r.name}</option>
+              <option key={r.id} value={r.id}>{r.id} � {r.name}</option>
             ))}
           </select>
         </div>
         <div>
-          <label style={labelStyle}>Attributes (JSON — only fields the engine needs)</label>
+          <label style={labelStyle}>Attributes (JSON � only fields the engine needs)</label>
           <textarea
             style={{ ...inputStyle, minHeight: "120px", fontFamily: "monospace", fontSize: "12.5px", resize: "vertical" }}
             value={submitAttrs}
@@ -644,10 +644,10 @@ export default function WorkflowEngine() {
   );
 
   const assignModal = () => (
-    <Modal title={`Assign approver — ${assignFor?.requestType ?? ""}`} onClose={() => setAssignFor(null)}>
+    <Modal title={`Assign approver � ${assignFor?.requestType ?? ""}`} onClose={() => setAssignFor(null)}>
       <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
         <p style={{ fontSize: "13px", color: "var(--subtext)", lineHeight: 1.5 }}>
-          The engine could not resolve an approver automatically (missing manager / department head, or a data anomaly). Pick an employee to take the unresolved step — self-approval is still blocked server-side.
+          The engine could not resolve an approver automatically (missing manager / department head, or a data anomaly). Pick an employee to take the unresolved step � self-approval is still blocked server-side.
         </p>
         <AssignPicker
           key={assignFor?.id}
@@ -665,7 +665,7 @@ export default function WorkflowEngine() {
   return (
     <MainLayout>
       <div style={{ maxWidth: "1480px", margin: "0 auto" }}>
-        <PageHeader title="Workflow Engine" subtitle="Generic approval engine — approvers resolve from live org data, self-approval is hard-blocked">
+        <PageHeader title="Workflow Engine" subtitle="Generic approval engine � approvers resolve from live org data, self-approval is hard-blocked">
           <button onClick={handleSlaCheck} disabled={busy === "sla"} style={btnGhost}>
             <RefreshCw size={14} /> Run SLA check
           </button>
@@ -726,9 +726,9 @@ function AssignPicker({ roster, onPick, busy }) {
   return (
     <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
       <select style={inputStyle} value={value} onChange={(e) => setValue(e.target.value)}>
-        <option value="">Select employee…</option>
+        <option value="">Select employee�</option>
         {roster.map((r) => (
-          <option key={r.id} value={r.id}>{r.id} — {r.name}</option>
+          <option key={r.id} value={r.id}>{r.id} � {r.name}</option>
         ))}
       </select>
       <button onClick={() => value && onPick(value, rosterNameOf(roster, value))} disabled={busy || !value} style={btnPrimary}>

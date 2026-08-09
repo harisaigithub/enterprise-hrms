@@ -1,5 +1,5 @@
 /**
- * Mock data — Module 4: Onboarding
+ * Mock data — Onboarding
  * Follows the same convention as mock/attendance.js and mock/leave.js
  */
 
@@ -24,8 +24,7 @@ export const CHECKLIST_CATEGORIES = ["Documents & Policy", "IT & Assets", "Induc
 /**
  * A checklist item may declare `dependsOn`, referencing another item's id within
  * the same checklist. Items with an incomplete dependency are always rendered
- * as "Blocked" regardless of their stored status (spec 6.5 step 4 — hard dependency,
- * not just a suggested order).
+ * as "Blocked" regardless of their stored status .
  */
 function buildTemplateItems({ joinDate }) {
   const d = (offsetDays) => {

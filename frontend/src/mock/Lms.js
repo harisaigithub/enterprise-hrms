@@ -1,5 +1,5 @@
 /**
- * Mock data — Learning Management / LMS (Module 11)
+ * Mock data — Learning Management / LMS 
  */
 
 export const courseStatusMeta = {

@@ -1,5 +1,5 @@
 /**
- * Mock data — Task Management (Module 13)
+ * Mock data — Task Management 
  */
 
 export const TASK_STATUSES = ["To Do", "In Progress", "Review", "Done"];

@@ -1,6 +1,6 @@
-ï»¿/**
- * Travel Management Page â€” Module 15
- * Tabs: My Travel Â· Approvals Â· Travel Desk
+/**
+ * Travel Management Page — Module 15
+ * Tabs: My Travel · Approvals · Travel Desk
  */
 
 import { useState, useEffect } from "react";
@@ -39,7 +39,7 @@ import { TRAVEL_MODES, requestStatusMeta, travelPolicy, employeeGradeDirectory }
 
 const ME = { id: "EMP001", name: "Matsya Singh", grade: "L4" };
 const fmtDate = (d) => new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-const fmtINR = (n) => `â‚¹${Number(n).toLocaleString("en-IN")}`;
+const fmtINR = (n) => `?${Number(n).toLocaleString("en-IN")}`;
 
 /* ---------------------------------- shared bits ---------------------------------- */
 
@@ -115,7 +115,7 @@ function RequestSummaryCard({ req, children }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px", marginBottom: "6px" }}>
         <div>
           <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>{req.destination}</h3>
-          <p style={{ fontSize: "12px", color: "var(--subtext)" }}>{req.employeeName} Â· {req.mode} Â· {fmtDate(req.startDate)} â€“ {fmtDate(req.endDate)}</p>
+          <p style={{ fontSize: "12px", color: "var(--subtext)" }}>{req.employeeName} · {req.mode} · {fmtDate(req.startDate)} – {fmtDate(req.endDate)}</p>
         </div>
         <StatusBadge label={req.status} color={meta.color} bg={meta.bg} />
       </div>
@@ -134,8 +134,8 @@ function RequestSummaryCard({ req, children }) {
       {req.settlement && (
         <p style={{ fontSize: "12px", color: req.settlement.balance === 0 ? "var(--subtext)" : "#d97706", marginBottom: "8px" }}>
           Settlement: actual {fmtINR(req.settlement.actualCost)}
-          {req.settlement.balance > 0 ? ` Â· ${fmtINR(req.settlement.balance)} ${req.settlement.balanceType}` : " Â· balanced"}
-          {req.settlement.resolution && ` Â· resolved via ${req.settlement.resolution.method}`}
+          {req.settlement.balance > 0 ? ` · ${fmtINR(req.settlement.balance)} ${req.settlement.balanceType}` : " · balanced"}
+          {req.settlement.resolution && ` · resolved via ${req.settlement.resolution.method}`}
         </p>
       )}
       {children}
@@ -206,7 +206,7 @@ function RaiseRequestModal({ isOpen, onClose, onSaved }) {
             </select>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-            {fieldLabel("Estimated Cost (â‚¹) *")}
+            {fieldLabel("Estimated Cost (?) *")}
             <input type="number" min={1} value={estimatedCost} onChange={(e) => setEstimatedCost(e.target.value)} style={inputStyle()} />
           </div>
         </div>
@@ -217,12 +217,12 @@ function RaiseRequestModal({ isOpen, onClose, onSaved }) {
         {isInternational && (
           <p style={{ fontSize: "11.5px", color: "var(--subtext)", display: "flex", alignItems: "center", gap: "6px", margin: 0 }}>
             <ShieldCheck size={13} />
-            {passportRef ? `Passport on file (${passportRef}) â€” pulled securely from your HR record at booking time.` : "No passport on file â€” Travel Desk will need this added to your HR record before booking."}
+            {passportRef ? `Passport on file (${passportRef}) — pulled securely from your HR record at booking time.` : "No passport on file — Travel Desk will need this added to your HR record before booking."}
           </p>
         )}
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Submittingâ€¦" : "Submit Request"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Submitting…" : "Submit Request"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -248,13 +248,13 @@ function SubmitSettlementModal({ isOpen, onClose, request, onSaved }) {
   if (!request) return null;
 
   return (
-    <Modal isOpen={isOpen} title={`Settle â€” ${request.destination}`} onClose={onClose}>
+    <Modal isOpen={isOpen} title={`Settle — ${request.destination}`} onClose={onClose}>
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         <p style={{ fontSize: "12.5px", color: "var(--subtext)", margin: 0 }}>
           Advance given: <strong>{fmtINR(request.advance?.amount || 0)}</strong>
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-          {fieldLabel("Actual Cost (â‚¹) *")}
+          {fieldLabel("Actual Cost (?) *")}
           <input type="number" min={0} value={actualCost} onChange={(e) => setActualCost(e.target.value)} style={inputStyle()} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
@@ -263,7 +263,7 @@ function SubmitSettlementModal({ isOpen, onClose, request, onSaved }) {
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Submittingâ€¦" : "Submit Settlement"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Submitting…" : "Submit Settlement"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -333,10 +333,10 @@ function ApprovalsTab({ requests, onRequestUpdated }) {
             {pendingManager.map((req) => (
               <div key={req.id} style={{ ...cardStyle, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
                 <div>
-                  <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)" }}>{req.employeeName} â†’ {req.destination}</p>
-                  <p style={{ fontSize: "12px", color: "var(--subtext)" }}>{req.purpose} Â· Est. {fmtINR(req.estimatedCost)} Â· {fmtDate(req.startDate)}â€“{fmtDate(req.endDate)}</p>
+                  <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)" }}>{req.employeeName} ? {req.destination}</p>
+                  <p style={{ fontSize: "12px", color: "var(--subtext)" }}>{req.purpose} · Est. {fmtINR(req.estimatedCost)} · {fmtDate(req.startDate)}–{fmtDate(req.endDate)}</p>
                   {req.estimatedCost > travelPolicy.financeApprovalThreshold && (
-                    <p style={{ fontSize: "11px", color: "#d97706", marginTop: "4px" }}>Above â‚¹{travelPolicy.financeApprovalThreshold.toLocaleString("en-IN")} â€” will also need Finance approval.</p>
+                    <p style={{ fontSize: "11px", color: "#d97706", marginTop: "4px" }}>Above ?{travelPolicy.financeApprovalThreshold.toLocaleString("en-IN")} — will also need Finance approval.</p>
                   )}
                 </div>
                 <div style={{ display: "flex", gap: "12px" }}>
@@ -360,8 +360,8 @@ function ApprovalsTab({ requests, onRequestUpdated }) {
             {pendingFinance.map((req) => (
               <div key={req.id} style={{ ...cardStyle, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
                 <div>
-                  <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)" }}>{req.employeeName} â†’ {req.destination}</p>
-                  <p style={{ fontSize: "12px", color: "var(--subtext)" }}>Est. {fmtINR(req.estimatedCost)} Â· manager-approved by {req.managerApproval?.by}</p>
+                  <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)" }}>{req.employeeName} ? {req.destination}</p>
+                  <p style={{ fontSize: "12px", color: "var(--subtext)" }}>Est. {fmtINR(req.estimatedCost)} · manager-approved by {req.managerApproval?.by}</p>
                 </div>
                 <div style={{ display: "flex", gap: "12px" }}>
                   <button onClick={() => handleFinanceDecision(req.id, true)} style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "12px", fontWeight: 700, color: "var(--primary)", border: "none", background: "none", cursor: "pointer" }}>
@@ -399,7 +399,7 @@ function ManualBookingModal({ isOpen, onClose, request, onSaved }) {
   if (!request) return null;
 
   return (
-    <Modal isOpen={isOpen} title={`Confirm Manual Booking â€” ${request.destination}`} onClose={onClose}>
+    <Modal isOpen={isOpen} title={`Confirm Manual Booking — ${request.destination}`} onClose={onClose}>
       <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           {fieldLabel("Booking Reference *")}
@@ -407,7 +407,7 @@ function ManualBookingModal({ isOpen, onClose, request, onSaved }) {
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton onClick={handleConfirm} disabled={saving || !reference.trim()}>{saving ? "Confirmingâ€¦" : "Confirm Booking"}</PrimaryButton>
+          <PrimaryButton onClick={handleConfirm} disabled={saving || !reference.trim()}>{saving ? "Confirming…" : "Confirm Booking"}</PrimaryButton>
         </div>
       </div>
     </Modal>
@@ -440,19 +440,19 @@ function DisburseAdvanceModal({ isOpen, onClose, request, onSaved }) {
   if (!request) return null;
 
   return (
-    <Modal isOpen={isOpen} title={`Disburse Advance â€” ${request.destination}`} onClose={onClose}>
+    <Modal isOpen={isOpen} title={`Disburse Advance — ${request.destination}`} onClose={onClose}>
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         <p style={{ fontSize: "12.5px", color: "var(--subtext)", margin: 0 }}>
-          Policy cap: {travelPolicy.advanceMaxPercent}% of estimated cost â€” max {fmtINR(maxAdvance)}
+          Policy cap: {travelPolicy.advanceMaxPercent}% of estimated cost — max {fmtINR(maxAdvance)}
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-          {fieldLabel("Advance Amount (â‚¹) *")}
+          {fieldLabel("Advance Amount (?) *")}
           <input type="number" min={1} value={amount} onChange={(e) => setAmount(e.target.value)} style={inputStyle()} />
         </div>
         {error && <p style={{ fontSize: "12px", color: "var(--red)" }}>{error}</p>}
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Disbursingâ€¦" : "Disburse Advance"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Disbursing…" : "Disburse Advance"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -483,10 +483,10 @@ function ResolveSettlementModal({ isOpen, onClose, request, onSaved }) {
   if (!request) return null;
 
   return (
-    <Modal isOpen={isOpen} title={`Resolve Balance â€” ${request.destination}`} onClose={onClose}>
+    <Modal isOpen={isOpen} title={`Resolve Balance — ${request.destination}`} onClose={onClose}>
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         <p style={{ fontSize: "12.5px", color: "var(--subtext)", margin: 0 }}>
-          {fmtINR(request.settlement.balance)} {request.settlement.balanceType} â€” must be recorded before this settlement can close.
+          {fmtINR(request.settlement.balance)} {request.settlement.balanceType} — must be recorded before this settlement can close.
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           {fieldLabel("Resolution Method *")}
@@ -503,7 +503,7 @@ function ResolveSettlementModal({ isOpen, onClose, request, onSaved }) {
         {error && <p style={{ fontSize: "12px", color: "var(--red)" }}>{error}</p>}
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Resolvingâ€¦" : "Resolve & Close"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Resolving…" : "Resolve & Close"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -545,8 +545,8 @@ function TravelDeskTab({ requests, onRequestUpdated }) {
             {needsBooking.map((req) => (
               <div key={req.id} style={{ ...cardStyle, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
                 <div>
-                  <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)" }}>{req.employeeName} â†’ {req.destination}{req.isInternational ? " (international)" : ""}</p>
-                  <p style={{ fontSize: "12px", color: "var(--subtext)" }}>{req.mode} Â· {fmtDate(req.startDate)}</p>
+                  <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)" }}>{req.employeeName} ? {req.destination}{req.isInternational ? " (international)" : ""}</p>
+                  <p style={{ fontSize: "12px", color: "var(--subtext)" }}>{req.mode} · {fmtDate(req.startDate)}</p>
                   {req.booking?.bookingFailed && (
                     <p style={{ fontSize: "11.5px", color: "var(--red)", marginTop: "4px", display: "flex", alignItems: "center", gap: "5px" }}>
                       <AlertTriangle size={13} /> {req.booking.failureNote}
@@ -580,8 +580,8 @@ function TravelDeskTab({ requests, onRequestUpdated }) {
             {canDisburseAdvance.map((req) => (
               <div key={req.id} style={{ ...cardStyle, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
                 <div>
-                  <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)" }}>{req.employeeName} â†’ {req.destination}</p>
-                  <p style={{ fontSize: "12px", color: "var(--subtext)" }}>Est. {fmtINR(req.estimatedCost)} Â· cap {fmtINR(Math.round(req.estimatedCost * (travelPolicy.advanceMaxPercent / 100)))}</p>
+                  <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)" }}>{req.employeeName} ? {req.destination}</p>
+                  <p style={{ fontSize: "12px", color: "var(--subtext)" }}>Est. {fmtINR(req.estimatedCost)} · cap {fmtINR(Math.round(req.estimatedCost * (travelPolicy.advanceMaxPercent / 100)))}</p>
                 </div>
                 <button onClick={() => setAdvanceTarget(req)} style={{ fontSize: "12px", fontWeight: 700, color: "var(--primary)", border: "none", background: "none", cursor: "pointer" }}>
                   Disburse Advance
@@ -603,10 +603,10 @@ function TravelDeskTab({ requests, onRequestUpdated }) {
             {settlementsToClose.map((req) => (
               <div key={req.id} style={{ ...cardStyle, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
                 <div>
-                  <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)" }}>{req.employeeName} â†’ {req.destination}</p>
+                  <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)" }}>{req.employeeName} ? {req.destination}</p>
                   <p style={{ fontSize: "12px", color: "var(--subtext)" }}>
                     Actual {fmtINR(req.settlement.actualCost)} vs advance {fmtINR(req.settlement.advanceGiven)}
-                    {req.settlement.balance > 0 ? ` â€” ${fmtINR(req.settlement.balance)} ${req.settlement.balanceType}` : " â€” balanced"}
+                    {req.settlement.balance > 0 ? ` — ${fmtINR(req.settlement.balance)} ${req.settlement.balanceType}` : " — balanced"}
                   </p>
                 </div>
                 {req.settlement.balance === 0 ? (

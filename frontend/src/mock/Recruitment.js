@@ -1,5 +1,5 @@
 /**
- * Mock data — Recruitment / ATS (Module 5)
+ * Mock data — Recruitment / ATS 
  */
 
 export const requisitionStatusMeta = {

@@ -1,6 +1,6 @@
-Ôªø/**
- * Task Management Page ‚Äî Module 13
- * Views: Kanban Board ¬∑ Calendar (deadline) View ¬∑ Projects
+/**
+ * Task Management Page ó Module 13
+ * Views: Kanban Board ∑ Calendar (deadline) View ∑ Projects
  */
 
 import { useState, useEffect, useMemo } from "react";
@@ -172,7 +172,7 @@ function CreateTaskModal({ isOpen, onClose, projects, onSaved }) {
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Creating‚Ä¶" : "Create Task"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "CreatingÖ" : "Create Task"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -198,12 +198,12 @@ function ForceCloseModal({ isOpen, onClose, task, openBlockers, onResolved }) {
   if (!task) return null;
 
   return (
-    <Modal isOpen={isOpen} title={`Force-close ‚Äî ${task.title}`} onClose={onClose}>
+    <Modal isOpen={isOpen} title={`Force-close ó ${task.title}`} onClose={onClose}>
       <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
           <AlertTriangle size={16} style={{ color: "var(--amber, #d97706)", marginTop: "2px", flexShrink: 0 }} />
           <p style={{ fontSize: "12.5px", color: "var(--subtext)", margin: 0 }}>
-            This task has open blocker(s): <strong>{openBlockers.map((b) => b.title).join(", ")}</strong>. Only a Project Lead should force-close past this ‚Äî a reason is logged to Task History.
+            This task has open blocker(s): <strong>{openBlockers.map((b) => b.title).join(", ")}</strong>. Only a Project Lead should force-close past this ó a reason is logged to Task History.
           </p>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
@@ -212,7 +212,7 @@ function ForceCloseModal({ isOpen, onClose, task, openBlockers, onResolved }) {
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton onClick={handleForceClose} disabled={saving || !reason.trim()}>{saving ? "Closing‚Ä¶" : "Force-close as Done"}</PrimaryButton>
+          <PrimaryButton onClick={handleForceClose} disabled={saving || !reason.trim()}>{saving ? "ClosingÖ" : "Force-close as Done"}</PrimaryButton>
         </div>
       </div>
     </Modal>
@@ -258,7 +258,7 @@ function TaskDetailModal({ isOpen, onClose, task, onSaved }) {
       <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
           <StatusBadge label={task.status} color={meta.color} bg={meta.bg} />
-          <span style={{ fontSize: "12px", color: "var(--subtext)" }}>Due {fmtDate(task.dueDate)} ¬∑ {task.assigneeName}</span>
+          <span style={{ fontSize: "12px", color: "var(--subtext)" }}>Due {fmtDate(task.dueDate)} ∑ {task.assigneeName}</span>
         </div>
 
         <div>
@@ -268,12 +268,12 @@ function TaskDetailModal({ isOpen, onClose, task, onSaved }) {
           <form onSubmit={handleLogTime} style={{ display: "flex", gap: "8px", marginBottom: "10px" }}>
             <input type="number" step="0.5" min="0.5" placeholder="Hours" value={hours} onChange={(e) => setHours(e.target.value)} style={{ ...inputStyle(), width: "90px" }} />
             <input placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} style={inputStyle()} />
-            <PrimaryButton type="submit" disabled={logging || !hours} style={{ padding: "9px 14px" }}>{logging ? "‚Ä¶" : "Log"}</PrimaryButton>
+            <PrimaryButton type="submit" disabled={logging || !hours} style={{ padding: "9px 14px" }}>{logging ? "Ö" : "Log"}</PrimaryButton>
           </form>
           <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "110px", overflowY: "auto" }}>
             {entries.map((e) => (
               <div key={e.id} style={{ fontSize: "12px", color: "var(--subtext)" }}>
-                {fmtDate(e.date)} ¬∑ <strong>{e.hours}h</strong> ¬∑ {e.employeeName}{e.note ? ` ‚Äî ${e.note}` : ""}
+                {fmtDate(e.date)} ∑ <strong>{e.hours}h</strong> ∑ {e.employeeName}{e.note ? ` ó ${e.note}` : ""}
               </div>
             ))}
           </div>
@@ -286,7 +286,7 @@ function TaskDetailModal({ isOpen, onClose, task, onSaved }) {
           <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "120px", overflowY: "auto" }}>
             {taskHistory.map((h) => (
               <div key={h.id} style={{ fontSize: "12px", color: "var(--subtext)" }}>
-                {fmtDate(h.date)} ¬∑ <strong>{h.action}</strong> ‚Äî {h.detail}
+                {fmtDate(h.date)} ∑ <strong>{h.action}</strong> ó {h.detail}
               </div>
             ))}
           </div>
@@ -319,13 +319,13 @@ function OrphanedTasksBanner({ orphaned, onReassigned }) {
     <div style={{ ...cardStyle, padding: "14px 18px", marginBottom: "16px", background: "#fef2f2", border: "1px solid #fecaca" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
         <UserX size={16} style={{ color: "var(--red)" }} />
-        <h3 style={{ fontSize: "13px", fontWeight: 700, color: "#991b1b" }}>Orphaned tasks ‚Äî assignee no longer active</h3>
+        <h3 style={{ fontSize: "13px", fontWeight: 700, color: "#991b1b" }}>Orphaned tasks ó assignee no longer active</h3>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         {orphaned.map((t) => (
           <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
             <span style={{ fontSize: "12.5px", color: "#991b1b" }}>
-              <strong>{t.title}</strong> ‚Äî was assigned to {t.assigneeName}
+              <strong>{t.title}</strong> ó was assigned to {t.assigneeName}
             </span>
             <button onClick={() => setReassignTarget(t)} style={{ fontSize: "12px", fontWeight: 700, color: "var(--primary)", border: "none", background: "none", cursor: "pointer" }}>
               Reassign
@@ -334,7 +334,7 @@ function OrphanedTasksBanner({ orphaned, onReassigned }) {
         ))}
       </div>
 
-      <Modal isOpen={!!reassignTarget} title={`Reassign ‚Äî ${reassignTarget?.title || ""}`} onClose={() => setReassignTarget(null)}>
+      <Modal isOpen={!!reassignTarget} title={`Reassign ó ${reassignTarget?.title || ""}`} onClose={() => setReassignTarget(null)}>
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
             {fieldLabel("New assignee *")}
@@ -345,7 +345,7 @@ function OrphanedTasksBanner({ orphaned, onReassigned }) {
           </div>
           <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
             <SecondaryButton onClick={() => setReassignTarget(null)}>Cancel</SecondaryButton>
-            <PrimaryButton onClick={handleReassign} disabled={saving || !newAssigneeId}>{saving ? "Reassigning‚Ä¶" : "Reassign"}</PrimaryButton>
+            <PrimaryButton onClick={handleReassign} disabled={saving || !newAssigneeId}>{saving ? "ReassigningÖ" : "Reassign"}</PrimaryButton>
           </div>
         </div>
       </Modal>
@@ -376,19 +376,19 @@ function TaskCard({ task, onOpen, onMove, onBlockedAttempt }) {
         <h4 style={{ fontSize: "13px", fontWeight: 700, color: "var(--text)" }}>{task.title}</h4>
         <span style={{ fontSize: "10px", fontWeight: 700, color: meta.color, background: meta.bg, padding: "2px 7px", borderRadius: "99px", whiteSpace: "nowrap" }}>{task.priority}</span>
       </div>
-      <p style={{ fontSize: "11.5px", color: "var(--subtext)", marginBottom: "8px" }}>{task.assigneeName} ¬∑ due {fmtDate(task.dueDate)}</p>
+      <p style={{ fontSize: "11.5px", color: "var(--subtext)", marginBottom: "8px" }}>{task.assigneeName} ∑ due {fmtDate(task.dueDate)}</p>
       {task.blockedByTaskIds.length > 0 && task.status !== "Done" && (
-        <p style={{ fontSize: "10.5px", color: "var(--amber, #d97706)", marginBottom: "8px" }}>‚õî {task.blockedByTaskIds.length} blocker(s)</p>
+        <p style={{ fontSize: "10.5px", color: "var(--amber, #d97706)", marginBottom: "8px" }}>? {task.blockedByTaskIds.length} blocker(s)</p>
       )}
       {task.forceClosed && (
         <p style={{ fontSize: "10.5px", color: "var(--red)", marginBottom: "8px" }}>Force-closed: {task.forceCloseReason}</p>
       )}
       <div style={{ display: "flex", gap: "8px" }} onClick={(e) => e.stopPropagation()}>
         {currentIndex > 0 && (
-          <button onClick={() => handleMove(-1)} style={{ fontSize: "11px", fontWeight: 600, color: "var(--subtext)", border: "none", background: "none", cursor: "pointer" }}>‚Üê {TASK_STATUSES[currentIndex - 1]}</button>
+          <button onClick={() => handleMove(-1)} style={{ fontSize: "11px", fontWeight: 600, color: "var(--subtext)", border: "none", background: "none", cursor: "pointer" }}>? {TASK_STATUSES[currentIndex - 1]}</button>
         )}
         {currentIndex < TASK_STATUSES.length - 1 && (
-          <button onClick={() => handleMove(1)} style={{ fontSize: "11px", fontWeight: 600, color: "var(--primary)", border: "none", background: "none", cursor: "pointer" }}>{TASK_STATUSES[currentIndex + 1]} ‚Üí</button>
+          <button onClick={() => handleMove(1)} style={{ fontSize: "11px", fontWeight: 600, color: "var(--primary)", border: "none", background: "none", cursor: "pointer" }}>{TASK_STATUSES[currentIndex + 1]} ?</button>
         )}
       </div>
     </div>
@@ -443,14 +443,14 @@ function CalendarTab({ tasks, onOpen }) {
         return (
           <div key={date}>
             <h3 style={{ fontSize: "12.5px", fontWeight: 700, color: isOverdue ? "var(--red)" : "var(--subtext)", marginBottom: "8px" }}>
-              {fmtDate(date)}{isOverdue ? " ‚Äî overdue" : ""}
+              {fmtDate(date)}{isOverdue ? " ó overdue" : ""}
             </h3>
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               {dayTasks.map((t) => {
                 const meta = taskStatusMeta[t.status];
                 return (
                   <div key={t.id} onClick={() => onOpen(t)} style={{ ...cardStyle, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
-                    <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>{t.title} <span style={{ fontWeight: 400, color: "var(--subtext)" }}>¬∑ {t.assigneeName}</span></span>
+                    <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>{t.title} <span style={{ fontWeight: 400, color: "var(--subtext)" }}>∑ {t.assigneeName}</span></span>
                     <StatusBadge label={t.status} color={meta.color} bg={meta.bg} />
                   </div>
                 );
@@ -505,7 +505,7 @@ function CreateProjectModal({ isOpen, onClose, onSaved }) {
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Creating‚Ä¶" : "Create Project"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "CreatingÖ" : "Create Project"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -531,7 +531,7 @@ function AddMilestoneModal({ isOpen, onClose, project, onSaved }) {
   if (!project) return null;
 
   return (
-    <Modal isOpen={isOpen} title={`Add Milestone ‚Äî ${project.name}`} onClose={onClose}>
+    <Modal isOpen={isOpen} title={`Add Milestone ó ${project.name}`} onClose={onClose}>
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           {fieldLabel("Milestone Title *")}
@@ -543,7 +543,7 @@ function AddMilestoneModal({ isOpen, onClose, project, onSaved }) {
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Adding‚Ä¶" : "Add Milestone"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "AddingÖ" : "Add Milestone"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -570,12 +570,12 @@ function ProjectsTab({ projects, tasks, onProjectAdded, onMilestoneAdded }) {
             <div key={p.id} style={{ ...cardStyle, padding: "18px 20px" }}>
               <h3 style={{ fontSize: "14.5px", fontWeight: 700, color: "var(--text)", marginBottom: "6px" }}>{p.name}</h3>
               <p style={{ fontSize: "12px", color: "var(--subtext)", marginBottom: "10px" }}>
-                {p.members.length} member(s) ¬∑ {doneCount}/{projectTasks.length} tasks done
+                {p.members.length} member(s) ∑ {doneCount}/{projectTasks.length} tasks done
               </p>
               {p.milestones.length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginBottom: "10px" }}>
                   {p.milestones.map((m) => (
-                    <span key={m.id} style={{ fontSize: "11.5px", color: "var(--subtext)" }}>‚ñ∏ {m.title} ‚Äî due {fmtDate(m.dueDate)}</span>
+                    <span key={m.id} style={{ fontSize: "11.5px", color: "var(--subtext)" }}>? {m.title} ó due {fmtDate(m.dueDate)}</span>
                   ))}
                 </div>
               )}

@@ -1,5 +1,5 @@
 /**
- * Mock data — Module 17: Helpdesk
+ * Mock data — Helpdesk
  */
 
 export const TICKET_CATEGORIES = ["IT Tickets", "HR Tickets", "Finance Tickets", "Asset Support", "HR — Grievance/Confidential"];

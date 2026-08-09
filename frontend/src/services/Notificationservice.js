@@ -6,7 +6,7 @@
  * described in the UI:
  *   - lintTemplateBody(): rejects L3/L4 raw fields at save time (23.6)
  *   - dispatchNotification(): security-critical categories always include
- *     Email even if the user opted out of everything (23.5 step 2, DoD)
+ *     Email even if the user opted out of everything (23.5 step 2)
  *   - retry with backoff, then fail-to-in-app, never silently dropped (23.5
  *     step 5, 23.8)
  *   - log entries never carry the merge values used to render a message —
@@ -35,7 +35,7 @@ let _nextInboxId = _inbox.length + 1;
 // ---------- Inbox / History (what a recipient sees) ----------
 
 export function getInboxNotifications(userId) {
-  return delay(_inbox.filter(() => userId === CURRENT_USER.id)); // single-user mock
+  return delay(_inbox.filter(() => userId === CURRENT_USER.id)); 
 }
 
 export function markAsRead(notificationId) {
@@ -78,7 +78,7 @@ function extractMergeFields(body) {
 }
 
 /**
- * spec 23.6: template linting against the classified merge-field catalog,
+ * 
  * at save time — not left to reviewer judgment. Returns every field found
  * in the body plus any violations (unknown field, or classified L3/L4).
  */
@@ -131,14 +131,14 @@ export function simulateChannelOutage(channel, down) {
   return delay(_integrations);
 }
 
-// ---------- Dispatch engine (spec 23.5) ----------
+// ---------- Dispatch engine  ----------
 
 const MAX_ATTEMPTS = 3;
-const BACKOFF_SECONDS = [2, 4, 8]; // shown in the trail for realism; actual wait is shortened for the demo
+const BACKOFF_SECONDS = [2, 4, 8]; // shown in the trail for realism; simulated wait for UI feedback
 
 function writeLog(entry) {
-  // Deliberately narrow: category/channel/status/timestamp only — never the
-  // merge values used to render the message body (spec 23.4).
+  // category/channel/status/timestamp only — never the
+  // merge values used to render the message body .
   const record = { id: `L${_nextLogId++}`, ...entry };
   _log = [record, ..._log];
   return record;
@@ -167,7 +167,7 @@ async function attemptChannel(channel, template, recipient) {
 }
 
 /**
- * Dispatches a notification per spec 23.5:
+ * Dispatches a notification per 
  *  - resolves the recipient's channel preference for this category
  *  - security-critical categories always ALSO include Email, regardless of
  *    preference — even a full opt-out ([]) still gets Email
@@ -185,7 +185,7 @@ export async function dispatchNotification(templateId, mergeValues = {}) {
   const isSecurityCritical = SECURITY_CRITICAL_CATEGORIES.includes(template.category);
   const preferred = _preferences[template.category] || [];
   let channels = new Set(preferred);
-  if (isSecurityCritical) channels.add("Email"); // bypasses opt-out, per spec
+  if (isSecurityCritical) channels.add("Email"); // bypasses opt-out, 
   channels.add("In-app"); // always attempted for anything important
 
   const rendered = template.body.replace(/{{\s*([a-zA-Z0-9_]+)\s*}}/g, (_, key) => mergeValues[key] ?? `[${key}]`);

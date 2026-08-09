@@ -1,6 +1,6 @@
-ï»¿/**
- * Recruitment (ATS) Page â€” Module 5
- * Tabs: Requisitions Â· Candidate Pipeline Â· Interviews Â· Offers
+/**
+ * Recruitment (ATS) Page — Module 5
+ * Tabs: Requisitions · Candidate Pipeline · Interviews · Offers
  */
 
 import { useState, useEffect } from "react";
@@ -43,7 +43,7 @@ import {
 } from "../../mock/recruitment";
 
 const ME_NAME = "lewis hamilton";
-const currency = (n) => `â‚¹${Number(n).toLocaleString("en-IN")}`;
+const currency = (n) => `?${Number(n).toLocaleString("en-IN")}`;
 const fmtDate = (d) => new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
 /* ---------------------------------- shared bits ---------------------------------- */
@@ -187,7 +187,7 @@ function AddRequisitionModal({ isOpen, onClose, onSaved }) {
     <Modal isOpen={isOpen} title="Raise Job Requisition" onClose={onClose}>
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         <p style={{ fontSize: "12.5px", color: "var(--subtext)", margin: 0 }}>
-          Routes for approval: Hiring Manager â†’ Department Head â†’ HR{form.salaryMax && Number(form.salaryMax) > 2000000 ? " â†’ Finance (over standard band)" : ""}.
+          Routes for approval: Hiring Manager ? Department Head ? HR{form.salaryMax && Number(form.salaryMax) > 2000000 ? " ? Finance (over standard band)" : ""}.
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           {fieldLabel("Job Title *")}
@@ -213,7 +213,7 @@ function AddRequisitionModal({ isOpen, onClose, onSaved }) {
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-          {fieldLabel("Budgeted Salary Range (annual, â‚¹) *")}
+          {fieldLabel("Budgeted Salary Range (annual, ?) *")}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
             <input type="number" placeholder="Min" value={form.salaryMin} onChange={(e) => set("salaryMin", e.target.value)} style={inputStyle(errors.salary)} />
             <input type="number" placeholder="Max" value={form.salaryMax} onChange={(e) => set("salaryMax", e.target.value)} style={inputStyle(errors.salary)} />
@@ -227,7 +227,7 @@ function AddRequisitionModal({ isOpen, onClose, onSaved }) {
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Submittingâ€¦" : "Submit Requisition"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Submitting…" : "Submit Requisition"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -265,7 +265,7 @@ function RequisitionsTab({ requisitions, onAdded }) {
                       <td style={{ padding: "13px 16px", fontSize: "13.5px", color: "var(--text)" }}>{r.department}</td>
                       <td style={{ padding: "13px 16px", fontSize: "13.5px", color: "var(--text)" }}>{r.grade}</td>
                       <td style={{ padding: "13px 16px", fontSize: "13.5px", color: "var(--text)", textAlign: "center" }}>{r.openings}</td>
-                      <td style={{ padding: "13px 16px", fontSize: "12.5px", color: "var(--subtext)", whiteSpace: "nowrap" }}>{currency(r.salaryMin)} â€“ {currency(r.salaryMax)}</td>
+                      <td style={{ padding: "13px 16px", fontSize: "12.5px", color: "var(--subtext)", whiteSpace: "nowrap" }}>{currency(r.salaryMin)} – {currency(r.salaryMax)}</td>
                       <td style={{ padding: "13px 16px", fontSize: "13px", color: "var(--text)" }}>{r.raisedBy}</td>
                       <td style={{ padding: "13px 16px" }}><StatusBadge label={r.status} color={meta.color} bg={meta.bg} /></td>
                     </tr>
@@ -351,7 +351,7 @@ function AddCandidateModal({ isOpen, onClose, requisitions, onSaved }) {
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Addingâ€¦" : "Add to Pipeline"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Adding…" : "Add to Pipeline"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -381,7 +381,7 @@ function CandidateCard({ candidate, requisitionTitle, onMove }) {
             onClick={() => onMove(candidate.id, nextStage)}
             style={{ fontSize: "11px", fontWeight: 700, color: "var(--primary)", border: "none", background: "none", cursor: "pointer" }}
           >
-            Move â†’ {nextStage}
+            Move ? {nextStage}
           </button>
         )}
       </div>
@@ -391,7 +391,7 @@ function CandidateCard({ candidate, requisitionTitle, onMove }) {
 
 function PipelineTab({ candidates, requisitions, onCandidateAdded, onMove }) {
   const [showAdd, setShowAdd] = useState(false);
-  const reqTitle = (id) => requisitions.find((r) => r.id === id)?.title || "â€”";
+  const reqTitle = (id) => requisitions.find((r) => r.id === id)?.title || "—";
 
   return (
     <div>
@@ -491,7 +491,7 @@ function ScheduleInterviewModal({ isOpen, onClose, candidates, onSaved }) {
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Schedulingâ€¦" : "Schedule"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Scheduling…" : "Schedule"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -522,7 +522,7 @@ function ScorecardModal({ isOpen, onClose, interview, onSaved }) {
   if (!interview) return null;
 
   return (
-    <Modal isOpen={isOpen} title={`Submit Scorecard â€” ${interview.round}`} onClose={onClose}>
+    <Modal isOpen={isOpen} title={`Submit Scorecard — ${interview.round}`} onClose={onClose}>
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         <p style={{ fontSize: "12px", color: "var(--subtext)", margin: 0 }}>
           Your feedback stays hidden from other interviewers until every panelist for this round has submitted.
@@ -535,18 +535,18 @@ function ScorecardModal({ isOpen, onClose, interview, onSaved }) {
           </select>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-          {fieldLabel("Overall Rating (1â€“5)")}
+          {fieldLabel("Overall Rating (1–5)")}
           <select value={rating} onChange={(e) => setRating(e.target.value)} style={{ ...inputStyle(false), height: "38px", width: "90px", cursor: "pointer" }}>
             {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           {fieldLabel("Structured Notes")}
-          <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Competency-based observationsâ€¦" style={{ ...inputStyle(false), resize: "vertical" }} />
+          <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Competency-based observations…" style={{ ...inputStyle(false), resize: "vertical" }} />
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving || !interviewer}>{saving ? "Submittingâ€¦" : "Submit Scorecard"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving || !interviewer}>{saving ? "Submitting…" : "Submit Scorecard"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -560,7 +560,7 @@ function InterviewCard({ interview, candidateName, onOpenScorecard }) {
     <div style={{ ...cardStyle, padding: "16px 18px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
         <div>
-          <p style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>{candidateName} â€” {interview.round}</p>
+          <p style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>{candidateName} — {interview.round}</p>
           <p style={{ fontSize: "11.5px", color: "var(--subtext)" }}>{interview.interviewers.join(", ")}</p>
         </div>
         <StatusBadge label={interview.status} color={meta.color} bg={meta.bg} />
@@ -577,7 +577,7 @@ function InterviewCard({ interview, candidateName, onOpenScorecard }) {
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
           {interview.scorecards.map((s) => (
             <div key={s.interviewer} style={{ fontSize: "12.5px", color: "var(--text)", background: "var(--background)", borderRadius: "var(--radius-sm)", padding: "8px 10px" }}>
-              <strong>{s.interviewer}</strong> â€” {s.rating}/5{s.notes ? `: ${s.notes}` : ""}
+              <strong>{s.interviewer}</strong> — {s.rating}/5{s.notes ? `: ${s.notes}` : ""}
             </div>
           ))}
         </div>
@@ -599,7 +599,7 @@ function InterviewCard({ interview, candidateName, onOpenScorecard }) {
 function InterviewsTab({ interviews, candidates, onScheduled, onScorecardSubmitted }) {
   const [showSchedule, setShowSchedule] = useState(false);
   const [scorecardInterview, setScorecardInterview] = useState(null);
-  const candidateName = (id) => candidates.find((c) => c.id === id)?.name || "â€”";
+  const candidateName = (id) => candidates.find((c) => c.id === id)?.name || "—";
 
   return (
     <div>
@@ -672,25 +672,25 @@ function CreateOfferModal({ isOpen, onClose, candidates, requisitions, onSaved }
         </div>
         {requisition && (
           <p style={{ fontSize: "12px", color: "var(--subtext)", margin: 0 }}>
-            Approved band for {requisition.title}: {currency(requisition.salaryMin)} â€“ {currency(requisition.salaryMax)}
+            Approved band for {requisition.title}: {currency(requisition.salaryMin)} – {currency(requisition.salaryMax)}
           </p>
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-          {fieldLabel("Proposed Salary (annual, â‚¹) *")}
+          {fieldLabel("Proposed Salary (annual, ?) *")}
           <input type="number" value={salary} onChange={(e) => setSalary(e.target.value)} style={inputStyle(false)} />
         </div>
         {overBand && (
           <div style={{ display: "flex", gap: "8px", alignItems: "flex-start", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "var(--radius-sm)", padding: "10px 12px" }}>
             <AlertTriangle size={16} style={{ color: "#d97706", flexShrink: 0, marginTop: "1px" }} />
             <p style={{ fontSize: "12px", color: "#92400e", margin: 0 }}>
-              This is above the approved band. The offer will be created as <strong>Salary Approval Pending</strong> and cannot be sent until Finance approves â€” this is a hard block, not just a warning.
+              This is above the approved band. The offer will be created as <strong>Salary Approval Pending</strong> and cannot be sent until Finance approves — this is a hard block, not just a warning.
             </p>
           </div>
         )}
         {error && <span style={{ fontSize: "11px", color: "var(--red)" }}>{error}</span>}
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Creatingâ€¦" : "Create Offer"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Creating…" : "Create Offer"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -711,7 +711,7 @@ function OfferRow({ offer, candidateName, onUpdate }) {
   const logConsent = () => onUpdate(offer.id, "Background Verification", { consentOnFile: true });
   const send = () => {
     if (!offer.consentOnFile) return; // hard block: cannot send without BV consent flow having run
-    onUpdate(offer.id, "Sent â€” Awaiting Signature", { sentAt: new Date().toISOString().slice(0, 10) });
+    onUpdate(offer.id, "Sent — Awaiting Signature", { sentAt: new Date().toISOString().slice(0, 10) });
   };
   const accept = () => onUpdate(offer.id, "Accepted", {});
   const decline = () => onUpdate(offer.id, "Declined", {});
@@ -733,7 +733,7 @@ function OfferRow({ offer, candidateName, onUpdate }) {
           {offer.status === "Salary Approval Pending" && !showOverride && (
             <>
               <button onClick={approveSalary} style={{ fontSize: "11.5px", fontWeight: 700, color: "var(--primary)", border: "none", background: "none", cursor: "pointer" }}>Approve (within revised band)</button>
-              <button onClick={() => setShowOverride(true)} style={{ fontSize: "11.5px", fontWeight: 700, color: "var(--amber)", border: "none", background: "none", cursor: "pointer" }}>Finance overrideâ€¦</button>
+              <button onClick={() => setShowOverride(true)} style={{ fontSize: "11.5px", fontWeight: 700, color: "var(--amber)", border: "none", background: "none", cursor: "pointer" }}>Finance override…</button>
             </>
           )}
           {showOverride && (
@@ -743,12 +743,12 @@ function OfferRow({ offer, candidateName, onUpdate }) {
             </div>
           )}
           {offer.status === "Approved" && !offer.consentOnFile && (
-            <button onClick={logConsent} style={{ fontSize: "11.5px", fontWeight: 700, color: "var(--primary)", border: "none", background: "none", cursor: "pointer" }}>Log candidate consent â†’ start BV</button>
+            <button onClick={logConsent} style={{ fontSize: "11.5px", fontWeight: 700, color: "var(--primary)", border: "none", background: "none", cursor: "pointer" }}>Log candidate consent ? start BV</button>
           )}
           {offer.status === "Background Verification" && (
-            <button onClick={send} style={{ fontSize: "11.5px", fontWeight: 700, color: "var(--primary)", border: "none", background: "none", cursor: "pointer" }}>Verification complete â€” Send offer</button>
+            <button onClick={send} style={{ fontSize: "11.5px", fontWeight: 700, color: "var(--primary)", border: "none", background: "none", cursor: "pointer" }}>Verification complete — Send offer</button>
           )}
-          {offer.status === "Sent â€” Awaiting Signature" && (
+          {offer.status === "Sent — Awaiting Signature" && (
             <>
               <button onClick={accept} style={{ fontSize: "11.5px", fontWeight: 700, color: "var(--green)", border: "none", background: "none", cursor: "pointer" }}>Mark Accepted</button>
               <button onClick={decline} style={{ fontSize: "11.5px", fontWeight: 700, color: "var(--red)", border: "none", background: "none", cursor: "pointer" }}>Mark Declined</button>
@@ -763,7 +763,7 @@ function OfferRow({ offer, candidateName, onUpdate }) {
 
 function OffersTab({ offers, candidates, requisitions, onCreated, onUpdate }) {
   const [showCreate, setShowCreate] = useState(false);
-  const candidateName = (id) => candidates.find((c) => c.id === id)?.name || "â€”";
+  const candidateName = (id) => candidates.find((c) => c.id === id)?.name || "—";
 
   return (
     <div>

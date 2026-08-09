@@ -1,5 +1,5 @@
 /**
- * Mock data — Module 14: Expense Management
+ * Mock data — Expense Management
  * Follows the attendanceStatusMeta/leaveStatusMeta convention.
  */
 

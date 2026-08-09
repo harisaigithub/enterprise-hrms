@@ -1,6 +1,6 @@
-Ôªø/**
- * Performance Page ‚Äî Module 10
- * Tabs: Goals & OKRs ¬∑ Review Cycle ¬∑ Feedback ¬∑ 1:1s ¬∑ Ratings History
+/**
+ * Performance Page ó Module 10
+ * Tabs: Goals & OKRs ∑ Review Cycle ∑ Feedback ∑ 1:1s ∑ Ratings History
  */
 
 import { useState, useEffect } from "react";
@@ -254,7 +254,7 @@ function AddGoalModal({ isOpen, onClose, onSaved, cycleName }) {
 
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving‚Ä¶" : "Submit for Approval"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "SavingÖ" : "Submit for Approval"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -308,7 +308,7 @@ function GoalsTab({ goals, cycle, onGoalAdded }) {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
         <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>
-          My Goals ‚Äî {cycle?.name?.replace(" Performance Review", "") || "This Cycle"}
+          My Goals ó {cycle?.name?.replace(" Performance Review", "") || "This Cycle"}
         </h2>
         <PrimaryButton onClick={() => setShowAdd(true)} disabled={goalsLocked} title={goalsLocked ? "Goal-setting window is closed for this cycle" : undefined}>
           {goalsLocked ? <Lock size={14} /> : <Plus size={16} />}
@@ -393,7 +393,7 @@ function SubmitSelfAssessmentModal({ isOpen, onClose, goals, onSaved }) {
           <div key={g.id} style={{ borderBottom: "1px solid var(--border)", paddingBottom: "16px" }}>
             <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)", marginBottom: "8px" }}>{g.title}</p>
             <div style={{ display: "flex", flexDirection: "column", gap: "5px", marginBottom: "10px" }}>
-              {fieldLabel("Self-rating (1‚Äì5)")}
+              {fieldLabel("Self-rating (1ñ5)")}
               <select value={ratings[g.id] || 3} onChange={(e) => setRatings((p) => ({ ...p, [g.id]: e.target.value }))} style={{ ...inputStyle(false), height: "36px", width: "90px", cursor: "pointer" }}>
                 {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
               </select>
@@ -404,7 +404,7 @@ function SubmitSelfAssessmentModal({ isOpen, onClose, goals, onSaved }) {
                 rows={2}
                 value={comments[g.id] || ""}
                 onChange={(e) => setComments((p) => ({ ...p, [g.id]: e.target.value }))}
-                placeholder="Summarize progress and impact‚Ä¶"
+                placeholder="Summarize progress and impactÖ"
                 style={{ ...inputStyle(false), resize: "vertical" }}
               />
             </div>
@@ -412,7 +412,7 @@ function SubmitSelfAssessmentModal({ isOpen, onClose, goals, onSaved }) {
         ))}
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Submitting‚Ä¶" : "Submit Self-Assessment"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "SubmittingÖ" : "Submit Self-Assessment"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -495,7 +495,7 @@ function ReviewCycleTab({ cycle, goals, selfAssessment, managerReview, onSelfAss
         ) : (
           <p style={{ fontSize: "13px", color: "var(--subtext)" }}>
             {selfAssessment.submitted
-              ? "Your manager hasn't submitted their review yet ‚Äî you'll be notified once it's ready."
+              ? "Your manager hasn't submitted their review yet ó you'll be notified once it's ready."
               : "Manager review opens once your self-assessment is submitted."}
           </p>
         )}
@@ -506,11 +506,11 @@ function ReviewCycleTab({ cycle, goals, selfAssessment, managerReview, onSelfAss
         <div style={{ ...cardStyle, padding: "20px 22px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
             <Sparkles size={16} style={{ color: "var(--primary)" }} />
-            <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>360¬∞ Feedback</h3>
+            <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>360∞ Feedback</h3>
           </div>
           <p style={{ fontSize: "13px", color: "var(--subtext)" }}>
             {cycle.peerResponsesReceived} of {cycle.peerReviewersNominated} nominated peers have responded.
-            Results are shown to you only as an anonymized summary once the cycle completes ‚Äî individual reviewers are never identified.
+            Results are shown to you only as an anonymized summary once the cycle completes ó individual reviewers are never identified.
           </p>
         </div>
       )}
@@ -574,7 +574,7 @@ function GiveFeedbackModal({ isOpen, onClose, goals, onSaved }) {
           {fieldLabel("For *")}
           <select value={recipientId} onChange={(e) => setRecipientId(e.target.value)} style={{ ...inputStyle(errors.recipientId), height: "38px", cursor: "pointer" }}>
             <option value="">Select colleague</option>
-            {colleagues.map((c) => <option key={c.id} value={c.id}>{c.name} ‚Äî {c.role}</option>)}
+            {colleagues.map((c) => <option key={c.id} value={c.id}>{c.name} ó {c.role}</option>)}
           </select>
           {errors.recipientId && <span style={{ fontSize: "11px", color: "var(--red)" }}>{errors.recipientId}</span>}
         </div>
@@ -601,7 +601,7 @@ function GiveFeedbackModal({ isOpen, onClose, goals, onSaved }) {
             rows={4}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="Be specific and constructive‚Ä¶"
+            placeholder="Be specific and constructiveÖ"
             style={{ ...inputStyle(errors.message), resize: "vertical" }}
           />
           {errors.message && <span style={{ fontSize: "11px", color: "var(--red)" }}>{errors.message}</span>}
@@ -614,7 +614,7 @@ function GiveFeedbackModal({ isOpen, onClose, goals, onSaved }) {
 
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Sending‚Ä¶" : "Send Feedback"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "SendingÖ" : "Send Feedback"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -632,7 +632,7 @@ function FeedbackCard({ entry }) {
             {isReceived ? `From ${entry.fromName}` : `To ${entry.toName}`}
           </span>
           {entry.goalTag && (
-            <div style={{ fontSize: "11px", color: "var(--subtext)", marginTop: "2px" }}>on ‚Äú{entry.goalTag}‚Äù</div>
+            <div style={{ fontSize: "11px", color: "var(--subtext)", marginTop: "2px" }}>on ì{entry.goalTag}î</div>
           )}
         </div>
         <div style={{ display: "flex", gap: "6px", alignItems: "center", flexShrink: 0 }}>
@@ -783,12 +783,12 @@ function AddNoteModal({ isOpen, onClose, onSaved }) {
 
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           {fieldLabel("Notes")}
-          <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Free-form notes from the conversation‚Ä¶" style={{ ...inputStyle(false), resize: "vertical" }} />
+          <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Free-form notes from the conversationÖ" style={{ ...inputStyle(false), resize: "vertical" }} />
         </div>
 
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving‚Ä¶" : "Save Note"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "SavingÖ" : "Save Note"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -924,7 +924,7 @@ function RatingsTab({ ratings }) {
                   <td style={{ padding: "13px 16px", fontSize: "13.5px", color: "var(--primary)", fontWeight: 700 }}>{r.finalRating} / 5</td>
                   <td style={{ padding: "13px 16px", fontSize: "13.5px", color: "var(--green)", fontWeight: 600 }}>{r.increment}</td>
                   <td style={{ padding: "13px 16px" }}>
-                    {r.promotion ? <StatusBadge label="Promoted" color="#16a34a" bg="#f0fdf4" /> : <span style={{ fontSize: "12.5px", color: "var(--subtext)" }}>‚Äî</span>}
+                    {r.promotion ? <StatusBadge label="Promoted" color="#16a34a" bg="#f0fdf4" /> : <span style={{ fontSize: "12.5px", color: "var(--subtext)" }}>ó</span>}
                   </td>
                   <td style={{ padding: "13px 16px", fontSize: "12px", color: "var(--subtext)", whiteSpace: "nowrap" }}>
                     {new Date(r.releasedOn + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
@@ -1003,7 +1003,7 @@ export default function Performance() {
   return (
     <MainLayout>
       <div style={{ maxWidth: "1480px", margin: "0 auto" }}>
-        <PageHeader title="Performance" subtitle={cycle ? `${cycle.name} ‚Äî Goals, reviews and feedback` : "Goals, reviews and feedback"} />
+        <PageHeader title="Performance" subtitle={cycle ? `${cycle.name} ó Goals, reviews and feedback` : "Goals, reviews and feedback"} />
 
         <TabNav tabs={TABS} active={activeTab} onChange={setActiveTab} />
 

@@ -1,5 +1,5 @@
 /**
- * Employee Dashboard — spec 3.5.1
+ * Employee Dashboard — 
  */
 import MainLayout from "../../components/layout/MainLayout";
 import AttendanceWidget from "../../components/dashboard/AttendanceWidget";

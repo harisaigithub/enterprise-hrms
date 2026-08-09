@@ -1,6 +1,6 @@
-ï»¿/**
- * Policy Management Page â€” Module 18
- * Tabs: Policy Library Â· My Acknowledgements Â· Compliance Dashboard
+/**
+ * Policy Management Page — Module 18
+ * Tabs: Policy Library · My Acknowledgements · Compliance Dashboard
  */
 
 import { useState, useEffect, useRef } from "react";
@@ -31,7 +31,7 @@ import { policyStatusMeta, ackStatusMeta } from "../../mock/policies";
 import { colleagues } from "../../mock/recruitment";
 
 const ME = { id: "EMP001", name: "Matsya Singh" };
-const fmtDate = (d) => (d ? new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "â€”");
+const fmtDate = (d) => (d ? new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—");
 
 /* ---------------------------------- shared bits ---------------------------------- */
 
@@ -196,7 +196,7 @@ function CreatePolicyModal({ isOpen, onClose, onSaved }) {
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Savingâ€¦" : "Save as Draft"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving…" : "Save as Draft"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -234,7 +234,7 @@ function AddVersionModal({ isOpen, onClose, policy, onSaved }) {
   };
 
   return (
-    <Modal isOpen={isOpen} title={`New Version â€” ${policy.title}`} onClose={onClose}>
+    <Modal isOpen={isOpen} title={`New Version — ${policy.title}`} onClose={onClose}>
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         <p style={{ fontSize: "12px", color: "var(--subtext)", margin: 0 }}>
           Version {latest.versionNumber} stays in history unchanged. This creates version {latest.versionNumber + 1} and moves the policy back to Draft until republished.
@@ -261,7 +261,7 @@ function AddVersionModal({ isOpen, onClose, policy, onSaved }) {
         </label>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Savingâ€¦" : "Create Version"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving…" : "Create Version"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -279,7 +279,7 @@ function VersionHistory({ policy }) {
         <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "6px" }}>
           {[...policy.versions].reverse().map((v) => (
             <div key={v.id} style={{ fontSize: "11.5px", color: "var(--text)", background: "var(--background)", borderRadius: "var(--radius-sm)", padding: "8px 10px" }}>
-              <strong>v{v.versionNumber}</strong> â€” effective {fmtDate(v.effectiveDate)} Â· by {v.createdBy} on {fmtDate(v.createdAt)}
+              <strong>v{v.versionNumber}</strong> — effective {fmtDate(v.effectiveDate)} · by {v.createdBy} on {fmtDate(v.createdAt)}
               {v.id === policy.currentVersionId && <span style={{ marginLeft: "6px", color: "var(--primary)", fontWeight: 700 }}>(current)</span>}
               {v.summary && <p style={{ margin: "4px 0 0", color: "var(--subtext)" }}>{v.summary}</p>}
             </div>
@@ -327,7 +327,7 @@ function PolicyLibraryTab({ policies, onPolicyAdded, onPolicyUpdated }) {
                       <h3 style={{ fontSize: "14.5px", fontWeight: 700, color: "var(--text)" }}>{p.title}</h3>
                       <span style={{ fontSize: "11px", color: "var(--subtext)" }}>v{v.versionNumber}</span>
                     </div>
-                    <p style={{ fontSize: "11.5px", color: "var(--subtext)", marginTop: "2px" }}>{p.category} Â· {p.scope}</p>
+                    <p style={{ fontSize: "11.5px", color: "var(--subtext)", marginTop: "2px" }}>{p.category} · {p.scope}</p>
                   </div>
                   <StatusBadge label={p.status} color={meta.color} bg={meta.bg} />
                 </div>
@@ -391,7 +391,7 @@ function AcknowledgeModal({ isOpen, onClose, policy, onSaved }) {
   return (
     <Modal isOpen={isOpen} title={policy.title} onClose={onClose}>
       <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-        <p style={{ fontSize: "11.5px", color: "var(--subtext)", margin: 0 }}>Version {v.versionNumber} Â· effective {fmtDate(v.effectiveDate)}</p>
+        <p style={{ fontSize: "11.5px", color: "var(--subtext)", margin: 0 }}>Version {v.versionNumber} · effective {fmtDate(v.effectiveDate)}</p>
         <div
           ref={contentRef}
           onScroll={handleScroll}
@@ -399,13 +399,13 @@ function AcknowledgeModal({ isOpen, onClose, policy, onSaved }) {
         >
           <p>{v.summary || "Policy content goes here."}</p>
           <p style={{ marginTop: "12px" }}>By acknowledging, you confirm you have read and understood this policy and agree to comply with it for the duration it remains in effect.</p>
-          <p style={{ marginTop: "12px", color: "var(--subtext)" }}>â€” End of document â€”</p>
+          <p style={{ marginTop: "12px", color: "var(--subtext)" }}>— End of document —</p>
         </div>
         {!scrolledToBottom && <p style={{ fontSize: "11px", color: "var(--subtext)", margin: 0 }}>Scroll to the end to enable acknowledgement.</p>}
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Close</SecondaryButton>
           <PrimaryButton type="button" disabled={!scrolledToBottom || saving} onClick={handleAcknowledge}>
-            {saving ? "Recordingâ€¦" : "I have read and acknowledge"}
+            {saving ? "Recording…" : "I have read and acknowledge"}
           </PrimaryButton>
         </div>
       </div>
@@ -441,7 +441,7 @@ function MyAcknowledgementsTab({ policies, myAcks, onAcknowledged }) {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
                 <div>
                   <h3 style={{ fontSize: "14.5px", fontWeight: 700, color: "var(--text)" }}>{p.title}</h3>
-                  <p style={{ fontSize: "11.5px", color: "var(--subtext)" }}>Version {v.versionNumber} Â· {p.category}</p>
+                  <p style={{ fontSize: "11.5px", color: "var(--subtext)" }}>Version {v.versionNumber} · {p.category}</p>
                 </div>
                 {done ? (
                   <StatusBadge label="Acknowledged" color={ackStatusMeta.Acknowledged.color} bg={ackStatusMeta.Acknowledged.bg} />
@@ -454,7 +454,7 @@ function MyAcknowledgementsTab({ policies, myAcks, onAcknowledged }) {
 
               {done ? (
                 <p style={{ fontSize: "12px", color: "var(--green)", fontWeight: 600, marginTop: "10px", display: "flex", alignItems: "center", gap: "5px" }}>
-                  <CheckCircle2 size={13} /> Signed {fmtDate(ack.acknowledgedAt)} Â· {ack.device}
+                  <CheckCircle2 size={13} /> Signed {fmtDate(ack.acknowledgedAt)} · {ack.device}
                 </p>
               ) : (
                 <>
@@ -507,7 +507,7 @@ function ComplianceTab({ policies, allAcks }) {
             {outstanding.length > 0 && (
               <>
                 <p style={{ fontSize: "11px", fontWeight: 700, color: "var(--red)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "6px" }}>
-                  Outstanding â€” escalates to employee then manager after the configured overdue period
+                  Outstanding — escalates to employee then manager after the configured overdue period
                 </p>
                 <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                   {outstanding.map((e) => (

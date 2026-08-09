@@ -33,7 +33,7 @@ export function getCandidates() {
 export function addCandidate(candidate) {
   return resolve(_addCandidate(candidate));
 }
-// Every stage-move must be logged with actor + timestamp (spec 5.5.2.4) —
+// Every stage-move must be logged with actor + timestamp  —
 // callers should pass an already-timestamped candidate, or wire this to a
 // real audit-log write when the backend exists.
 export function moveCandidateStage(id, stage) {

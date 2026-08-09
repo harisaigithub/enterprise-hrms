@@ -1,5 +1,5 @@
 /**
- * Mock data — Employee Self Service (Module 16)
+ * Mock data — Employee Self Service 
  *
  * ESS owns no real data of its own — everything here stands in for calls
  * into the owning modules (Leave, Attendance, Payroll, LMS, Assets), always

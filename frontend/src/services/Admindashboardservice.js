@@ -1,5 +1,5 @@
 /**
- * Admin (Management) Dashboard service — spec 3.5.3
+ * Admin (Management) Dashboard service — 
  * Single nightly-materialized snapshot rather than live per-widget queries.
  */
 import { analyticsSnapshot } from "../mock/AdminDashboard";

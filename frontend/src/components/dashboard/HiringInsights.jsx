@@ -14,7 +14,7 @@ export default function HiringInsights() {
     <DashboardWidgetCard
       icon={Users2}
       title="Hiring Insights"
-      iconColor="#4f46e5"
+      iconColor="#0f766e"
       iconBg="#eef2ff"
       loading={loading}
       error={error}
