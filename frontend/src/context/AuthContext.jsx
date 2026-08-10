@@ -7,8 +7,8 @@ import api from "../services/api";
 // Role accounts for quick sign-in (same credentials as the seeded database).
 const DEMO_ACCOUNTS = [
   { label: "Admin",    email: "robert.king@company.com",  password: "Password@123" },
-  { label: "HR",       email: "lewis.hamilton@company.com", password: "Password@123" },
-  { label: "Manager",  email: "alice.quinn@company.com",  password: "Password@123" },
+  { label: "HR",       email: "sunita.reddy@company.com", password: "Password@123" },
+  { label: "Manager",  email: "anjali.desai@company.com",  password: "Password@123" },
   { label: "Employee", email: "matsya.singh@company.com", password: "Password@123" },
 ];
 

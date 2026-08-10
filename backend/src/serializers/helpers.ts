@@ -38,14 +38,16 @@ export function startOfDay(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 }
 
-/** Compute the number of working days between two dates (inclusive). */
+/** Compute the number of working days between two dates (inclusive).
+ *  Uses UTC methods because Prisma @db.Date fields are always UTC midnight. */
 export function countWeekdays(start: Date, end: Date): number {
   let count = 0;
-  const cur = new Date(start);
-  while (cur <= end) {
-    const day = cur.getDay();
+  const cur = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()));
+  const endUTC = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate()));
+  while (cur <= endUTC) {
+    const day = cur.getUTCDay();
     if (day !== 0 && day !== 6) count += 1;
-    cur.setDate(cur.getDate() + 1);
+    cur.setUTCDate(cur.getUTCDate() + 1);
   }
   return count;
 }

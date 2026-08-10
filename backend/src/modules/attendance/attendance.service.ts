@@ -10,10 +10,16 @@ const PUNCH_INCLUDE = {
   employee: { select: { employeeCode: true } },
 } satisfies Prisma.AttendancePunchInclude;
 
-/** Resolve an employee code (EMP001) to the DB PK, with scope guard. */
+/** Resolve an employee code (EMP001) to the DB PK, with scope guard.
+ *  If actorEmployeeId is given, the resolved employee must match the actor
+ *  (employees can only check-in/out for themselves). HR/Admin callers
+ *  pass undefined to bypass. */
 export async function resolveEmployeeId(employeeCode: string, actorEmployeeId?: string): Promise<string> {
   const emp = await prisma.employee.findUnique({ where: { employeeCode }, select: { id: true } });
   if (!emp) throw AppError.notFound("Employee not found");
+  if (actorEmployeeId && emp.id !== actorEmployeeId) {
+    throw AppError.forbidden("You can only manage your own attendance");
+  }
   return emp.id;
 }
 

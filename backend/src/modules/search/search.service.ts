@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
-import { formatDate } from "../../serializers/helpers";
+import { formatDate, hashStringToRange } from "../../serializers/helpers";
 
 export interface SearchResultEntry {
   id: string;
@@ -70,13 +70,16 @@ export async function globalSearch(query: string): Promise<SearchResultEntry[]> 
 
   for (const emp of employees) {
     const name = `${emp.firstName} ${emp.lastName}`;
+    const genderPath = emp.gender?.toLowerCase() === "female" ? "women" : "men";
+    const avatarId = hashStringToRange(emp.employeeCode, 1, 99);
+
     entries.push({
       id: emp.employeeCode,
       type: "Employee",
       title: name,
       subtitle: `${emp.designation?.title ?? ""} · ${emp.department?.name ?? ""}`,
       meta: emp.personalEmail ?? "",
-      avatar: `https://i.pravatar.cc/150?img=${Number(emp.employeeCode.replace(/\D/g, "")) || 1}`,
+      avatar: `https://randomuser.me/api/portraits/${genderPath}/${avatarId}.jpg`,
       href: `/employees/${emp.employeeCode}`,
       keywords: [name.toLowerCase(), emp.employeeCode.toLowerCase(), (emp.personalEmail ?? "").toLowerCase()],
     });
@@ -87,7 +90,7 @@ export async function globalSearch(query: string): Promise<SearchResultEntry[]> 
     entries.push({
       id: req.id,
       type: "Leave Request",
-      title: `${employeeName} — ${req.leaveType?.name ?? ""}`,
+      title: `${employeeName} - ${req.leaveType?.name ?? ""}`,
       subtitle: `${formatDate(req.startDate) ?? ""} to ${formatDate(req.endDate) ?? ""}`,
       meta: req.status,
       avatar: null,

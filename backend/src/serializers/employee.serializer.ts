@@ -32,9 +32,12 @@ export function serializeEmployee(emp: EmployeeWithRelations) {
       toNumber(activeStructure.otherAllowances)
     : 0;
 
+    const genderPath = emp.gender?.toLowerCase() === "female" ? "women" : "men";
+    const avatarId = hashStringToRange(emp.employeeCode, 1, 99);
+
   return {
     id: emp.employeeCode,
-    avatar: `https://i.pravatar.cc/150?img=${hashStringToRange(emp.employeeCode, 1, 70)}`,
+    avatar: `https://randomuser.me/api/portraits/${genderPath}/${avatarId}.jpg`,
     firstName: emp.firstName,
     lastName: emp.lastName,
     email: emp.user?.email ?? emp.personalEmail ?? "",
