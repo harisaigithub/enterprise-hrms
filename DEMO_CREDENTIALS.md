@@ -7,8 +7,8 @@ All seeded accounts share the password **`Password@123`**.
 | Role     | Name            | Employee ID | Email                          |
 |----------|-----------------|-------------|--------------------------------|
 | Admin    | Robert King     | EMP010      | `robert.king@company.com`      |
-| HR       | Lewis Hamilton  | EMP011      | `lewis.hamilton@company.com`   |
-| Manager  | Alice Quinn     | EMP005      | `alice.quinn@company.com`      |
+| HR       | Sunita Reddy    | EMP011      | `sunita.reddy@company.com`     |
+| Manager  | Anjali Desai    | EMP005      | `anjali.desai@company.com`     |
 | Employee | Matsya Singh    | EMP001      | `matsya.singh@company.com`     |
 
 ## Full employee list (all can log in)
@@ -18,18 +18,18 @@ All seeded accounts share the password **`Password@123`**.
 | EMP001      | Matsya Singh     | Engineering       | Senior Software Eng.   | Active   | `matsya.singh@company.com`     |
 | EMP002      | Vijay Mudgal     | Product           | Product Manager        | Active   | `vijay.mudgal@company.com`     |
 | EMP003      | Vikas Agarwal    | Design            | UX Designer            | Active   | `vikas.agarwal@company.com`    |
-| EMP004      | Gary Chen        | Engineering       | DevOps Engineer        | Active   | `gary.chen@company.com`        |
-| EMP005      | Alice Quinn      | Engineering       | Engineering Manager    | Active   | `alice.quinn@company.com`      |
-| EMP006      | James Sullivan   | Analytics         | Data Analyst           | On Leave | `james.sullivan@company.com`   |
-| EMP007      | Viki Vance       | Product           | VP of Product          | Active   | `viki.vance@company.com`       |
-| EMP008      | Kirk Wilson      | Human Resources   | HR Specialist          | Active   | `kirk.wilson@company.com`      |
+| EMP004      | Rohan Sharma     | Engineering       | DevOps Engineer        | Active   | `rohan.sharma@company.com`     |
+| EMP005      | Anjali Desai     | Engineering       | Engineering Manager    | Active   | `anjali.desai@company.com`     |
+| EMP006      | Rahul Verma      | Analytics         | Data Analyst           | On Leave | `rahul.verma@company.com`      |
+| EMP007      | Sneha Kapoor     | Product           | VP of Product          | Active   | `sneha.kapoor@company.com`     |
+| EMP008      | Amit Patel       | Human Resources   | HR Specialist          | Active   | `amit.patel@company.com`       |
 | EMP009      | Priya Mehta      | Analytics         | Head of Analytics      | Active   | `priya.mehta@company.com`      |
 | EMP010      | Robert King      | Executive         | CEO                    | Active   | `robert.king@company.com`      |
-| EMP011      | Lewis Hamilton   | Human Resources   | HR Manager             | Active   | `lewis.hamilton@company.com`   |
-| EMP012      | Mohammed Al-Rashid | Engineering    | Backend Engineer       | Active   | `m.alrashid@company.com`       |
-| EMP013      | Laura Perez      | Marketing         | Marketing Manager      | Active   | `laura.perez@company.com`      |
-| EMP014      | Tom Nguyen       | Engineering       | Frontend Engineer      | Active   | `tom.nguyen@company.com`       |
-| EMP015      | Aisha Okonkwo    | Finance           | Finance Analyst        | Inactive | `aisha.okonkwo@company.com`    |
+| EMP011      | Sunita Reddy     | Human Resources   | HR Manager             | Active   | `sunita.reddy@company.com`     |
+| EMP012      | Manish Gupta     | Engineering       | Backend Engineer       | Active   | `manish.gupta@company.com`     |
+| EMP013      | Neha Joshi       | Marketing         | Marketing Manager      | Active   | `neha.joshi@company.com`       |
+| EMP014      | Kiran Kumar      | Engineering       | Frontend Engineer      | Active   | `kiran.kumar@company.com`      |
+| EMP015      | Pooja Iyer       | Finance           | Finance Analyst        | Inactive | `pooja.iyer@company.com`       |
 
 ## Roles & permissions
 

@@ -24,7 +24,7 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
     page: q.page ? Number(q.page) : undefined,
     limit: q.limit ? Number(q.limit) : undefined,
   });
-  sendSuccess(res, result.data, result.total);
+  res.json({ data: result.data, total: result.total, page: result.page, limit: result.limit, totalPages: result.totalPages });
 });
 
 export const getOne = asyncHandler(async (req: Request, res: Response) => {

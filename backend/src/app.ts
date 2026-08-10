@@ -5,6 +5,7 @@ import { pinoHttp } from "pino-http";
 import crypto from "crypto";
 import { env, corsOrigins } from "./config/env";
 import { logger } from "./lib/logger";
+import { AppError } from "./lib/errors";
 import { globalRateLimiter } from "./middlewares/rateLimiter";
 import { notFoundHandler, errorHandler } from "./middlewares/errorHandler";
 import { sendSuccess } from "./lib/response";
@@ -25,7 +26,7 @@ app.use(
       // Allow requests with no origin (server-to-server, curl, etc.)
       if (!origin) return callback(null, true);
       if (corsOrigins.includes(origin)) return callback(null, true);
-      return callback(new Error("Not allowed by CORS"));
+      return callback(AppError.forbidden("Not allowed by CORS"));
     },
     credentials: true,
   })
