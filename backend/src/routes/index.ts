@@ -6,6 +6,7 @@ import leaveRoutes from "../modules/leave/leave.routes";
 import payrollRoutes from "../modules/payroll/payroll.routes";
 import searchRoutes from "../modules/search/search.routes";
 import workflowRoutes from "../modules/workflow/workflow.routes";
+import performanceRoutes from "../modules/performance/performance.routes";
 
 const router = Router();
 
@@ -16,5 +17,6 @@ router.use("/leave", leaveRoutes);
 router.use("/payroll", payrollRoutes);
 router.use("/search", searchRoutes);
 router.use("/workflow", workflowRoutes);
+router.use("/performance", performanceRoutes);
 
 export default router;

@@ -1,67 +1,77 @@
 /**
- * Performance service — Module 10
- * Mirrors the shape of leaveService / attendanceService: async functions
- * resolving to { data }. Swap the mock/performance.js calls for real API
- * calls once the backend endpoints exist.
+ * Performance Service — Module 10
+ * Talks to the real backend (VITE_API_URL → /api/performance).
+ * Each function returns { data } matching the frontend's API contract.
  */
 
-import {
-  _getGoals,
-  _addGoal,
-  _getReviewCycle,
-  _getSelfAssessment,
-  _submitSelfAssessment,
-  _getManagerReview,
-  _getFeedback,
-  _addFeedback,
-  _getOneOnOnes,
-  _addOneOnOne,
-  _getRatingsHistory,
-} from "../mock/Performance";
+import api from "./api";
 
-const resolve = (data, ms = 350) => new Promise((res) => setTimeout(() => res({ data }), ms));
+export const getGoals = async (employeeId) => {
+  const res = await api.get("/performance/goals", { params: { employeeId } });
+  return res.data;
+};
 
-export function getGoals(employeeId) {
-  return resolve(_getGoals(employeeId));
-}
+export const addGoal = async (goal) => {
+  const res = await api.post("/performance/goals", goal);
+  return res.data;
+};
 
-export function addGoal(goal) {
-  return resolve(_addGoal(goal));
-}
+export const updateGoal = async (id, payload) => {
+  const res = await api.put(`/performance/goals/${id}`, payload);
+  return res.data;
+};
 
-export function getReviewCycle() {
-  return resolve(_getReviewCycle());
-}
+export const getReviewCycle = async () => {
+  const res = await api.get("/performance/cycle");
+  return res.data;
+};
 
-export function getSelfAssessment() {
-  return resolve(_getSelfAssessment());
-}
+export const getSelfAssessment = async (employeeId) => {
+  const res = await api.get("/performance/reviews/self", { params: { employeeId } });
+  return res.data;
+};
 
-// Validation rule (10.6): manager review cannot be submitted before this exists.
-export function submitSelfAssessment(responses) {
-  return resolve(_submitSelfAssessment(responses));
-}
+export const submitSelfAssessment = async (responses, employeeId) => {
+  const res = await api.post("/performance/reviews/self", { responses, employeeId });
+  return res.data;
+};
 
-export function getManagerReview() {
-  return resolve(_getManagerReview());
-}
+export const getManagerReview = async (employeeId) => {
+  const res = await api.get("/performance/reviews/manager", { params: { employeeId } });
+  return res.data;
+};
 
-export function getFeedback(employeeId) {
-  return resolve(_getFeedback(employeeId));
-}
+export const submitManagerReview = async (employeeId, responses) => {
+  const res = await api.post("/performance/reviews/manager", { employeeId, responses });
+  return res.data;
+};
 
-export function addFeedback(entry) {
-  return resolve(_addFeedback(entry));
-}
+export const getFeedback = async (employeeId, filter = "all") => {
+  const res = await api.get("/performance/feedback", { params: { employeeId, filter } });
+  return res.data;
+};
 
-export function getOneOnOnes(employeeId) {
-  return resolve(_getOneOnOnes(employeeId));
-}
+export const addFeedback = async (entry) => {
+  const res = await api.post("/performance/feedback", entry);
+  return res.data;
+};
 
-export function addOneOnOne(note) {
-  return resolve(_addOneOnOne(note));
-}
+export const getOneOnOnes = async (employeeId) => {
+  const res = await api.get("/performance/one-on-ones", { params: { employeeId } });
+  return res.data;
+};
 
-export function getRatingsHistory(employeeId) {
-  return resolve(_getRatingsHistory(employeeId));
-}
+export const addOneOnOne = async (note) => {
+  const res = await api.post("/performance/one-on-ones", note);
+  return res.data;
+};
+
+export const toggleActionItem = async (oneOnOneId, actionId) => {
+  const res = await api.patch(`/performance/one-on-ones/${oneOnOneId}/actions/${actionId}`);
+  return res.data;
+};
+
+export const getRatingsHistory = async (employeeId) => {
+  const res = await api.get("/performance/ratings-history", { params: { employeeId } });
+  return res.data;
+};

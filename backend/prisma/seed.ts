@@ -510,6 +510,202 @@ async function main() {
     });
   }
 
+  // Performance Management seed data (Module 10)
+  const q3Cycle = await prisma.performanceReviewCycle.create({
+    data: {
+      name: "Q3 2026 Performance Review",
+      cycleCode: "Q3-2026",
+      phase: "Goal Setting",
+      goalSettingStart: new Date("2026-07-01T00:00:00Z"),
+      goalSettingEnd: new Date("2026-07-10T00:00:00Z"),
+      selfAssessmentStart: new Date("2026-09-15T00:00:00Z"),
+      selfAssessmentEnd: new Date("2026-09-22T00:00:00Z"),
+      managerReviewStart: new Date("2026-09-23T00:00:00Z"),
+      managerReviewEnd: new Date("2026-09-30T00:00:00Z"),
+      is360Enabled: true,
+      isActive: true,
+    },
+  });
+
+  const emp004 = empPKByCode.get("EMP004")!;
+  const emp005 = empPKByCode.get("EMP005")!;
+
+  const g1 = await prisma.performanceGoal.create({
+    data: {
+      employeeId: emp001,
+      reviewCycleId: q3Cycle.id,
+      title: "Improve API response times across core services",
+      category: "Technical",
+      status: "Locked",
+      createdAt: new Date("2026-07-02T00:00:00Z"),
+      keyResults: {
+        create: [
+          { text: "Reduce p95 latency on /employees endpoint to <200ms", progress: 70 },
+          { text: "Add caching layer for payroll queries", progress: 40 },
+        ],
+      },
+    },
+  });
+
+  const g2 = await prisma.performanceGoal.create({
+    data: {
+      employeeId: emp001,
+      reviewCycleId: q3Cycle.id,
+      title: "Mentor two junior engineers",
+      category: "Leadership",
+      status: "Locked",
+      createdAt: new Date("2026-07-02T00:00:00Z"),
+      keyResults: {
+        create: [
+          { text: "Weekly 1:1s with 2 mentees", progress: 85 },
+          { text: "Pair on at least 4 features together", progress: 50 },
+        ],
+      },
+    },
+  });
+
+  await prisma.performanceGoal.create({
+    data: {
+      employeeId: emp001,
+      reviewCycleId: q3Cycle.id,
+      title: "Own the migration to the new deployment pipeline",
+      category: "Technical",
+      status: "Pending Approval",
+      createdAt: new Date("2026-07-20T00:00:00Z"),
+      keyResults: {
+        create: [
+          { text: "Draft migration plan and get manager sign-off", progress: 100 },
+          { text: "Migrate 3 services to the new pipeline", progress: 20 },
+        ],
+      },
+    },
+  });
+
+  // Self-assessment for EMP001
+  const selfRev = await prisma.performanceReview.create({
+    data: {
+      employeeId: emp001,
+      reviewerId: emp001,
+      reviewCycleId: q3Cycle.id,
+      reviewType: "Self",
+      status: "Submitted",
+      submittedAt: new Date("2026-09-20T00:00:00Z"),
+      items: {
+        create: [
+          { goalId: g1.id, rating: 4, comments: "Made strong progress on latency work; caching layer is in progress and on track." },
+          { goalId: g2.id, rating: 5, comments: "Both mentees shipped their first independent features this quarter." },
+        ],
+      },
+    },
+  });
+
+  // Feedback for EMP001
+  await prisma.performanceFeedback.createMany({
+    data: [
+      {
+        fromEmployeeId: emp005,
+        toEmployeeId: emp001,
+        type: "Praise",
+        goalTag: "Improve API response times across core services",
+        message: "Great debugging work isolating the payroll query bottleneck — saved the team real time this sprint.",
+        isPrivate: false,
+        createdAt: new Date("2026-07-18T00:00:00Z"),
+      },
+      {
+        fromEmployeeId: emp004,
+        toEmployeeId: emp001,
+        type: "Constructive",
+        goalTag: null,
+        message: "Would help to get PR descriptions a bit more detailed for the deployment pipeline changes.",
+        isPrivate: false,
+        createdAt: new Date("2026-07-22T00:00:00Z"),
+      },
+      {
+        fromEmployeeId: emp001,
+        toEmployeeId: emp005,
+        type: "General",
+        goalTag: null,
+        message: "Thanks for the quick unblock on staging environment access yesterday.",
+        isPrivate: false,
+        createdAt: new Date("2026-07-25T00:00:00Z"),
+      },
+    ],
+  });
+
+  // 1-on-1 notes for EMP001
+  await prisma.performanceOneOnOne.create({
+    data: {
+      employeeId: emp001,
+      managerId: emp005,
+      date: new Date("2026-07-15T00:00:00Z"),
+      notes: "Discussed the deployment migration timeline and agreed to prioritize service A and B first.",
+      agendas: {
+        create: [
+          { itemText: "Migration plan review", orderIndex: 0 },
+          { itemText: "Career growth check-in", orderIndex: 1 },
+        ],
+      },
+      actionItems: {
+        create: [
+          { text: "Share migration doc with platform team", done: true },
+          { text: "Look into staff-engineer track requirements", done: false },
+        ],
+      },
+    },
+  });
+
+  await prisma.performanceOneOnOne.create({
+    data: {
+      employeeId: emp001,
+      managerId: emp005,
+      date: new Date("2026-07-01T00:00:00Z"),
+      notes: "Set final Q3 goals; agreed on mentoring two junior engineers this quarter.",
+      agendas: {
+        create: [
+          { itemText: "Q3 goal setting", orderIndex: 0 },
+          { itemText: "Mentee pairing", orderIndex: 1 },
+        ],
+      },
+      actionItems: {
+        create: [
+          { text: "Finalize Q3 OKRs", done: true },
+        ],
+      },
+    },
+  });
+
+  // Ratings History
+  await prisma.performanceRatingHistory.createMany({
+    data: [
+      {
+        employeeId: emp001,
+        reviewCycleId: q3Cycle.id,
+        cycleName: "Q1 2026",
+        selfRating: 4,
+        originalManagerRating: 4,
+        finalRating: 4,
+        calibrationAdjusted: false,
+        increment: "8%",
+        promotion: false,
+        appraisalLetterUrl: "#",
+        releasedOn: new Date("2026-04-15T00:00:00Z"),
+      },
+      {
+        employeeId: emp001,
+        reviewCycleId: q3Cycle.id,
+        cycleName: "Q4 2025",
+        selfRating: 5,
+        originalManagerRating: 3,
+        finalRating: 4,
+        calibrationAdjusted: true,
+        increment: "6%",
+        promotion: false,
+        appraisalLetterUrl: "#",
+        releasedOn: new Date("2026-01-15T00:00:00Z"),
+      },
+    ],
+  });
+
   console.log("✅ Seed complete.");
   console.log("🔑 Login credentials (all): email from list below / Password@123");
   console.log("   ADMIN  → robert.king@company.com (Robert King, CEO)");

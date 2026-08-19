@@ -156,6 +156,14 @@ model Employee {
   payslips         Payslip[]
   approvedRuns     PayrollRun[]     @relation("PayrollRunApprovedBy")
   workflowRequests WorkflowInstance[]
+  performanceGoals PerformanceGoal[]
+  reviewsSubject   PerformanceReview[]        @relation("PerformanceReviewSubject")
+  reviewsGiven     PerformanceReview[]        @relation("PerformanceReviewer")
+  feedbackGiven    PerformanceFeedback[]      @relation("FeedbackGiven")
+  feedbackReceived PerformanceFeedback[]      @relation("FeedbackReceived")
+  oneOnOnesAsEmp   PerformanceOneOnOne[]      @relation("OneOnOneEmployee")
+  oneOnOnesAsMgr   PerformanceOneOnOne[]      @relation("OneOnOneManager")
+  ratingsHistory   PerformanceRatingHistory[]
 
   @@index([departmentId])
   @@index([designationId])
@@ -448,3 +456,183 @@ model RefreshToken {
   @@index([expiresAt])
   @@map("refresh_tokens")
 }
+
+// ── Performance Management (Module 10) ──────────────────────────────────────
+
+model PerformanceReviewCycle {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                String    @db.VarChar(100)
+  cycleCode           String    @unique @map("cycle_code") @db.VarChar(30)
+  phase               String    @default("Goal Setting") @db.VarChar(30)
+  goalSettingStart    DateTime  @map("goal_setting_start") @db.Date
+  goalSettingEnd      DateTime  @map("goal_setting_end") @db.Date
+  selfAssessmentStart DateTime  @map("self_assessment_start") @db.Date
+  selfAssessmentEnd   DateTime  @map("self_assessment_end") @db.Date
+  managerReviewStart  DateTime  @map("manager_review_start") @db.Date
+  managerReviewEnd    DateTime  @map("manager_review_end") @db.Date
+  is360Enabled        Boolean   @default(true) @map("is_360_enabled")
+  isActive            Boolean   @default(true) @map("is_active")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+
+  goals               PerformanceGoal[]
+  reviews             PerformanceReview[]
+  ratingsHistory      PerformanceRatingHistory[]
+
+  @@map("performance_review_cycles")
+}
+
+model PerformanceGoal {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId    String   @map("employee_id") @db.Uuid
+  reviewCycleId String   @map("review_cycle_id") @db.Uuid
+  title         String   @db.VarChar(255)
+  category      String   @db.VarChar(50)
+  status        String   @default("Pending Approval") @db.VarChar(30)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  employee      Employee               @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewCycle   PerformanceReviewCycle @relation(fields: [reviewCycleId], references: [id], onDelete: Restrict)
+  keyResults    PerformanceKeyResult[]
+  reviewItems   PerformanceReviewItem[]
+
+  @@index([employeeId])
+  @@index([reviewCycleId])
+  @@map("performance_goals")
+}
+
+model PerformanceKeyResult {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  goalId    String   @map("goal_id") @db.Uuid
+  text      String   @db.VarChar(255)
+  progress  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  goal      PerformanceGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@index([goalId])
+  @@map("performance_key_results")
+}
+
+model PerformanceReview {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId    String    @map("employee_id") @db.Uuid
+  reviewerId    String    @map("reviewer_id") @db.Uuid
+  reviewCycleId String    @map("review_cycle_id") @db.Uuid
+  reviewType    String    @map("review_type") @db.VarChar(30)
+  status        String    @default("Draft") @db.VarChar(20)
+  submittedAt   DateTime? @map("submitted_at") @db.Timestamp(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  employee      Employee               @relation("PerformanceReviewSubject", fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewer      Employee               @relation("PerformanceReviewer", fields: [reviewerId], references: [id], onDelete: Restrict)
+  reviewCycle   PerformanceReviewCycle @relation(fields: [reviewCycleId], references: [id], onDelete: Restrict)
+  items         PerformanceReviewItem[]
+
+  @@unique([employeeId, reviewerId, reviewCycleId, reviewType])
+  @@index([employeeId])
+  @@index([reviewerId])
+  @@map("performance_reviews")
+}
+
+model PerformanceReviewItem {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reviewId  String   @map("review_id") @db.Uuid
+  goalId    String   @map("goal_id") @db.Uuid
+  rating    Int
+  comments  String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  review    PerformanceReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  goal      PerformanceGoal   @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@unique([reviewId, goalId])
+  @@map("performance_review_items")
+}
+
+model PerformanceFeedback {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fromEmployeeId String   @map("from_employee_id") @db.Uuid
+  toEmployeeId   String   @map("to_employee_id") @db.Uuid
+  goalTag        String?  @map("goal_tag") @db.VarChar(255)
+  type           String   @default("General") @db.VarChar(30)
+  message        String   @db.Text
+  isPrivate      Boolean  @default(false) @map("is_private")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  fromEmployee   Employee @relation("FeedbackGiven", fields: [fromEmployeeId], references: [id], onDelete: Cascade)
+  toEmployee     Employee @relation("FeedbackReceived", fields: [toEmployeeId], references: [id], onDelete: Cascade)
+
+  @@index([fromEmployeeId])
+  @@index([toEmployeeId])
+  @@map("performance_feedbacks")
+}
+
+model PerformanceOneOnOne {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId  String   @map("employee_id") @db.Uuid
+  managerId   String   @map("manager_id") @db.Uuid
+  date        DateTime @db.Date
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  employee    Employee                    @relation("OneOnOneEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  manager     Employee                    @relation("OneOnOneManager", fields: [managerId], references: [id], onDelete: Restrict)
+  agendas     PerformanceOneOnOneAgenda[]
+  actionItems PerformanceOneOnOneAction[]
+
+  @@index([employeeId])
+  @@index([managerId])
+  @@map("performance_one_on_ones")
+}
+
+model PerformanceOneOnOneAgenda {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  oneOnOneId String   @map("one_on_one_id") @db.Uuid
+  itemText   String   @map("item_text") @db.VarChar(255)
+  orderIndex Int      @default(0) @map("order_index")
+
+  oneOnOne   PerformanceOneOnOne @relation(fields: [oneOnOneId], references: [id], onDelete: Cascade)
+
+  @@index([oneOnOneId])
+  @@map("performance_one_on_one_agendas")
+}
+
+model PerformanceOneOnOneAction {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  oneOnOneId String   @map("one_on_one_id") @db.Uuid
+  text       String   @db.VarChar(255)
+  done       Boolean  @default(false)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  oneOnOne   PerformanceOneOnOne @relation(fields: [oneOnOneId], references: [id], onDelete: Cascade)
+
+  @@index([oneOnOneId])
+  @@map("performance_one_on_one_actions")
+}
+
+model PerformanceRatingHistory {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId            String   @map("employee_id") @db.Uuid
+  reviewCycleId         String   @map("review_cycle_id") @db.Uuid
+  cycleName             String   @map("cycle_name") @db.VarChar(100)
+  selfRating            Int      @map("self_rating")
+  originalManagerRating Int      @map("original_manager_rating")
+  finalRating           Int      @map("final_rating")
+  calibrationAdjusted   Boolean  @default(false) @map("calibration_adjusted")
+  increment             String   @db.VarChar(20)
+  promotion             Boolean  @default(false)
+  appraisalLetterUrl    String?  @map("appraisal_letter_url") @db.VarChar(255)
+  releasedOn            DateTime @map("released_on") @db.Date
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  employee              Employee               @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewCycle           PerformanceReviewCycle @relation(fields: [reviewCycleId], references: [id], onDelete: Restrict)
+
+  @@index([employeeId])
+  @@map("performance_ratings_history")
+}
+
