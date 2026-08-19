@@ -36,7 +36,10 @@ import {
   addOneOnOne,
   getRatingsHistory,
   getManagerGoals,
+  getAdminPerformanceOverview,
+  getAdminEmployeesPerformance,
   approveManagerGoal,
+  getAdminEmployeePerformanceDetail,
   rejectManagerGoal,
 } from "../../services/performanceService";
 import { goalStatusMeta, reviewPhaseMeta, feedbackTypeMeta, colleagues } from "../../mock/performance";
@@ -576,6 +579,586 @@ function ManagerGoalsTab({ goals, onApprove, onReject, actionId }) {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function AdminPerformanceOverview({
+  overview,
+  employees = [],
+  onOpenEmployee,
+}) {
+  if (!overview) {
+    return (
+      <EmptyState
+        icon={Award}
+        title="No performance overview available"
+        subtitle="Admin performance metrics will appear here."
+      />
+    );
+  }
+
+  const {
+    cycle,
+    employees: employeeSummary,
+    goals,
+    reviews,
+  } = overview;
+
+  const metricCard = (label, value, subtitle) => (
+    <div style={{ ...cardStyle, padding: "18px 20px" }}>
+      <p
+        style={{
+          fontSize: "11px",
+          fontWeight: 700,
+          color: "var(--subtext)",
+          textTransform: "uppercase",
+          letterSpacing: "0.4px",
+          marginBottom: "8px",
+        }}
+      >
+        {label}
+      </p>
+
+      <p
+        style={{
+          fontSize: "26px",
+          fontWeight: 800,
+          color: "var(--text)",
+          margin: 0,
+        }}
+      >
+        {value}
+      </p>
+
+      {subtitle && (
+        <p
+          style={{
+            fontSize: "11.5px",
+            color: "var(--subtext)",
+            marginTop: "4px",
+          }}
+        >
+          {subtitle}
+        </p>
+      )}
+    </div>
+  );
+
+  const reviewStatusBadge = (submitted) => {
+    if (submitted) {
+      return (
+        <StatusBadge
+          label="Submitted"
+          color="#16a34a"
+          bg="#f0fdf4"
+        />
+      );
+    }
+
+    return (
+      <StatusBadge
+        label="Pending"
+        color="#d97706"
+        bg="#fffbeb"
+      />
+    );
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "20px",
+      }}
+    >
+      {/* ------------------------------------------------------------------ */}
+      {/* Active cycle                                                        */}
+      {/* ------------------------------------------------------------------ */}
+
+      <div style={{ ...cardStyle, padding: "20px 22px" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: "12px",
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <h2
+              style={{
+                fontSize: "17px",
+                fontWeight: 700,
+                color: "var(--text)",
+                margin: 0,
+              }}
+            >
+              {cycle.name}
+            </h2>
+
+            <p
+              style={{
+                fontSize: "12px",
+                color: "var(--subtext)",
+                marginTop: "4px",
+              }}
+            >
+              Organization-wide performance overview
+            </p>
+          </div>
+
+          <StatusBadge
+            label={cycle.phase}
+            color="var(--primary)"
+            bg="var(--primary-light)"
+          />
+        </div>
+      </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Metric cards                                                        */}
+      {/* ------------------------------------------------------------------ */}
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: "14px",
+        }}
+      >
+        {metricCard(
+          "Employees",
+          employeeSummary.total,
+          "Employees in organization"
+        )}
+
+        {metricCard(
+          "Total Goals",
+          goals.total,
+          "Current review cycle"
+        )}
+
+        {metricCard(
+          "Pending Approval",
+          goals.pendingApproval,
+          "Goals awaiting decision"
+        )}
+
+        {metricCard(
+          "Locked Goals",
+          goals.locked,
+          "Approved goals"
+        )}
+
+        {metricCard(
+          "Revision Requested",
+          goals.revisionRequested,
+          "Goals sent back for revision"
+        )}
+      </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Completion cards                                                    */}
+      {/* ------------------------------------------------------------------ */}
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(auto-fit, minmax(280px, 1fr))",
+          gap: "14px",
+        }}
+      >
+        {/* Self Assessment */}
+
+        <div style={{ ...cardStyle, padding: "20px 22px" }}>
+          <h3
+            style={{
+              fontSize: "14px",
+              fontWeight: 700,
+              color: "var(--text)",
+              marginBottom: "14px",
+            }}
+          >
+            Self-Assessment Completion
+          </h3>
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginBottom: "8px",
+            }}
+          >
+            <span
+              style={{
+                fontSize: "13px",
+                color: "var(--subtext)",
+              }}
+            >
+              Submitted
+            </span>
+
+            <strong>
+              {reviews.selfAssessment.submitted} /{" "}
+              {employeeSummary.total}
+            </strong>
+          </div>
+
+          <div
+            style={{
+              width: "100%",
+              height: "8px",
+              background: "var(--border)",
+              borderRadius: "99px",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                width: `${reviews.selfAssessment.completionPercentage}%`,
+                background: "var(--primary)",
+              }}
+            />
+          </div>
+
+          <p
+            style={{
+              fontSize: "12px",
+              color: "var(--subtext)",
+              marginTop: "8px",
+            }}
+          >
+            {reviews.selfAssessment.completionPercentage}% complete
+          </p>
+        </div>
+
+        {/* Manager Review */}
+
+        <div style={{ ...cardStyle, padding: "20px 22px" }}>
+          <h3
+            style={{
+              fontSize: "14px",
+              fontWeight: 700,
+              color: "var(--text)",
+              marginBottom: "14px",
+            }}
+          >
+            Manager Review Completion
+          </h3>
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              marginBottom: "8px",
+            }}
+          >
+            <span
+              style={{
+                fontSize: "13px",
+                color: "var(--subtext)",
+              }}
+            >
+              Submitted
+            </span>
+
+            <strong>
+              {reviews.managerReview.submitted} /{" "}
+              {employeeSummary.total}
+            </strong>
+          </div>
+
+          <div
+            style={{
+              width: "100%",
+              height: "8px",
+              background: "var(--border)",
+              borderRadius: "99px",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                width: `${reviews.managerReview.completionPercentage}%`,
+                background: "var(--primary)",
+              }}
+            />
+          </div>
+
+          <p
+            style={{
+              fontSize: "12px",
+              color: "var(--subtext)",
+              marginTop: "8px",
+            }}
+          >
+            {reviews.managerReview.completionPercentage}% complete
+          </p>
+        </div>
+      </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Employee Performance Table                                          */}
+      {/* ------------------------------------------------------------------ */}
+
+      <div style={{ ...cardStyle, overflow: "hidden" }}>
+        <div
+          style={{
+            padding: "18px 20px",
+            borderBottom: "1px solid var(--border)",
+          }}
+        >
+          <h3
+            style={{
+              fontSize: "15px",
+              fontWeight: 700,
+              color: "var(--text)",
+              margin: 0,
+            }}
+          >
+            Employee Performance Status
+          </h3>
+
+          <p
+            style={{
+              fontSize: "12px",
+              color: "var(--subtext)",
+              marginTop: "4px",
+              marginBottom: 0,
+            }}
+          >
+            Review goal, self-assessment and manager-review progress for
+            every employee.
+          </p>
+        </div>
+
+        {employees.length === 0 ? (
+          <div style={{ padding: "24px" }}>
+            <EmptyState
+              icon={Users}
+              title="No employee performance data"
+              subtitle="Employee performance status will appear here."
+            />
+          </div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                minWidth: "900px",
+              }}
+            >
+              <thead>
+                <tr
+                  style={{
+                    background: "var(--background)",
+                    borderBottom: "1px solid var(--border)",
+                  }}
+                >
+                  {[
+                    "Employee",
+                    "Status",
+                    "Goals",
+                    "Pending Approval",
+                    "Locked",
+                    "Revision Requested",
+                    "Self-Assessment",
+                    "Manager Review",
+                  ].map((heading) => (
+                    <th
+                      key={heading}
+                      style={{
+                        padding: "11px 14px",
+                        textAlign: "left",
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        color: "var(--subtext)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.4px",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody>
+                {employees.map((employee, index) => (
+                  <tr
+                    key={employee.employeeId}
+                    style={{
+                      borderBottom:
+                        index < employees.length - 1
+                          ? "1px solid var(--border)"
+                          : "none",
+                    }}
+                  >
+                    {/* Employee */}
+
+                    <td
+                      style={{
+                        padding: "13px 14px",
+                      }}
+                    >
+                      <div>
+                      <button
+  type="button"
+  onClick={() => onOpenEmployee(employee.employeeId)}
+  style={{
+    border: "none",
+    background: "none",
+    padding: 0,
+    fontSize: "13.5px",
+    fontWeight: 700,
+    color: "var(--primary)",
+    cursor: "pointer",
+    fontFamily: "inherit",
+    textAlign: "left",
+  }}
+>
+  {employee.name}
+</button>
+
+                        <div
+                          style={{
+                            fontSize: "11.5px",
+                            color: "var(--subtext)",
+                            marginTop: "2px",
+                          }}
+                        >
+                          {employee.employeeId}
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Employee Status */}
+
+                    <td
+                      style={{
+                        padding: "13px 14px",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      <StatusBadge
+                        label={employee.employeeStatus}
+                        color={
+                          employee.employeeStatus === "Active"
+                            ? "#16a34a"
+                            : employee.employeeStatus === "On Leave"
+                            ? "#d97706"
+                            : "#64748b"
+                        }
+                        bg={
+                          employee.employeeStatus === "Active"
+                            ? "#f0fdf4"
+                            : employee.employeeStatus === "On Leave"
+                            ? "#fffbeb"
+                            : "#f1f5f9"
+                        }
+                      />
+                    </td>
+
+                    {/* Total Goals */}
+
+                    <td
+                      style={{
+                        padding: "13px 14px",
+                        fontSize: "13.5px",
+                        fontWeight: 700,
+                        color: "var(--text)",
+                      }}
+                    >
+                      {employee.goals.total}
+                    </td>
+
+                    {/* Pending */}
+
+                    <td
+                      style={{
+                        padding: "13px 14px",
+                        fontSize: "13.5px",
+                        color:
+                          employee.goals.pendingApproval > 0
+                            ? "var(--amber)"
+                            : "var(--subtext)",
+                        fontWeight:
+                          employee.goals.pendingApproval > 0 ? 700 : 500,
+                      }}
+                    >
+                      {employee.goals.pendingApproval}
+                    </td>
+
+                    {/* Locked */}
+
+                    <td
+                      style={{
+                        padding: "13px 14px",
+                        fontSize: "13.5px",
+                        color: "var(--text)",
+                      }}
+                    >
+                      {employee.goals.locked}
+                    </td>
+
+                    {/* Revision */}
+
+                    <td
+                      style={{
+                        padding: "13px 14px",
+                        fontSize: "13.5px",
+                        color:
+                          employee.goals.revisionRequested > 0
+                            ? "var(--red)"
+                            : "var(--subtext)",
+                        fontWeight:
+                          employee.goals.revisionRequested > 0 ? 700 : 500,
+                      }}
+                    >
+                      {employee.goals.revisionRequested}
+                    </td>
+
+                    {/* Self Assessment */}
+
+                    <td
+                      style={{
+                        padding: "13px 14px",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {reviewStatusBadge(
+                        employee.selfAssessment.submitted
+                      )}
+                    </td>
+
+                    {/* Manager Review */}
+
+                    <td
+                      style={{
+                        padding: "13px 14px",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {reviewStatusBadge(
+                        employee.managerReview.submitted
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1199,9 +1782,332 @@ const TABS = [
   { key: "ratings", label: "Ratings History", icon: Award },
 ];
 
+
+function AdminEmployeeDetailModal({
+  isOpen,
+  onClose,
+  detail,
+  loading,
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      title="Employee Performance Details"
+      onClose={onClose}
+    >
+      {loading ? (
+        <Spinner />
+      ) : !detail ? (
+        <EmptyState
+          icon={Users}
+          title="No employee details"
+          subtitle="Performance details could not be loaded."
+        />
+      ) : (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "18px",
+          }}
+        >
+          <div>
+            <h3
+              style={{
+                fontSize: "16px",
+                fontWeight: 700,
+                color: "var(--text)",
+                marginBottom: "4px",
+              }}
+            >
+              {detail.employee.name}
+            </h3>
+
+            <p
+              style={{
+                fontSize: "12px",
+                color: "var(--subtext)",
+              }}
+            >
+              {detail.employee.employeeId} · {detail.cycle.name}
+            </p>
+          </div>
+
+          <div style={{ ...cardStyle, padding: "16px" }}>
+            <h4
+              style={{
+                fontSize: "14px",
+                fontWeight: 700,
+                color: "var(--text)",
+                marginBottom: "12px",
+              }}
+            >
+              Goals
+            </h4>
+
+            {detail.goals.length === 0 ? (
+              <p
+                style={{
+                  fontSize: "13px",
+                  color: "var(--subtext)",
+                }}
+              >
+                No goals for this cycle.
+              </p>
+            ) : (
+              detail.goals.map((goal) => (
+                <div
+                  key={goal.id}
+                  style={{
+                    padding: "10px 0",
+                    borderTop: "1px solid var(--border)",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: "10px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        color: "var(--text)",
+                      }}
+                    >
+                      {goal.title}
+                    </span>
+
+                    <span
+                      style={{
+                        fontSize: "12px",
+                        color: "var(--subtext)",
+                      }}
+                    >
+                      {goal.status}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div style={{ ...cardStyle, padding: "16px" }}>
+            <h4
+              style={{
+                fontSize: "14px",
+                fontWeight: 700,
+                color: "var(--text)",
+                marginBottom: "12px",
+              }}
+            >
+              Self-Assessment
+            </h4>
+
+            {detail.selfAssessment?.submitted ? (
+              detail.selfAssessment.responses.map((response) => {
+                const goal = detail.goals.find(
+                  (g) => g.id === response.goalId
+                );
+
+                return (
+                  <div
+                    key={response.goalId}
+                    style={{
+                      padding: "10px 0",
+                      borderTop: "1px solid var(--border)",
+                    }}
+                  >
+                    <p
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        color: "var(--text)",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      {goal?.title || "Goal"}
+                    </p>
+
+                    <p
+                      style={{
+                        fontSize: "12px",
+                        color: "var(--subtext)",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      Rating: {response.rating} / 5
+                    </p>
+
+                    <p
+                      style={{
+                        fontSize: "12.5px",
+                        color: "var(--text)",
+                      }}
+                    >
+                      {response.comments || "No comments"}
+                    </p>
+                  </div>
+                );
+              })
+            ) : (
+              <p
+                style={{
+                  fontSize: "13px",
+                  color: "var(--subtext)",
+                }}
+              >
+                Self-assessment not submitted.
+              </p>
+            )}
+          </div>
+
+          <div style={{ ...cardStyle, padding: "16px" }}>
+            <h4
+              style={{
+                fontSize: "14px",
+                fontWeight: 700,
+                color: "var(--text)",
+                marginBottom: "12px",
+              }}
+            >
+              Manager Review
+            </h4>
+
+            {detail.managerReview?.submitted ? (
+              detail.managerReview.responses.map((response) => {
+                const goal = detail.goals.find(
+                  (g) => g.id === response.goalId
+                );
+
+                return (
+                  <div
+                    key={response.goalId}
+                    style={{
+                      padding: "10px 0",
+                      borderTop: "1px solid var(--border)",
+                    }}
+                  >
+                    <p
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        color: "var(--text)",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      {goal?.title || "Goal"}
+                    </p>
+
+                    <p
+                      style={{
+                        fontSize: "12px",
+                        color: "var(--subtext)",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      Rating: {response.rating} / 5
+                    </p>
+
+                    <p
+                      style={{
+                        fontSize: "12.5px",
+                        color: "var(--text)",
+                      }}
+                    >
+                      {response.comments || "No comments"}
+                    </p>
+                  </div>
+                );
+              })
+            ) : (
+              <p
+                style={{
+                  fontSize: "13px",
+                  color: "var(--subtext)",
+                }}
+              >
+                Manager review not submitted.
+              </p>
+            )}
+          </div>
+
+          <div style={{ ...cardStyle, padding: "16px" }}>
+            <h4
+              style={{
+                fontSize: "14px",
+                fontWeight: 700,
+                color: "var(--text)",
+                marginBottom: "12px",
+              }}
+            >
+              Ratings History
+            </h4>
+
+            {detail.ratingsHistory.length === 0 ? (
+              <p
+                style={{
+                  fontSize: "13px",
+                  color: "var(--subtext)",
+                }}
+              >
+                No previous ratings.
+              </p>
+            ) : (
+              detail.ratingsHistory.map((rating) => (
+                <div
+                  key={rating.id}
+                  style={{
+                    padding: "10px 0",
+                    borderTop: "1px solid var(--border)",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: "10px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        color: "var(--text)",
+                      }}
+                    >
+                      {rating.cycle}
+                    </span>
+
+                    <span
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: 700,
+                        color: "var(--primary)",
+                      }}
+                    >
+                      {rating.finalRating} / 5
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+
 export default function Performance() {
   const role = localStorage.getItem("hrms_role");
-  const isManager = role === "MANAGER";
+const isManager = role === "MANAGER";
+const isAdmin = role === "ADMIN";
 
   const [activeTab, setActiveTab] = useState("goals");
   const [loading, setLoading] = useState(true);
@@ -1217,62 +2123,113 @@ export default function Performance() {
  const [managerGoals, setManagerGoals] = useState([]);
 const [managerActionId, setManagerActionId] = useState(null);
 const [goalView, setGoalView] = useState(isManager ? "team" : "mine");
+const [adminOverview, setAdminOverview] = useState(null);
+const [adminEmployees, setAdminEmployees] = useState([]);
+const [selectedAdminEmployee, setSelectedAdminEmployee] = useState(null);
+const [adminEmployeeDetail, setAdminEmployeeDetail] = useState(null);
+const [adminDetailLoading, setAdminDetailLoading] = useState(false);
+ useEffect(() => {
+  setLoading(true);
 
-   useEffect(() => {
-    setLoading(true);
+  const requests = [
+    getGoals(),
+    getReviewCycle(),
+    getSelfAssessment(),
+    getManagerReview(ME.id),
+    getFeedback(),
+    getOneOnOnes(),
+    getRatingsHistory(),
+  ];
 
-    const requests = [
-      getGoals(),
-      getReviewCycle(),
-      getSelfAssessment(),
-      getManagerReview(ME.id),
-      getFeedback(),
-      getOneOnOnes(),
-      getRatingsHistory(),
-    ];
+  // Manager-specific request
+  if (isManager) {
+    requests.push(getManagerGoals());
+  }
 
-    if (isManager) {
-      requests.push(getManagerGoals());
-    }
+  // Admin overview request
+  if (isAdmin) {
+    requests.push(getAdminPerformanceOverview());
+  }
 
-    Promise.all(requests)
-      .then(([g, c, sa, mr, fb, oo, r, mg]) => {
-        setGoals(g?.data || []);
-        setCycle(c?.data || null);
+  // Admin employee performance request
+  if (isAdmin) {
+    requests.push(getAdminEmployeesPerformance());
+  }
 
-        setSelfAssessment(
-          sa?.data || {
-            submitted: false,
-            responses: [],
-          }
-        );
+  Promise.all(requests)
+    .then((results) => {
+      const [g, c, sa, mr, fb, oo, r] = results;
 
-        setManagerReview(
-          mr?.data || {
-            submitted: false,
-            responses: [],
-          }
-        );
+      let index = 7;
 
-        setFeedback(fb?.data || []);
-        setOneOnOnes(oo?.data || []);
-        setRatings(r?.data || []);
+      let managerGoalsResult = null;
+      let adminOverviewResult = null;
+      let adminEmployeesResult = null;
 
-        if (isManager && mg) {
-          setManagerGoals(mg.data || []);
+      // Manager gets one extra result
+      if (isManager) {
+        managerGoalsResult = results[index++];
+      }
+
+      // Admin gets two extra results
+      if (isAdmin) {
+        adminOverviewResult = results[index++];
+        adminEmployeesResult = results[index++];
+      }
+
+      // Common data
+      setGoals(g?.data || []);
+      setCycle(c?.data || null);
+
+      setSelfAssessment(
+        sa?.data || {
+          submitted: false,
+          responses: [],
         }
-      })
-      .catch((error) => {
-        console.error(
-          "Failed to load performance data:",
-          error
-        );
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }, [isManager]);
+      );
 
+      setManagerReview(
+        mr?.data || {
+          submitted: false,
+          responses: [],
+        }
+      );
+
+      setFeedback(fb?.data || []);
+      setOneOnOnes(oo?.data || []);
+      setRatings(r?.data || []);
+
+      // Manager data
+      if (isManager && managerGoalsResult) {
+        setManagerGoals(
+          managerGoalsResult.data || []
+        );
+      }
+
+      // Admin overview data
+      if (isAdmin && adminOverviewResult) {
+        setAdminOverview(
+          adminOverviewResult.data || null
+        );
+      }
+
+      // Admin employee list data
+      if (isAdmin && adminEmployeesResult) {
+        setAdminEmployees(
+          adminEmployeesResult.data?.employees || []
+        );
+      }
+    })
+    .catch((error) => {
+      console.error(
+        "Failed to load performance data:",
+        error
+      );
+    })
+    .finally(() => {
+      setLoading(false);
+    });
+}, [isManager, isAdmin]);
   
 const handleApproveManagerGoal = async (goalId) => {
   try {
@@ -1329,6 +2286,37 @@ const handleRejectManagerGoal = async (goalId) => {
     );
   };
 
+  const handleOpenAdminEmployee = async (employeeId) => {
+  try {
+    setAdminDetailLoading(true);
+    setSelectedAdminEmployee(employeeId);
+
+    const res =
+      await getAdminEmployeePerformanceDetail(employeeId);
+
+    setAdminEmployeeDetail(res.data);
+  } catch (error) {
+    console.error(
+      "Failed to load employee performance detail:",
+      error
+    );
+
+    alert(
+      error?.response?.data?.message ||
+        "Unable to load employee performance details"
+    );
+
+    setSelectedAdminEmployee(null);
+  } finally {
+    setAdminDetailLoading(false);
+  }
+};
+
+const handleCloseAdminEmployee = () => {
+  setSelectedAdminEmployee(null);
+  setAdminEmployeeDetail(null);
+};
+
   if (loading) {
     return (
       <MainLayout>
@@ -1344,85 +2332,99 @@ const handleRejectManagerGoal = async (goalId) => {
 
         <TabNav tabs={TABS} active={activeTab} onChange={setActiveTab} />
 
-       {activeTab === "goals" && (
+      {activeTab === "goals" && (
   <>
-    {isManager && (
-      <div
-        style={{
-          display: "flex",
-          gap: "6px",
-          marginBottom: "18px",
-        }}
-      >
-        <button
-          onClick={() => setGoalView("team")}
-          style={{
-            padding: "7px 15px",
-            borderRadius: "99px",
-            border: `1px solid ${
-              goalView === "team"
-                ? "var(--primary)"
-                : "var(--border)"
-            }`,
-            background:
-              goalView === "team"
-                ? "var(--primary-light)"
-                : "var(--card)",
-            color:
-              goalView === "team"
-                ? "var(--primary)"
-                : "var(--subtext)",
-            fontWeight: 600,
-            fontSize: "12.5px",
-            cursor: "pointer",
-          }}
-        >
-          Team Goals
-        </button>
-
-        <button
-          onClick={() => setGoalView("mine")}
-          style={{
-            padding: "7px 15px",
-            borderRadius: "99px",
-            border: `1px solid ${
-              goalView === "mine"
-                ? "var(--primary)"
-                : "var(--border)"
-            }`,
-            background:
-              goalView === "mine"
-                ? "var(--primary-light)"
-                : "var(--card)",
-            color:
-              goalView === "mine"
-                ? "var(--primary)"
-                : "var(--subtext)",
-            fontWeight: 600,
-            fontSize: "12.5px",
-            cursor: "pointer",
-          }}
-        >
-          My Goals
-        </button>
-      </div>
-    )}
-
-    {isManager && goalView === "team" ? (
-      <ManagerGoalsTab
-        goals={managerGoals}
-        actionId={managerActionId}
-        onApprove={handleApproveManagerGoal}
-        onReject={handleRejectManagerGoal}
-      />
+    {isAdmin ? (
+      /* ---------------- ADMIN PERFORMANCE ---------------- */
+     <AdminPerformanceOverview
+  overview={adminOverview}
+  employees={adminEmployees}
+  onOpenEmployee={handleOpenAdminEmployee}
+/>
     ) : (
-      <GoalsTab
-        goals={goals}
-        cycle={cycle}
-        onGoalAdded={(g) =>
-          setGoals((prev) => [g, ...prev])
-        }
-      />
+      <>
+        {/* ---------------- MANAGER VIEW SWITCH ---------------- */}
+        {isManager && (
+          <div
+            style={{
+              display: "flex",
+              gap: "6px",
+              marginBottom: "18px",
+            }}
+          >
+            <button
+              onClick={() => setGoalView("team")}
+              style={{
+                padding: "7px 15px",
+                borderRadius: "99px",
+                border: `1px solid ${
+                  goalView === "team"
+                    ? "var(--primary)"
+                    : "var(--border)"
+                }`,
+                background:
+                  goalView === "team"
+                    ? "var(--primary-light)"
+                    : "var(--card)",
+                color:
+                  goalView === "team"
+                    ? "var(--primary)"
+                    : "var(--subtext)",
+                fontWeight: 600,
+                fontSize: "12.5px",
+                cursor: "pointer",
+              }}
+            >
+              Team Goals
+            </button>
+
+            <button
+              onClick={() => setGoalView("mine")}
+              style={{
+                padding: "7px 15px",
+                borderRadius: "99px",
+                border: `1px solid ${
+                  goalView === "mine"
+                    ? "var(--primary)"
+                    : "var(--border)"
+                }`,
+                background:
+                  goalView === "mine"
+                    ? "var(--primary-light)"
+                    : "var(--card)",
+                color:
+                  goalView === "mine"
+                    ? "var(--primary)"
+                    : "var(--subtext)",
+                fontWeight: 600,
+                fontSize: "12.5px",
+                cursor: "pointer",
+              }}
+            >
+              My Goals
+            </button>
+          </div>
+        )}
+
+        {/* ---------------- MANAGER / EMPLOYEE CONTENT ---------------- */}
+
+        {isManager && goalView === "team" ? (
+          <ManagerGoalsTab
+            goals={managerGoals}
+            actionId={managerActionId}
+            onApprove={handleApproveManagerGoal}
+            onReject={handleRejectManagerGoal}
+          />
+        ) : (
+          <GoalsTab
+            goals={goals}
+            cycle={cycle}
+            onGoalAdded={(g) =>
+              setGoals((prev) => [g, ...prev])
+            }
+          />
+        )}
+      </>
     )}
   </>
 )}
@@ -1446,7 +2448,14 @@ const handleRejectManagerGoal = async (goalId) => {
         )}
 
         {activeTab === "ratings" && <RatingsTab ratings={ratings} />}
+        <AdminEmployeeDetailModal
+  isOpen={Boolean(selectedAdminEmployee)}
+  onClose={handleCloseAdminEmployee}
+  detail={adminEmployeeDetail}
+  loading={adminDetailLoading}
+/>
       </div>
     </MainLayout>
+    
   );
 }

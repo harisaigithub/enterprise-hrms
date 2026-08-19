@@ -1442,3 +1442,207 @@ export async function getAdminOverview() {
     },
   };
 }
+
+export async function getAdminEmployeesPerformance() {
+  const cycle = await prisma.performanceReviewCycle.findFirst({
+    where: {
+      isActive: true,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  if (!cycle) {
+    throw AppError.notFound(
+      "No active performance review cycle found"
+    );
+  }
+
+  const employees = await prisma.employee.findMany({
+    select: {
+      id: true,
+      employeeCode: true,
+      firstName: true,
+      lastName: true,
+      status: true,
+    },
+    orderBy: {
+      employeeCode: "asc",
+    },
+  });
+
+  const [goals, reviews] = await Promise.all([
+    prisma.performanceGoal.findMany({
+      where: {
+        reviewCycleId: cycle.id,
+      },
+      select: {
+        employeeId: true,
+        status: true,
+      },
+    }),
+
+    prisma.performanceReview.findMany({
+      where: {
+        reviewCycleId: cycle.id,
+      },
+      select: {
+        employeeId: true,
+        reviewType: true,
+        status: true,
+        submittedAt: true,
+      },
+    }),
+  ]);
+
+  const data = employees.map((employee) => {
+    const employeeGoals = goals.filter(
+      (goal) => goal.employeeId === employee.id
+    );
+
+    const selfAssessment = reviews.find(
+      (review) =>
+        review.employeeId === employee.id &&
+        review.reviewType === "Self"
+    );
+
+    const managerReview = reviews.find(
+      (review) =>
+        review.employeeId === employee.id &&
+        review.reviewType === "Manager"
+    );
+
+    return {
+      employeeId: employee.employeeCode,
+
+      name: `${employee.firstName} ${employee.lastName}`,
+
+      employeeStatus: employee.status,
+
+      goals: {
+        total: employeeGoals.length,
+
+        pendingApproval: employeeGoals.filter(
+          (goal) => goal.status === "Pending Approval"
+        ).length,
+
+        locked: employeeGoals.filter(
+          (goal) => goal.status === "Locked"
+        ).length,
+
+        revisionRequested: employeeGoals.filter(
+          (goal) => goal.status === "Revision Requested"
+        ).length,
+      },
+
+      selfAssessment: {
+        submitted:
+          selfAssessment?.status === "Submitted",
+
+        submittedAt:
+          selfAssessment?.submittedAt || null,
+      },
+
+      managerReview: {
+        submitted:
+          managerReview?.status === "Submitted",
+
+        submittedAt:
+          managerReview?.submittedAt || null,
+      },
+    };
+  });
+
+  return {
+    data: {
+      cycle: {
+        name: cycle.name,
+        cycleCode: cycle.cycleCode,
+        phase: cycle.phase,
+      },
+
+      employees: data,
+    },
+  };
+}
+
+export async function getAdminEmployeePerformanceDetail(
+  employeeCode: string
+) {
+  const employee = await resolveEmployee(employeeCode);
+
+  const cycle = await prisma.performanceReviewCycle.findFirst({
+    where: { isActive: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!cycle) {
+    throw AppError.notFound("No active performance review cycle found");
+  }
+
+  const [goals, selfAssessment, managerReview, ratingsHistory] =
+    await Promise.all([
+      prisma.performanceGoal.findMany({
+        where: {
+          employeeId: employee.id,
+          reviewCycleId: cycle.id,
+        },
+        include: GOAL_INCLUDE,
+        orderBy: {
+          createdAt: "desc",
+        },
+      }),
+
+      prisma.performanceReview.findFirst({
+        where: {
+          employeeId: employee.id,
+          reviewCycleId: cycle.id,
+          reviewType: "Self",
+        },
+        include: REVIEW_INCLUDE,
+      }),
+
+      prisma.performanceReview.findFirst({
+        where: {
+          employeeId: employee.id,
+          reviewCycleId: cycle.id,
+          reviewType: "Manager",
+        },
+        include: REVIEW_INCLUDE,
+      }),
+
+      prisma.performanceRatingHistory.findMany({
+        where: {
+          employeeId: employee.id,
+        },
+        orderBy: {
+          releasedOn: "desc",
+        },
+      }),
+    ]);
+
+  return {
+    data: {
+      employee: {
+        employeeId: employee.employeeCode,
+        name: `${employee.firstName} ${employee.lastName}`,
+      },
+
+      cycle: {
+        name: cycle.name,
+        cycleCode: cycle.cycleCode,
+        phase: cycle.phase,
+      },
+
+      goals: serializeGoalList(goals),
+
+      selfAssessment: serializeReview(selfAssessment),
+
+      managerReview: serializeReview(managerReview),
+
+      ratingsHistory:
+        serializeRatingHistoryList(ratingsHistory),
+    },
+  };
+}

@@ -439,3 +439,23 @@ export const getAdminOverview = asyncHandler(
     sendSuccess(res, result.data);
   }
 );
+
+export const getAdminEmployeesPerformance = asyncHandler(
+  async (_req: Request, res: Response) => {
+    const result =
+      await performanceService.getAdminEmployeesPerformance();
+
+    sendSuccess(res, result.data);
+  }
+);
+
+export const getAdminEmployeePerformanceDetail = asyncHandler(
+  async (req: Request, res: Response) => {
+    const result =
+      await performanceService.getAdminEmployeePerformanceDetail(
+        req.params.employeeId
+      );
+
+    sendSuccess(res, result.data);
+  }
+);
