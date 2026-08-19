@@ -430,3 +430,12 @@ export const getRatingsHistory = asyncHandler(
     sendSuccess(res, result.data);
   }
 );
+
+export const getAdminOverview = asyncHandler(
+  async (_req: Request, res: Response) => {
+    const result =
+      await performanceService.getAdminOverview();
+
+    sendSuccess(res, result.data);
+  }
+);

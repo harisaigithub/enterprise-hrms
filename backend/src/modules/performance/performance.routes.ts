@@ -2,7 +2,10 @@ import { Router } from "express";
 import { z } from "zod";
 import { validate } from "../../middlewares/validate";
 import { authenticate } from "../../middlewares/auth";
-import { requirePermission } from "../../middlewares/rbac";
+import {
+  requirePermission,
+  requireRole,
+} from "../../middlewares/rbac";
 import * as performanceController from "./performance.controller";
 
 const router = Router();
@@ -133,5 +136,18 @@ router.patch("/one-on-ones/:id/actions/:actionId", authenticate, writeAccess, pe
 
 // Ratings History
 router.get("/ratings-history", authenticate, readAccess, performanceController.getRatingsHistory);
+
+/* -------------------------------------------------------------------------- */
+/*                              Admin Performance                             */
+/* -------------------------------------------------------------------------- */
+
+router.get(
+  "/admin/overview",
+  authenticate,
+  requireRole("ADMIN"),
+  readAccess,
+  performanceController.getAdminOverview
+);
+
 
 export default router;

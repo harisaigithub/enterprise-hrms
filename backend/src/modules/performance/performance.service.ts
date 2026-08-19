@@ -1296,3 +1296,149 @@ export async function getRatingsHistory(
     data: serializeRatingHistoryList(list),
   };
 }
+
+/* -------------------------------------------------------------------------- */
+/*                              Admin Performance                             */
+/* -------------------------------------------------------------------------- */
+
+export async function getAdminOverview() {
+  const cycle = await prisma.performanceReviewCycle.findFirst({
+    where: {
+      isActive: true,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  if (!cycle) {
+    throw AppError.notFound("No active performance review cycle found");
+  }
+
+  const [
+    totalEmployees,
+    totalGoals,
+    pendingGoals,
+    lockedGoals,
+    revisionRequestedGoals,
+    draftGoals,
+    selfAssessmentsSubmitted,
+    managerReviewsSubmitted,
+  ] = await Promise.all([
+    prisma.employee.count(),
+
+    prisma.performanceGoal.count({
+      where: {
+        reviewCycleId: cycle.id,
+      },
+    }),
+
+    prisma.performanceGoal.count({
+      where: {
+        reviewCycleId: cycle.id,
+        status: "Pending Approval",
+      },
+    }),
+
+    prisma.performanceGoal.count({
+      where: {
+        reviewCycleId: cycle.id,
+        status: "Locked",
+      },
+    }),
+
+    prisma.performanceGoal.count({
+      where: {
+        reviewCycleId: cycle.id,
+        status: "Revision Requested",
+      },
+    }),
+
+    prisma.performanceGoal.count({
+      where: {
+        reviewCycleId: cycle.id,
+        status: "Draft",
+      },
+    }),
+
+    prisma.performanceReview.count({
+      where: {
+        reviewCycleId: cycle.id,
+        reviewType: "Self",
+        status: "Submitted",
+      },
+    }),
+
+    prisma.performanceReview.count({
+      where: {
+        reviewCycleId: cycle.id,
+        reviewType: "Manager",
+        status: "Submitted",
+      },
+    }),
+  ]);
+
+  const selfAssessmentCompletion =
+    totalEmployees > 0
+      ? Math.round(
+          (selfAssessmentsSubmitted / totalEmployees) * 100
+        )
+      : 0;
+
+  const managerReviewCompletion =
+    totalEmployees > 0
+      ? Math.round(
+          (managerReviewsSubmitted / totalEmployees) * 100
+        )
+      : 0;
+
+  return {
+    data: {
+      cycle: {
+        id: cycle.id,
+        name: cycle.name,
+        cycleCode: cycle.cycleCode,
+        phase: cycle.phase,
+        isActive: cycle.isActive,
+        goalSettingStart: cycle.goalSettingStart,
+        goalSettingEnd: cycle.goalSettingEnd,
+        selfAssessmentStart: cycle.selfAssessmentStart,
+        selfAssessmentEnd: cycle.selfAssessmentEnd,
+        managerReviewStart: cycle.managerReviewStart,
+        managerReviewEnd: cycle.managerReviewEnd,
+      },
+
+      employees: {
+        total: totalEmployees,
+      },
+
+      goals: {
+        total: totalGoals,
+        pendingApproval: pendingGoals,
+        locked: lockedGoals,
+        revisionRequested: revisionRequestedGoals,
+        draft: draftGoals,
+      },
+
+      reviews: {
+        selfAssessment: {
+          submitted: selfAssessmentsSubmitted,
+          pending: Math.max(
+            totalEmployees - selfAssessmentsSubmitted,
+            0
+          ),
+          completionPercentage: selfAssessmentCompletion,
+        },
+
+        managerReview: {
+          submitted: managerReviewsSubmitted,
+          pending: Math.max(
+            totalEmployees - managerReviewsSubmitted,
+            0
+          ),
+          completionPercentage: managerReviewCompletion,
+        },
+      },
+    },
+  };
+}
