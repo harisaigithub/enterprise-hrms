@@ -1,6 +1,6 @@
 /**
- * Performance Page — Module 10
- * Tabs: Goals & OKRs · Review Cycle · Feedback · 1:1s · Ratings History
+ * Performance Page ï¿½ Module 10
+ * Tabs: Goals & OKRs ï¿½ Review Cycle ï¿½ Feedback ï¿½ 1:1s ï¿½ Ratings History
  */
 
 import { useState, useEffect } from "react";
@@ -35,10 +35,47 @@ import {
   getOneOnOnes,
   addOneOnOne,
   getRatingsHistory,
+  getManagerGoals,
+  approveManagerGoal,
+  rejectManagerGoal,
 } from "../../services/performanceService";
 import { goalStatusMeta, reviewPhaseMeta, feedbackTypeMeta, colleagues } from "../../mock/performance";
 
-const ME = { id: "EMP001", name: "Matsya Singh" };
+
+function getCurrentEmployeeCode() {
+  try {
+    const token = localStorage.getItem("hrms_token");
+
+    if (!token) return null;
+
+    const payloadPart = token.split(".")[1];
+
+    if (!payloadPart) return null;
+
+    const normalized = payloadPart
+      .replace(/-/g, "+")
+      .replace(/_/g, "/");
+
+    const payload = JSON.parse(
+      atob(normalized)
+    );
+
+    return payload.employeeCode || null;
+  } catch (error) {
+    console.error(
+      "Unable to read employee code from token:",
+      error
+    );
+
+    return null;
+  }
+}
+
+const ME = {
+  id: getCurrentEmployeeCode(),
+  name: "Current Employee",
+};
+
 const PHASES = ["Goal Setting", "Continuous Feedback", "Self-Assessment", "Manager Review", "Calibration", "Completed"];
 
 /* ---------------------------------- shared bits ---------------------------------- */
@@ -254,7 +291,7 @@ function AddGoalModal({ isOpen, onClose, onSaved, cycleName }) {
 
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving…" : "Submit for Approval"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Savingï¿½" : "Submit for Approval"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -308,7 +345,7 @@ function GoalsTab({ goals, cycle, onGoalAdded }) {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
         <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>
-          My Goals — {cycle?.name?.replace(" Performance Review", "") || "This Cycle"}
+          My Goals ï¿½ {cycle?.name?.replace(" Performance Review", "") || "This Cycle"}
         </h2>
         <PrimaryButton onClick={() => setShowAdd(true)} disabled={goalsLocked} title={goalsLocked ? "Goal-setting window is closed for this cycle" : undefined}>
           {goalsLocked ? <Lock size={14} /> : <Plus size={16} />}
@@ -327,6 +364,219 @@ function GoalsTab({ goals, cycle, onGoalAdded }) {
       )}
 
       <AddGoalModal isOpen={showAdd} onClose={() => setShowAdd(false)} onSaved={onGoalAdded} cycleName={cycle?.name?.replace(" Performance Review", "") || "current cycle"} />
+    </div>
+  );
+}
+
+function ManagerGoalsTab({ goals, onApprove, onReject, actionId }) {
+  if (!goals || goals.length === 0) {
+    return (
+      <EmptyState
+        icon={Users}
+        title="No team goals"
+        subtitle="Goals submitted by your direct reports will appear here."
+      />
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ marginBottom: "16px" }}>
+        <h2
+          style={{
+            fontSize: "15px",
+            fontWeight: 700,
+            color: "var(--text)",
+            margin: 0,
+          }}
+        >
+          Team Goals
+        </h2>
+
+        <p
+          style={{
+            fontSize: "12px",
+            color: "var(--subtext)",
+            marginTop: "4px",
+          }}
+        >
+          Review goals submitted by your direct reports.
+        </p>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(auto-fill, minmax(360px, 1fr))",
+          gap: "14px",
+        }}
+      >
+        {goals.map((goal) => {
+          const meta =
+            goalStatusMeta[goal.status] ||
+            goalStatusMeta.Draft;
+
+          const keyResults = goal.keyResults || [];
+
+          const overall =
+            keyResults.length > 0
+              ? Math.round(
+                  keyResults.reduce(
+                    (sum, kr) =>
+                      sum + (kr.progress || 0),
+                    0
+                  ) / keyResults.length
+                )
+              : 0;
+
+          const pending =
+            goal.status === "Pending Approval";
+
+          const busy = actionId === goal.id;
+
+          return (
+            <div
+              key={goal.id}
+              style={{
+                ...cardStyle,
+                padding: "18px 20px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  gap: "12px",
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      color: "var(--primary)",
+                      marginBottom: "4px",
+                    }}
+                  >
+                    {goal.employeeId}
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      color: "var(--primary)",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.4px",
+                    }}
+                  >
+                    {goal.category}
+                  </div>
+
+                  <h3
+                    style={{
+                      fontSize: "15px",
+                      fontWeight: 700,
+                      color: "var(--text)",
+                      marginTop: "4px",
+                      marginBottom: 0,
+                    }}
+                  >
+                    {goal.title}
+                  </h3>
+                </div>
+
+                <StatusBadge
+                  label={meta.label}
+                  color={meta.color}
+                  bg={meta.bg}
+                />
+              </div>
+
+              <div
+                style={{
+                  marginTop: "14px",
+                  paddingTop: "12px",
+                  borderTop:
+                    "1px solid var(--border)",
+                }}
+              >
+                {keyResults.map((kr) => (
+                  <KeyResultRow
+                    key={kr.id}
+                    kr={kr}
+                  />
+                ))}
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent:
+                    "space-between",
+                  alignItems: "center",
+                  marginTop: "10px",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "11.5px",
+                    color: "var(--subtext)",
+                  }}
+                >
+                  Overall progress
+                </span>
+
+                <strong
+                  style={{
+                    fontSize: "13px",
+                    color: "var(--text)",
+                  }}
+                >
+                  {overall}%
+                </strong>
+              </div>
+
+              {pending && (
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "8px",
+                    marginTop: "16px",
+                    paddingTop: "14px",
+                    borderTop:
+                      "1px solid var(--border)",
+                  }}
+                >
+                  <PrimaryButton
+                    disabled={busy}
+                    onClick={() =>
+                      onApprove(goal.id)
+                    }
+                  >
+                    <CheckCircle2 size={15} />
+
+                    {busy
+                      ? "Processing..."
+                      : "Approve"}
+                  </PrimaryButton>
+
+                  <SecondaryButton
+                    disabled={busy}
+                    onClick={() =>
+                      onReject(goal.id)
+                    }
+                  >
+                    Request Revision
+                  </SecondaryButton>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -393,7 +643,7 @@ function SubmitSelfAssessmentModal({ isOpen, onClose, goals, onSaved }) {
           <div key={g.id} style={{ borderBottom: "1px solid var(--border)", paddingBottom: "16px" }}>
             <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)", marginBottom: "8px" }}>{g.title}</p>
             <div style={{ display: "flex", flexDirection: "column", gap: "5px", marginBottom: "10px" }}>
-              {fieldLabel("Self-rating (1–5)")}
+              {fieldLabel("Self-rating (1ï¿½5)")}
               <select value={ratings[g.id] || 3} onChange={(e) => setRatings((p) => ({ ...p, [g.id]: e.target.value }))} style={{ ...inputStyle(false), height: "36px", width: "90px", cursor: "pointer" }}>
                 {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
               </select>
@@ -404,7 +654,7 @@ function SubmitSelfAssessmentModal({ isOpen, onClose, goals, onSaved }) {
                 rows={2}
                 value={comments[g.id] || ""}
                 onChange={(e) => setComments((p) => ({ ...p, [g.id]: e.target.value }))}
-                placeholder="Summarize progress and impact…"
+                placeholder="Summarize progress and impactï¿½"
                 style={{ ...inputStyle(false), resize: "vertical" }}
               />
             </div>
@@ -412,7 +662,7 @@ function SubmitSelfAssessmentModal({ isOpen, onClose, goals, onSaved }) {
         ))}
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Submitting…" : "Submit Self-Assessment"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Submittingï¿½" : "Submit Self-Assessment"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -495,7 +745,7 @@ function ReviewCycleTab({ cycle, goals, selfAssessment, managerReview, onSelfAss
         ) : (
           <p style={{ fontSize: "13px", color: "var(--subtext)" }}>
             {selfAssessment.submitted
-              ? "Your manager hasn't submitted their review yet — you'll be notified once it's ready."
+              ? "Your manager hasn't submitted their review yet ï¿½ you'll be notified once it's ready."
               : "Manager review opens once your self-assessment is submitted."}
           </p>
         )}
@@ -506,11 +756,11 @@ function ReviewCycleTab({ cycle, goals, selfAssessment, managerReview, onSelfAss
         <div style={{ ...cardStyle, padding: "20px 22px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
             <Sparkles size={16} style={{ color: "var(--primary)" }} />
-            <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>360° Feedback</h3>
+            <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>360ï¿½ Feedback</h3>
           </div>
           <p style={{ fontSize: "13px", color: "var(--subtext)" }}>
             {cycle.peerResponsesReceived} of {cycle.peerReviewersNominated} nominated peers have responded.
-            Results are shown to you only as an anonymized summary once the cycle completes — individual reviewers are never identified.
+            Results are shown to you only as an anonymized summary once the cycle completes ï¿½ individual reviewers are never identified.
           </p>
         </div>
       )}
@@ -574,7 +824,7 @@ function GiveFeedbackModal({ isOpen, onClose, goals, onSaved }) {
           {fieldLabel("For *")}
           <select value={recipientId} onChange={(e) => setRecipientId(e.target.value)} style={{ ...inputStyle(errors.recipientId), height: "38px", cursor: "pointer" }}>
             <option value="">Select colleague</option>
-            {colleagues.map((c) => <option key={c.id} value={c.id}>{c.name} — {c.role}</option>)}
+            {colleagues.map((c) => <option key={c.id} value={c.id}>{c.name} ï¿½ {c.role}</option>)}
           </select>
           {errors.recipientId && <span style={{ fontSize: "11px", color: "var(--red)" }}>{errors.recipientId}</span>}
         </div>
@@ -601,7 +851,7 @@ function GiveFeedbackModal({ isOpen, onClose, goals, onSaved }) {
             rows={4}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="Be specific and constructive…"
+            placeholder="Be specific and constructiveï¿½"
             style={{ ...inputStyle(errors.message), resize: "vertical" }}
           />
           {errors.message && <span style={{ fontSize: "11px", color: "var(--red)" }}>{errors.message}</span>}
@@ -614,7 +864,7 @@ function GiveFeedbackModal({ isOpen, onClose, goals, onSaved }) {
 
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Sending…" : "Send Feedback"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Sendingï¿½" : "Send Feedback"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -632,7 +882,7 @@ function FeedbackCard({ entry }) {
             {isReceived ? `From ${entry.fromName}` : `To ${entry.toName}`}
           </span>
           {entry.goalTag && (
-            <div style={{ fontSize: "11px", color: "var(--subtext)", marginTop: "2px" }}>on “{entry.goalTag}”</div>
+            <div style={{ fontSize: "11px", color: "var(--subtext)", marginTop: "2px" }}>on ï¿½{entry.goalTag}ï¿½</div>
           )}
         </div>
         <div style={{ display: "flex", gap: "6px", alignItems: "center", flexShrink: 0 }}>
@@ -783,12 +1033,12 @@ function AddNoteModal({ isOpen, onClose, onSaved }) {
 
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           {fieldLabel("Notes")}
-          <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Free-form notes from the conversation…" style={{ ...inputStyle(false), resize: "vertical" }} />
+          <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Free-form notes from the conversationï¿½" style={{ ...inputStyle(false), resize: "vertical" }} />
         </div>
 
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving…" : "Save Note"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Savingï¿½" : "Save Note"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -924,7 +1174,7 @@ function RatingsTab({ ratings }) {
                   <td style={{ padding: "13px 16px", fontSize: "13.5px", color: "var(--primary)", fontWeight: 700 }}>{r.finalRating} / 5</td>
                   <td style={{ padding: "13px 16px", fontSize: "13.5px", color: "var(--green)", fontWeight: 600 }}>{r.increment}</td>
                   <td style={{ padding: "13px 16px" }}>
-                    {r.promotion ? <StatusBadge label="Promoted" color="#16a34a" bg="#f0fdf4" /> : <span style={{ fontSize: "12.5px", color: "var(--subtext)" }}>—</span>}
+                    {r.promotion ? <StatusBadge label="Promoted" color="#16a34a" bg="#f0fdf4" /> : <span style={{ fontSize: "12.5px", color: "var(--subtext)" }}>ï¿½</span>}
                   </td>
                   <td style={{ padding: "13px 16px", fontSize: "12px", color: "var(--subtext)", whiteSpace: "nowrap" }}>
                     {new Date(r.releasedOn + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
@@ -950,6 +1200,9 @@ const TABS = [
 ];
 
 export default function Performance() {
+  const role = localStorage.getItem("hrms_role");
+  const isManager = role === "MANAGER";
+
   const [activeTab, setActiveTab] = useState("goals");
   const [loading, setLoading] = useState(true);
 
@@ -961,27 +1214,111 @@ export default function Performance() {
   const [oneOnOnes, setOneOnOnes] = useState([]);
   const [ratings, setRatings] = useState([]);
 
-  useEffect(() => {
+ const [managerGoals, setManagerGoals] = useState([]);
+const [managerActionId, setManagerActionId] = useState(null);
+const [goalView, setGoalView] = useState(isManager ? "team" : "mine");
+
+   useEffect(() => {
     setLoading(true);
-    Promise.all([
-      getGoals(ME.id),
+
+    const requests = [
+      getGoals(),
       getReviewCycle(),
       getSelfAssessment(),
-      getManagerReview(),
-      getFeedback(ME.id),
-      getOneOnOnes(ME.id),
-      getRatingsHistory(ME.id),
-    ]).then(([g, c, sa, mr, fb, oo, r]) => {
-      setGoals(g.data);
-      setCycle(c.data);
-      setSelfAssessment(sa.data);
-      setManagerReview(mr.data);
-      setFeedback(fb.data);
-      setOneOnOnes(oo.data);
-      setRatings(r.data);
-    }).finally(() => setLoading(false));
-  }, []);
+      getManagerReview(ME.id),
+      getFeedback(),
+      getOneOnOnes(),
+      getRatingsHistory(),
+    ];
 
+    if (isManager) {
+      requests.push(getManagerGoals());
+    }
+
+    Promise.all(requests)
+      .then(([g, c, sa, mr, fb, oo, r, mg]) => {
+        setGoals(g?.data || []);
+        setCycle(c?.data || null);
+
+        setSelfAssessment(
+          sa?.data || {
+            submitted: false,
+            responses: [],
+          }
+        );
+
+        setManagerReview(
+          mr?.data || {
+            submitted: false,
+            responses: [],
+          }
+        );
+
+        setFeedback(fb?.data || []);
+        setOneOnOnes(oo?.data || []);
+        setRatings(r?.data || []);
+
+        if (isManager && mg) {
+          setManagerGoals(mg.data || []);
+        }
+      })
+      .catch((error) => {
+        console.error(
+          "Failed to load performance data:",
+          error
+        );
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [isManager]);
+
+  
+const handleApproveManagerGoal = async (goalId) => {
+  try {
+    setManagerActionId(goalId);
+
+    const res = await approveManagerGoal(goalId);
+
+    setManagerGoals((prev) =>
+      prev.map((goal) =>
+        goal.id === goalId ? res.data : goal
+      )
+    );
+  } catch (error) {
+    console.error("Failed to approve goal:", error);
+
+    alert(
+      error?.response?.data?.message ||
+        "Unable to approve goal"
+    );
+  } finally {
+    setManagerActionId(null);
+  }
+};
+
+const handleRejectManagerGoal = async (goalId) => {
+  try {
+    setManagerActionId(goalId);
+
+    const res = await rejectManagerGoal(goalId);
+
+    setManagerGoals((prev) =>
+      prev.map((goal) =>
+        goal.id === goalId ? res.data : goal
+      )
+    );
+  } catch (error) {
+    console.error("Failed to request revision:", error);
+
+    alert(
+      error?.response?.data?.message ||
+        "Unable to request revision"
+    );
+  } finally {
+    setManagerActionId(null);
+  }
+};
   const handleToggleAction = (noteId, actionId) => {
     setOneOnOnes((prev) =>
       prev.map((n) =>
@@ -1003,13 +1340,92 @@ export default function Performance() {
   return (
     <MainLayout>
       <div style={{ maxWidth: "1480px", margin: "0 auto" }}>
-        <PageHeader title="Performance" subtitle={cycle ? `${cycle.name} — Goals, reviews and feedback` : "Goals, reviews and feedback"} />
+        <PageHeader title="Performance" subtitle={cycle ? `${cycle.name} ï¿½ Goals, reviews and feedback` : "Goals, reviews and feedback"} />
 
         <TabNav tabs={TABS} active={activeTab} onChange={setActiveTab} />
 
-        {activeTab === "goals" && (
-          <GoalsTab goals={goals} cycle={cycle} onGoalAdded={(g) => setGoals((prev) => [g, ...prev])} />
-        )}
+       {activeTab === "goals" && (
+  <>
+    {isManager && (
+      <div
+        style={{
+          display: "flex",
+          gap: "6px",
+          marginBottom: "18px",
+        }}
+      >
+        <button
+          onClick={() => setGoalView("team")}
+          style={{
+            padding: "7px 15px",
+            borderRadius: "99px",
+            border: `1px solid ${
+              goalView === "team"
+                ? "var(--primary)"
+                : "var(--border)"
+            }`,
+            background:
+              goalView === "team"
+                ? "var(--primary-light)"
+                : "var(--card)",
+            color:
+              goalView === "team"
+                ? "var(--primary)"
+                : "var(--subtext)",
+            fontWeight: 600,
+            fontSize: "12.5px",
+            cursor: "pointer",
+          }}
+        >
+          Team Goals
+        </button>
+
+        <button
+          onClick={() => setGoalView("mine")}
+          style={{
+            padding: "7px 15px",
+            borderRadius: "99px",
+            border: `1px solid ${
+              goalView === "mine"
+                ? "var(--primary)"
+                : "var(--border)"
+            }`,
+            background:
+              goalView === "mine"
+                ? "var(--primary-light)"
+                : "var(--card)",
+            color:
+              goalView === "mine"
+                ? "var(--primary)"
+                : "var(--subtext)",
+            fontWeight: 600,
+            fontSize: "12.5px",
+            cursor: "pointer",
+          }}
+        >
+          My Goals
+        </button>
+      </div>
+    )}
+
+    {isManager && goalView === "team" ? (
+      <ManagerGoalsTab
+        goals={managerGoals}
+        actionId={managerActionId}
+        onApprove={handleApproveManagerGoal}
+        onReject={handleRejectManagerGoal}
+      />
+    ) : (
+      <GoalsTab
+        goals={goals}
+        cycle={cycle}
+        onGoalAdded={(g) =>
+          setGoals((prev) => [g, ...prev])
+        }
+      />
+    )}
+  </>
+)}
 
         {activeTab === "review" && (
           <ReviewCycleTab

@@ -21,6 +21,25 @@ export const updateGoal = async (id, payload) => {
   return res.data;
 };
 
+export const getManagerGoals = async () => {
+  const res = await api.get("/performance/manager/goals");
+  return res.data;
+};
+
+export const approveManagerGoal = async (id) => {
+  const res = await api.patch(`/performance/manager/goals/${id}/approve`);
+  return res.data;
+};
+
+
+
+
+export const rejectManagerGoal = async (id) => {
+  const res = await api.patch(`/performance/manager/goals/${id}/reject`);
+  return res.data;
+};
+
+
 export const getReviewCycle = async () => {
   const res = await api.get("/performance/cycle");
   return res.data;
