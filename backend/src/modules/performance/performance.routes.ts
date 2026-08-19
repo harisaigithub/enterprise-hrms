@@ -149,5 +149,20 @@ router.get(
   performanceController.getAdminOverview
 );
 
+router.get(
+  "/admin/employees",
+  authenticate,
+  requireRole("ADMIN"),
+  readAccess,
+  performanceController.getAdminEmployeesPerformance
+);
+
+router.get(
+  "/admin/employees/:employeeId",
+  authenticate,
+  requireRole("ADMIN"),
+  readAccess,
+  performanceController.getAdminEmployeePerformanceDetail
+);
 
 export default router;

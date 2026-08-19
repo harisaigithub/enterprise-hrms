@@ -94,3 +94,21 @@ export const getRatingsHistory = async (employeeId) => {
   const res = await api.get("/performance/ratings-history", { params: { employeeId } });
   return res.data;
 };
+
+export const getAdminPerformanceOverview = async () => {
+  const res = await api.get("/performance/admin/overview");
+  return res.data;
+};
+
+export const getAdminEmployeesPerformance = async () => {
+  const res = await api.get("/performance/admin/employees");
+  return res.data;
+};
+
+export const getAdminEmployeePerformanceDetail = async (employeeId) => {
+  const res = await api.get(
+    `/performance/admin/employees/${employeeId}`
+  );
+
+  return res.data;
+};
