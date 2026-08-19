@@ -93,6 +93,29 @@ router.get("/goals", authenticate, readAccess, performanceController.getGoals);
 router.post("/goals", authenticate, writeAccess, validate({ body: createGoalSchema }), performanceController.createGoal);
 router.put("/goals/:id", authenticate, writeAccess, validate({ body: updateGoalSchema }), performanceController.updateGoal);
 
+// Manager Goal Approval
+router.get(
+  "/manager/goals",
+  authenticate,
+  readAccess,
+  performanceController.getManagerGoals
+);
+
+router.patch(
+  "/manager/goals/:id/approve",
+  authenticate,
+  writeAccess,
+  performanceController.approveGoal
+);
+
+router.patch(
+  "/manager/goals/:id/reject",
+  authenticate,
+  writeAccess,
+  performanceController.rejectGoal
+);
+
+
 // Self-assessment & Manager Review
 router.get("/reviews/self", authenticate, readAccess, performanceController.getSelfAssessment);
 router.post("/reviews/self", authenticate, writeAccess, validate({ body: selfAssessmentSchema }), performanceController.submitSelfAssessment);
