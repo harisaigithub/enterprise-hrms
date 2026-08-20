@@ -144,7 +144,7 @@ router.get("/ratings-history", authenticate, readAccess, performanceController.g
 router.get(
   "/admin/overview",
   authenticate,
-  requireRole("ADMIN"),
+requireRole("ADMIN", "HR"),
   readAccess,
   performanceController.getAdminOverview
 );
@@ -152,7 +152,7 @@ router.get(
 router.get(
   "/admin/employees",
   authenticate,
-  requireRole("ADMIN"),
+ requireRole("ADMIN", "HR"),
   readAccess,
   performanceController.getAdminEmployeesPerformance
 );
@@ -160,7 +160,7 @@ router.get(
 router.get(
   "/admin/employees/:employeeId",
   authenticate,
-  requireRole("ADMIN"),
+  requireRole("ADMIN", "HR"),
   readAccess,
   performanceController.getAdminEmployeePerformanceDetail
 );
