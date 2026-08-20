@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Recruitment (ATS) Page � Module 5
  * Tabs: Requisitions � Candidate Pipeline � Interviews � Offers
  */

@@ -1,4 +1,4 @@
-// Auth context — exposes user, role, permissions, login/logout.
+﻿// Auth context — exposes user, role, permissions, login/logout.
 // JWT is stored in localStorage; session is restored on page load via GET /auth/me.
 
 import { createContext, useContext, useState, useEffect, useCallback } from "react";

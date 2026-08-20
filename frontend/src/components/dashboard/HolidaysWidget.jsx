@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+﻿import { useNavigate } from "react-router-dom";
 import { PartyPopper } from "lucide-react";
 import DashboardWidgetCard from "./DashboardWidgetCard";
 import { useDashboardWidget } from "../../hooks/useDashboardWidget";

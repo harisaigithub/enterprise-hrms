@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Employees Page
  * Module 2 — Employee Management
  * Features: searchable/filterable table, Add Employee modal, status badges,
@@ -14,7 +14,8 @@ import StatusBadge from "../../components/shared/StatusBadge";
 import Spinner from "../../components/shared/Spinner";
 import EmptyState from "../../components/shared/EmptyState";
 import Modal from "../../components/shared/Modal";
-import { getEmployees, createEmployee } from "../../services/employeeService";
+import { getEmployees, createEmployee, updateEmployee } from "../../services/employeeService";
+import { useAuth } from "../../context/AuthContext";
 import { departments, statuses } from "../../mock/employees";
 
 const EMPLOYEE_STATUS_META = {
@@ -138,15 +139,140 @@ function AddEmployeeModal({ isOpen, onClose, onCreated }) {
   );
 }
 
+// ─── Edit Employee Form ───────────────────────────────────────────────────────
+function EditEmployeeModal({ employee, isOpen, onClose, onUpdated }) {
+  const [form, setForm] = useState({
+    firstName: "", lastName: "", email: "", designation: "", department: "",
+  });
+  const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (employee) {
+      setForm({
+        firstName: employee.firstName || "", lastName: employee.lastName || "", email: employee.email || "", designation: employee.designation || "", department: employee.department || "",
+      });
+      setError("");
+      setErrors({});
+    }
+  }, [employee]);
+
+  const validate = () => {
+    const e = {};
+    if (!form.firstName.trim()) e.firstName = "Required";
+    if (!form.lastName.trim()) e.lastName = "Required";
+    if (!form.email.includes("@")) e.email = "Valid email required";
+    if (!form.designation.trim()) e.designation = "Required";
+    if (!form.department) e.department = "Required";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validate()) return;
+    setSaving(true);
+    setError("");
+    try {
+      await updateEmployee(employee.id, {
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        email: form.email.trim(),
+        designation: form.designation.trim(),
+        department: form.department,
+      });
+      onUpdated();
+      onClose();
+    } catch (err) {
+      setError(err.message || "Could not update employee");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const field = (label, key, type = "text") => (
+    <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+      <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>{label}</label>
+      <input
+        type={type}
+        value={form[key]}
+        onChange={(e) => setForm((p) => ({ ...p, [key]: e.target.value }))}
+        style={{
+          height: "38px", padding: "0 12px",
+          border: `1px solid ${errors[key] ? "var(--red)" : "var(--border)"}`,
+          borderRadius: "var(--radius-sm)",
+          fontSize: "13.5px", color: "var(--text)", outline: "none",
+          transition: "border-color 0.15s",
+        }}
+        onFocus={(e) => (e.target.style.borderColor = "var(--border-focus)")}
+        onBlur={(e) => (e.target.style.borderColor = errors[key] ? "var(--red)" : "var(--border)")}
+      />
+      {errors[key] && <span style={{ fontSize: "11px", color: "var(--red)" }}>{errors[key]}</span>}
+    </div>
+  );
+
+  return (
+    <Modal isOpen={isOpen} title="Edit Employee" onClose={onClose}>
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+          {field("First Name *", "firstName")}
+          {field("Last Name *", "lastName")}
+        </div>
+        {field("Work Email *", "email", "email")}
+        {field("Designation *", "designation")}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+          <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Department *</label>
+          <select
+            value={form.department}
+            onChange={(e) => setForm((p) => ({ ...p, department: e.target.value }))}
+            style={{
+              height: "38px", padding: "0 12px",
+              border: `1px solid ${errors.department ? "var(--red)" : "var(--border)"}`,
+              borderRadius: "var(--radius-sm)",
+              fontSize: "13.5px", color: "var(--text)",
+              background: "var(--card)", outline: "none",
+            }}
+          >
+            <option value="">Select department</option>
+            {departments.map((d) => <option key={d} value={d}>{d}</option>)}
+          </select>
+          {errors.department && <span style={{ fontSize: "11px", color: "var(--red)" }}>{errors.department}</span>}
+        </div>
+
+        {error && (
+          <div style={{ background: "var(--red-light)", color: "var(--red)", borderRadius: "var(--radius-sm)", padding: "10px 14px", fontSize: "12.5px", fontWeight: 600 }}>
+            {error}
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "8px" }}>
+          <button type="button" onClick={onClose}
+            style={{ padding: "9px 20px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "none", color: "var(--label)", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>
+            Cancel
+          </button>
+          <button type="submit" disabled={saving}
+            style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "#fff", fontWeight: 600, fontSize: "13px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
+            {saving ? "Saving…" : "Save Changes"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 // ─── Main Page ───────────────────────────────────────────────────────────────
 export default function Employees() {
   const navigate = useNavigate();
+  const { role } = useAuth();
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterDept, setFilterDept] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [showAdd, setShowAdd] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState(null);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 8;
 
@@ -263,7 +389,7 @@ export default function Employees() {
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ background: "var(--background)", borderBottom: "1px solid var(--border)" }}>
-                    {["Employee", "Designation", "Department", "Location", "Type", "Status", "Joined"].map((h) => (
+                    {["Employee", "Designation", "Department", "Location", "Type", "Status", "Joined", ...(role === "HR" ? ["Actions"] : [])].map((h) => (
                       <th
                         key={h}
                         style={{
@@ -318,6 +444,22 @@ export default function Employees() {
                       <td style={{ padding: "14px 16px", fontSize: "12.5px", color: "var(--subtext)", whiteSpace: "nowrap" }}>
                         {new Date(emp.joinDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
                       </td>
+                      {role === "HR" && (
+                        <td style={{ padding: "14px 16px" }} onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => setEditingEmployee(emp)}
+                            style={{
+                              padding: "6px 12px", background: "none", border: "1px solid var(--border)",
+                              borderRadius: "var(--radius-sm)", fontSize: "12px", fontWeight: 600,
+                              color: "var(--text)", cursor: "pointer", transition: "all 0.15s",
+                            }}
+                            onMouseEnter={(e) => { e.target.style.background = "var(--background)"; e.target.style.borderColor = "var(--primary)"; }}
+                            onMouseLeave={(e) => { e.target.style.background = "none"; e.target.style.borderColor = "var(--border)"; }}
+                          >
+                            Edit
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -362,6 +504,7 @@ export default function Employees() {
       </div>
 
       <AddEmployeeModal isOpen={showAdd} onClose={() => setShowAdd(false)} onCreated={load} />
+      <EditEmployeeModal isOpen={!!editingEmployee} employee={editingEmployee} onClose={() => setEditingEmployee(null)} onUpdated={load} />
     </MainLayout>
   );
 }

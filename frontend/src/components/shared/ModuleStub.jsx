@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ModuleStub — placeholder page for modules not yet implemented.
  * Shows module name, description, and expected features list.
  * Every stub is wired to a real route so the sidebar navigation works.

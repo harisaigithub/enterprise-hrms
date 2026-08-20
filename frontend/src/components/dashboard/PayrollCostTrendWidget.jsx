@@ -1,4 +1,4 @@
-import { TrendingUp } from "lucide-react";
+﻿import { TrendingUp } from "lucide-react";
 import DashboardWidgetCard from "./DashboardWidgetCard";
 import { useDashboardWidget } from "../../hooks/useDashboardWidget";
 import { getAnalyticsSnapshot } from "../../services/adminDashboardService";

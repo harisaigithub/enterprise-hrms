@@ -1,4 +1,4 @@
-import MainLayout from "../../components/layout/MainLayout";
+﻿import MainLayout from "../../components/layout/MainLayout";
 import WelcomeCard from "../../components/shared/Dashboardgreeting";
 import AlertCard from "../../components/dashboard/AlertCard";
 import HiringInsights from "../../components/dashboard/HiringInsights";

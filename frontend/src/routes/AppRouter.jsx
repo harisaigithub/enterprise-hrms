@@ -1,4 +1,4 @@
-/**
+﻿/**
  * AppRouter — All 23 HRMS module routes with React Router v7.
  * All module pages are lazily loaded for performance.
  * The layout route (MainLayout) wraps all authenticated pages.

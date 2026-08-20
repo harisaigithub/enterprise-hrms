@@ -1,4 +1,4 @@
-/**
+﻿/**
  * PageHeader — Standard header for every module page.
  *
  * Usage:

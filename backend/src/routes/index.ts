@@ -12,18 +12,17 @@ import performanceRoutes from "../modules/performance/performance.routes";
 
 const router = Router();
 
-router.use("/auth", authRoutes);
-router.use(
-    "/organization",
-    organizationManagementRoutes
-);
-router.use("/employees", employeeRoutes);
-router.use("/recruitment", recruitmentRoutes);
-router.use("/attendance", attendanceRoutes);
-router.use("/leave", leaveRoutes);
-router.use("/payroll", payrollRoutes);
-router.use("/search", searchRoutes);
-router.use("/workflow", workflowRoutes);
-router.use("/performance", performanceRoutes);
+const serviceName = process.env.SERVICE_NAME;
+
+if (!serviceName || serviceName === "auth") router.use("/auth", authRoutes);
+if (!serviceName || serviceName === "organization") router.use("/organization", organizationManagementRoutes);
+if (!serviceName || serviceName === "employees") router.use("/employees", employeeRoutes);
+if (!serviceName || serviceName === "recruitment") router.use("/recruitment", recruitmentRoutes);
+if (!serviceName || serviceName === "attendance") router.use("/attendance", attendanceRoutes);
+if (!serviceName || serviceName === "leave") router.use("/leave", leaveRoutes);
+if (!serviceName || serviceName === "payroll") router.use("/payroll", payrollRoutes);
+if (!serviceName || serviceName === "search") router.use("/search", searchRoutes);
+if (!serviceName || serviceName === "workflow") router.use("/workflow", workflowRoutes);
+if (!serviceName || serviceName === "performance") router.use("/performance", performanceRoutes);
 
 export default router;

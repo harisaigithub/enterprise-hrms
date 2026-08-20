@@ -1,8 +1,8 @@
-/**
- * Employee Self Service (ESS) Page — Module 16
- * Tabs: Overview · Tax Declaration · Download My Data
+ï»¿/**
+ * Employee Self Service (ESS) Page ï¿½ Module 16
+ * Tabs: Overview ï¿½ Tax Declaration ï¿½ Download My Data
  *
- * ESS is a thin, employee-scoped aggregation layer over other modules —
+ * ESS is a thin, employee-scoped aggregation layer over other modules ï¿½
  * it deep-links into Leave/Attendance/Payroll/LMS/Assets rather than
  * duplicating their data stores.
  */
@@ -19,7 +19,7 @@ import {
   GraduationCap,
   Laptop,
   LifeBuoy,
-  UserCog,
+  Users,
   AlertTriangle,
   Plus,
   ShieldCheck,
@@ -40,7 +40,7 @@ import {
 } from "../../services/essService";
 import { proofStatusMeta, EXPORT_THROTTLE_DAYS, EXPORT_EXPIRY_HOURS } from "../../mock/ess";
 
-// Identity is always this session's user — never taken from a route param,
+// Identity is always this session's user ï¿½ never taken from a route param,
 // query string, or form field, per the ESS scoping rule (16.6).
 const ME = { id: "EMP001", name: "Matsya Singh" };
 const currency = (n) => `?${Number(n).toLocaleString("en-IN")}`;
@@ -190,7 +190,7 @@ function OverviewTab({ overview, simulatePayrollDown, onToggleSimulate }) {
 
         <OverviewWidget icon={Clock} label="This Month">
           <p style={{ fontSize: "22px", fontWeight: 800, color: "var(--text)" }}>{overview.attendanceThisMonth.present} days</p>
-          <p style={{ fontSize: "11.5px", color: "var(--subtext)" }}>Present · {overview.attendanceThisMonth.late} late · {overview.attendanceThisMonth.wfh} WFH</p>
+          <p style={{ fontSize: "11.5px", color: "var(--subtext)" }}>Present ï¿½ {overview.attendanceThisMonth.late} late ï¿½ {overview.attendanceThisMonth.wfh} WFH</p>
         </OverviewWidget>
 
         <OverviewWidget icon={Wallet} label="Latest Payslip" error={overview.payrollError}>
@@ -205,7 +205,7 @@ function OverviewTab({ overview, simulatePayrollDown, onToggleSimulate }) {
         <OverviewWidget icon={GraduationCap} label="Learning">
           <p style={{ fontSize: "22px", fontWeight: 800, color: "var(--text)" }}>{overview.learning.inProgress}</p>
           <p style={{ fontSize: "11.5px", color: overview.learning.complianceOverdue > 0 ? "var(--red)" : "var(--subtext)" }}>
-            In progress{overview.learning.complianceOverdue > 0 ? ` · ${overview.learning.complianceOverdue} compliance overdue` : ""}
+            In progress{overview.learning.complianceOverdue > 0 ? ` ï¿½ ${overview.learning.complianceOverdue} compliance overdue` : ""}
           </p>
         </OverviewWidget>
 
@@ -222,7 +222,7 @@ function OverviewTab({ overview, simulatePayrollDown, onToggleSimulate }) {
 
       {overview.payrollError && (
         <p style={{ fontSize: "11.5px", color: "var(--subtext)", marginTop: "14px" }}>
-          Payroll data is unavailable right now, but the rest of your dashboard loaded normally — that's intentional (a single module outage shouldn't take ESS down).
+          Payroll data is unavailable right now, but the rest of your dashboard loaded normally ï¿½ that's intentional (a single module outage shouldn't take ESS down).
         </p>
       )}
     </div>
@@ -278,7 +278,7 @@ function AddDeclarationModal({ isOpen, onClose, onSaved }) {
         <p style={{ fontSize: "11px", color: "var(--subtext)", margin: 0 }}>Proof documents can be uploaded after submission; status starts as "Pending" until reviewed by Payroll.</p>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Submitting…" : "Submit Declaration"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Submittingï¿½" : "Submit Declaration"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -293,7 +293,7 @@ function TaxDeclarationTab({ declarations, onAdded }) {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
         <div>
-          <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Tax Declarations — FY 2026-27</h2>
+          <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Tax Declarations ï¿½ FY 2026-27</h2>
           <p style={{ fontSize: "12px", color: "var(--subtext)" }}>Total declared: {currency(total)}</p>
         </div>
         <PrimaryButton onClick={() => setShowAdd(true)}><Plus size={16} /> Add Declaration</PrimaryButton>
@@ -338,6 +338,38 @@ function TaxDeclarationTab({ declarations, onAdded }) {
 
 /* ---------------------------------- Download My Data tab ---------------------------------- */
 
+function HierarchyView() {
+  return (
+    <div style={{ marginTop: "24px", paddingTop: "20px", borderTop: "1px solid var(--border)" }}>
+      <h3 style={{ fontSize: "13px", fontWeight: 700, marginBottom: "16px", display: "flex", alignItems: "center", gap: "6px", color: "var(--text)" }}>
+        <Users size={16} /> My Organization Hierarchy (Extracted from Download)
+      </h3>
+      <div style={{ display: "flex", flexDirection: "column", gap: "0px" }}>
+        {/* Manager */}
+        <div style={{ padding: "12px", background: "var(--card)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", maxWidth: "300px", marginLeft: "0px" }}>
+          <p style={{ fontSize: "11px", color: "var(--subtext)", fontWeight: 600, textTransform: "uppercase", marginBottom: "2px" }}>Manager</p>
+          <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>Anjali Desai</p>
+          <p style={{ fontSize: "12px", color: "var(--subtext)" }}>Engineering Manager</p>
+        </div>
+        <div style={{ width: "2px", height: "20px", background: "var(--border)", marginLeft: "24px" }}></div>
+        {/* Me */}
+        <div style={{ padding: "12px", background: "var(--primary)", borderRadius: "var(--radius-sm)", border: `1px solid var(--primary)`, maxWidth: "300px", marginLeft: "24px", color: "#fff" }}>
+          <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.8)", fontWeight: 600, textTransform: "uppercase", marginBottom: "2px" }}>Me</p>
+          <p style={{ fontSize: "13px", fontWeight: 600 }}>Matsya Singh</p>
+          <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.9)" }}>Senior Software Engineer</p>
+        </div>
+        <div style={{ width: "2px", height: "20px", background: "var(--border)", marginLeft: "48px" }}></div>
+        {/* Direct Report */}
+        <div style={{ padding: "12px", background: "var(--card)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", maxWidth: "300px", marginLeft: "48px" }}>
+          <p style={{ fontSize: "11px", color: "var(--subtext)", fontWeight: 600, textTransform: "uppercase", marginBottom: "2px" }}>Direct Report</p>
+          <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>Ravi Kumar</p>
+          <p style={{ fontSize: "12px", color: "var(--subtext)" }}>Software Engineer</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DataExportTab({ lastRequest, onRequested }) {
   const [requesting, setRequesting] = useState(false);
   const [error, setError] = useState("");
@@ -362,7 +394,7 @@ function DataExportTab({ lastRequest, onRequested }) {
     <div style={{ maxWidth: "560px" }}>
       <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)", marginBottom: "6px" }}>Download My Data</h2>
       <p style={{ fontSize: "12.5px", color: "var(--subtext)", marginBottom: "18px" }}>
-        Request a complete export of everything linked to your employee record across every module — profile, attendance, leave, payroll, performance, learning, and assets. This is a data subject access request (DSAR), limited to once every {EXPORT_THROTTLE_DAYS} days.
+        Request a complete export of everything linked to your employee record across every module ï¿½ profile, attendance, leave, payroll, performance, learning, and assets. This is a data subject access request (DSAR), limited to once every {EXPORT_THROTTLE_DAYS} days.
       </p>
 
       <div style={{ ...cardStyle, padding: "20px 22px" }}>
@@ -370,7 +402,7 @@ function DataExportTab({ lastRequest, onRequested }) {
           <>
             <p style={{ fontSize: "13px", color: "var(--subtext)", marginBottom: "14px" }}>No export requested yet.</p>
             <PrimaryButton onClick={handleRequest} disabled={requesting}>
-              <DownloadCloud size={16} /> {requesting ? "Preparing export…" : "Request Data Export"}
+              <DownloadCloud size={16} /> {requesting ? "Preparing exportï¿½" : "Request Data Export"}
             </PrimaryButton>
           </>
         ) : (
@@ -385,17 +417,18 @@ function DataExportTab({ lastRequest, onRequested }) {
               <>
                 <StatusBadge label="Ready to download" color="#16a34a" bg="#f0fdf4" />
                 <p style={{ fontSize: "11.5px", color: "var(--subtext)", margin: "10px 0 14px" }}>
-                  Expires {fmtDateTime(lastRequest.expiresAt)} — the file is automatically deleted from temporary storage after that.
+                  Expires {fmtDateTime(lastRequest.expiresAt)} - the file is automatically deleted from temporary storage after that.
                 </p>
                 <a href={lastRequest.downloadUrl} style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "13px", fontWeight: 700, color: "var(--primary)", textDecoration: "none" }}>
                   <DownloadCloud size={15} /> Download my data (.zip, encrypted)
                 </a>
+                <HierarchyView />
               </>
             )}
 
             <div style={{ marginTop: "18px", paddingTop: "16px", borderTop: "1px solid var(--border)" }}>
               {canRequestAgain ? (
-                <PrimaryButton onClick={handleRequest} disabled={requesting}>{requesting ? "Preparing…" : "Request a new export"}</PrimaryButton>
+                <PrimaryButton onClick={handleRequest} disabled={requesting}>{requesting ? "Preparing" : "Request a new export"}</PrimaryButton>
               ) : (
                 <p style={{ fontSize: "12px", color: "var(--subtext)" }}>You can request another export on {nextAllowed.toISOString().slice(0, 10)}.</p>
               )}

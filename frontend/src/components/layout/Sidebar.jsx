@@ -1,4 +1,4 @@
-// Sidebar navigation — all HR modules grouped by category.
+﻿// Sidebar navigation — all HR modules grouped by category.
 // Collapses to icon-only mode when isOpen=false (controlled by MainLayout).
 
 import {

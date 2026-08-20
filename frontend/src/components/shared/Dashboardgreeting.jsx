@@ -1,4 +1,4 @@
-/**
+﻿/**
  * WelcomeCard (DashboardGreeting) — Hero banner at the top of dashboards.
  *
  * Shows a time-aware greeting, the user's name, and a subtle teal gradient

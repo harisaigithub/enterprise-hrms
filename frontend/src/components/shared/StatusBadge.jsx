@@ -1,4 +1,4 @@
-/**
+﻿/**
  * StatusBadge — reusable pill badge for any status
  * Usage: <StatusBadge label="Active" color="#16a34a" bg="#f0fdf4" />
  *        <StatusBadge {...attendanceStatusMeta["Present"]} />

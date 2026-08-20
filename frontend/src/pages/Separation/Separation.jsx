@@ -1,6 +1,6 @@
-/**
- * Separation Management Page — Module 19
- * Tabs: Separations · Clearance · Exit Interview · Settlement & Alumni
+ï»¿/**
+ * Separation Management Page ï¿½ Module 19
+ * Tabs: Separations ï¿½ Clearance ï¿½ Exit Interview ï¿½ Settlement & Alumni
  */
 
 import { useState, useEffect } from "react";
@@ -38,7 +38,7 @@ import { colleagues } from "../../mock/recruitment";
 
 const HR_USER = "lewis hamilton";
 const currency = (n) => `?${Number(n).toLocaleString("en-IN")}`;
-const fmtDate = (d) => (d ? new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—");
+const fmtDate = (d) => (d ? new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "ï¿½");
 
 /* ---------------------------------- shared bits ---------------------------------- */
 
@@ -156,20 +156,20 @@ function InitiateSeparationModal({ isOpen, onClose, onSaved }) {
           {fieldLabel("Type")}
           <select value={type} onChange={(e) => setType(e.target.value)} style={{ ...inputStyle(false), height: "38px", cursor: "pointer" }}>
             <option value="Resignation">Resignation (employee-initiated)</option>
-            <option value="Termination">Termination (involuntary — HR + senior approver only)</option>
+            <option value="Termination">Termination (involuntary ï¿½ HR + senior approver only)</option>
           </select>
         </div>
         {type === "Termination" && (
           <div style={{ display: "flex", gap: "8px", alignItems: "flex-start", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "var(--radius-sm)", padding: "10px 12px" }}>
             <AlertTriangle size={16} style={{ color: "var(--red)", flexShrink: 0, marginTop: "1px" }} />
-            <p style={{ fontSize: "12px", color: "#991b1b", margin: 0 }}>This path has stricter access in a real deployment — restricted to HR plus a senior approver, given its legal sensitivity.</p>
+            <p style={{ fontSize: "12px", color: "#991b1b", margin: 0 }}>This path has stricter access in a real deployment ï¿½ restricted to HR plus a senior approver, given its legal sensitivity.</p>
           </div>
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           {fieldLabel("Employee *")}
           <select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} style={{ ...inputStyle(false), height: "38px", cursor: "pointer" }}>
             <option value="">Select employee</option>
-            {colleagues.map((c) => <option key={c.id} value={c.id}>{c.name} — {c.role}</option>)}
+            {colleagues.map((c) => <option key={c.id} value={c.id}>{c.name} ï¿½ {c.role}</option>)}
           </select>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
@@ -189,7 +189,7 @@ function InitiateSeparationModal({ isOpen, onClose, onSaved }) {
         <p style={{ fontSize: "12px", color: "var(--subtext)", margin: 0 }}>Computed last working day: <strong>{fmtDate(lastWorkingDay())}</strong></p>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Submitting…" : "Initiate Separation"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Submittingï¿½" : "Initiate Separation"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -266,7 +266,7 @@ function ClearanceRow({ item, onUpdate }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px", marginBottom: "8px" }}>
         <div>
           <p style={{ fontSize: "13.5px", fontWeight: 600, color: "var(--text)" }}>{item.item}</p>
-          <p style={{ fontSize: "11px", color: "var(--subtext)" }}>Owner: {item.owner}{item.completedAt ? ` · Completed ${fmtDate(item.completedAt)}` : ""}</p>
+          <p style={{ fontSize: "11px", color: "var(--subtext)" }}>Owner: {item.owner}{item.completedAt ? ` ï¿½ Completed ${fmtDate(item.completedAt)}` : ""}</p>
         </div>
         <StatusBadge label={item.status} color={meta.color} bg={meta.bg} />
       </div>
@@ -290,13 +290,13 @@ function ClearanceTab({ separation, items, onUpdate }) {
 
   return (
     <div>
-      <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)", marginBottom: "4px" }}>Clearance — {separation.employeeName}</h2>
+      <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)", marginBottom: "4px" }}>Clearance ï¿½ {separation.employeeName}</h2>
       <p style={{ fontSize: "12.5px", color: "var(--subtext)", marginBottom: "16px" }}>Parallel checklist across owners. Settlement is blocked until every item here is Complete (or a documented HR override is applied).</p>
 
       {allComplete && (
         <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "var(--radius-sm)", padding: "10px 14px", marginBottom: "16px" }}>
           <CheckCircle2 size={16} style={{ color: "var(--green)" }} />
-          <p style={{ fontSize: "12.5px", color: "#166534", margin: 0 }}>All clearance items complete — settlement can now be computed in the Settlement & Alumni tab.</p>
+          <p style={{ fontSize: "12.5px", color: "#166534", margin: 0 }}>All clearance items complete ï¿½ settlement can now be computed in the Settlement & Alumni tab.</p>
         </div>
       )}
 
@@ -332,11 +332,11 @@ function ExitInterviewTab({ separation, interview, onSaved }) {
 
   return (
     <div style={{ maxWidth: "620px" }}>
-      <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)", marginBottom: "4px" }}>Exit Interview — {separation.employeeName}</h2>
+      <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)", marginBottom: "4px" }}>Exit Interview ï¿½ {separation.employeeName}</h2>
       <div style={{ display: "flex", gap: "8px", alignItems: "flex-start", background: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: "var(--radius-sm)", padding: "10px 14px", margin: "10px 0 18px" }}>
         <Lock size={15} style={{ color: "#7c3aed", flexShrink: 0, marginTop: "1px" }} />
         <p style={{ fontSize: "12px", color: "#5b21b6", margin: 0 }}>
-          Restricted to HR only — not visible to the departing employee's manager or to Auditor roles by default. Only "an interview occurred" is visible elsewhere.
+          Restricted to HR only ï¿½ not visible to the departing employee's manager or to Auditor roles by default. Only "an interview occurred" is visible elsewhere.
         </p>
       </div>
 
@@ -359,7 +359,7 @@ function ExitInterviewTab({ separation, interview, onSaved }) {
             </div>
           ))}
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving…" : "Record Exit Interview"}</PrimaryButton>
+            <PrimaryButton type="submit" disabled={saving}>{saving ? "Savingï¿½" : "Record Exit Interview"}</PrimaryButton>
           </div>
         </form>
       )}
@@ -423,7 +423,7 @@ function SettlementForm({ separation, items, onSettled }) {
           <input type="number" value={reimbursements} onChange={(e) => setReimbursements(e.target.value)} style={inputStyle(false)} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-          {fieldLabel("Recoveries — unreturned assets/advances (?)")}
+          {fieldLabel("Recoveries ï¿½ unreturned assets/advances (?)")}
           <input type="number" value={recoveries} onChange={(e) => setRecoveries(e.target.value)} style={inputStyle(false)} />
         </div>
       </div>
@@ -450,7 +450,7 @@ function SettlementForm({ separation, items, onSettled }) {
       {error && <p style={{ fontSize: "11.5px", color: "var(--red)", margin: 0 }}>{error}</p>}
 
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <PrimaryButton type="submit" disabled={saving}>{saving ? "Computing…" : "Compute & Approve Settlement"}</PrimaryButton>
+        <PrimaryButton type="submit" disabled={saving}>{saving ? "Computingï¿½" : "Compute & Approve Settlement"}</PrimaryButton>
       </div>
     </form>
   );
@@ -482,7 +482,7 @@ function SettlementAlumniTab({ separation, items, onSettled, onRevoked, onAlumni
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px", maxWidth: "640px" }}>
-      <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Settlement & Alumni — {separation.employeeName}</h2>
+      <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Settlement & Alumni ï¿½ {separation.employeeName}</h2>
 
       {separation.settlement ? (
         <div style={{ ...cardStyle, padding: "18px 20px" }}>
@@ -513,11 +513,11 @@ function SettlementAlumniTab({ separation, items, onSettled, onRevoked, onAlumni
         <div style={{ ...cardStyle, padding: "18px 20px" }}>
           <h3 style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)", marginBottom: "10px" }}>System Access</h3>
           {separation.accessRevoked ? (
-            <p style={{ fontSize: "13px", color: "var(--red)", fontWeight: 600, display: "flex", alignItems: "center", gap: "6px" }}><ShieldOff size={15} /> Revoked — SSO, email, VPN and HRMS access disabled; active sessions invalidated.</p>
+            <p style={{ fontSize: "13px", color: "var(--red)", fontWeight: 600, display: "flex", alignItems: "center", gap: "6px" }}><ShieldOff size={15} /> Revoked ï¿½ SSO, email, VPN and HRMS access disabled; active sessions invalidated.</p>
           ) : (
             <>
-              <p style={{ fontSize: "12.5px", color: "var(--subtext)", marginBottom: "10px" }}>Settlement is complete — revoke access atomically across all connected systems.</p>
-              <PrimaryButton onClick={handleRevoke} disabled={revoking}><ShieldOff size={15} /> {revoking ? "Revoking…" : "Revoke All Access"}</PrimaryButton>
+              <p style={{ fontSize: "12.5px", color: "var(--subtext)", marginBottom: "10px" }}>Settlement is complete ï¿½ revoke access atomically across all connected systems.</p>
+              <PrimaryButton onClick={handleRevoke} disabled={revoking}><ShieldOff size={15} /> {revoking ? "Revokingï¿½" : "Revoke All Access"}</PrimaryButton>
             </>
           )}
         </div>
@@ -535,7 +535,7 @@ function SettlementAlumniTab({ separation, items, onSettled, onRevoked, onAlumni
             <input type="checkbox" checked={eligible} onChange={(e) => setEligible(e.target.checked)} />
             Eligible for rehire
           </label>
-          <PrimaryButton onClick={handleConvert} disabled={converting}>{converting ? "Converting…" : "Convert to Alumni"}</PrimaryButton>
+          <PrimaryButton onClick={handleConvert} disabled={converting}>{converting ? "Convertingï¿½" : "Convert to Alumni"}</PrimaryButton>
         </div>
       )}
 
@@ -544,8 +544,8 @@ function SettlementAlumniTab({ separation, items, onSettled, onRevoked, onAlumni
           <h3 style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)", marginBottom: "10px" }}>Alumni Record</h3>
           {alumni.filter((a) => a.employeeId === separation.employeeId).map((a) => (
             <div key={a.id} style={{ fontSize: "13px", color: "var(--text)" }}>
-              <p>{a.name} — {a.role}</p>
-              <p style={{ color: "var(--subtext)", fontSize: "12px" }}>Tenure: {a.tenure} · {a.eligibleForRehire ? "Eligible for rehire" : "Not eligible for rehire"} · Exited {fmtDate(a.exitedOn)}</p>
+              <p>{a.name} ï¿½ {a.role}</p>
+              <p style={{ color: "var(--subtext)", fontSize: "12px" }}>Tenure: {a.tenure} ï¿½ {a.eligibleForRehire ? "Eligible for rehire" : "Not eligible for rehire"} ï¿½ Exited {fmtDate(a.exitedOn)}</p>
             </div>
           ))}
         </div>

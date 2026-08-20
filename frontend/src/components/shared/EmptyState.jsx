@@ -1,4 +1,4 @@
-/**
+﻿/**
  * EmptyState — shown when a list/table has no data
  */
 

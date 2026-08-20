@@ -1,5 +1,5 @@
-/**
- * Notifications Page — Module 23
+ï»¿/**
+ * Notifications Page ï¿½ Module 23
  * Tabs: Inbox (in-app bell/history + preferences), History (full dispatch
  * log), Admin: Templates (author + linting), Admin: Channels (integrations
  * + outage simulation).
@@ -27,10 +27,10 @@ const fmtDateTime = (d) => new Date(d).toLocaleString("en-IN", { day: "2-digit",
 const statusMeta = {
   Delivered: { color: "#16a34a", bg: "#f0fdf4" },
   Retrying: { color: "#d97706", bg: "#fffbeb" },
-  "Failed — see in-app": { color: "#dc2626", bg: "#fef2f2" },
+  "Failed ï¿½ see in-app": { color: "#dc2626", bg: "#fef2f2" },
   Failed: { color: "#dc2626", bg: "#fef2f2" },
   Active: { color: "#16a34a", bg: "#f0fdf4" },
-  "Blocked — failed linting": { color: "#dc2626", bg: "#fef2f2" },
+  "Blocked ï¿½ failed linting": { color: "#dc2626", bg: "#fef2f2" },
   Connected: { color: "#16a34a", bg: "#f0fdf4" },
   Down: { color: "#dc2626", bg: "#fef2f2" },
   "Not Configured": { color: "#64748b", bg: "#f8fafc" },
@@ -94,7 +94,7 @@ function InboxTab() {
               <div key={cat}>
                 <p style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--text)", marginBottom: "5px", display: "flex", alignItems: "center", gap: "5px" }}>
                   {cat}
-                  {isSecurity && <ShieldAlert size={12} style={{ color: "var(--red)" }} title="Security-critical — always includes Email" />}
+                  {isSecurity && <ShieldAlert size={12} style={{ color: "var(--red)" }} title="Security-critical ï¿½ always includes Email" />}
                 </p>
                 <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                   {CHANNELS.filter((c) => c !== "In-app").map((c) => {
@@ -102,7 +102,7 @@ function InboxTab() {
                     const forcedByEmail = isSecurity && c === "Email";
                     return (
                       <button key={c} onClick={() => !forcedByEmail && togglePref(cat, c)} disabled={forcedByEmail}
-                        title={forcedByEmail ? "Security-critical — cannot be turned off" : ""}
+                        title={forcedByEmail ? "Security-critical ï¿½ cannot be turned off" : ""}
                         style={{
                           padding: "3px 9px", borderRadius: "99px", fontSize: "11px", fontWeight: 600,
                           border: active || forcedByEmail ? "1px solid var(--primary)" : "1px solid var(--border)",
@@ -119,7 +119,7 @@ function InboxTab() {
             );
           })}
         </div>
-        <p style={{ fontSize: "10.5px", color: "var(--subtext)", marginTop: "12px" }}>In-app is always delivered regardless of preference — it's the guaranteed fallback if every other channel fails.</p>
+        <p style={{ fontSize: "10.5px", color: "var(--subtext)", marginTop: "12px" }}>In-app is always delivered regardless of preference ï¿½ it's the guaranteed fallback if every other channel fails.</p>
       </div>
     </div>
   );
@@ -207,7 +207,7 @@ function NewTemplateModal({ isOpen, onClose, onSaved }) {
           </select>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-          <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Body * — use {"{{fieldId}}"} for merge fields</label>
+          <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Body * ï¿½ use {"{{fieldId}}"} for merge fields</label>
           <textarea value={form.body} onChange={(e) => setForm((p) => ({ ...p, body: e.target.value }))} rows={4}
             style={{ width: "100%", padding: "10px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontSize: "13.5px", fontFamily: "inherit", resize: "vertical" }} />
         </div>
@@ -231,7 +231,7 @@ function NewTemplateModal({ isOpen, onClose, onSaved }) {
                 <AlertTriangle size={13} style={{ color: "var(--red)", flexShrink: 0, marginTop: "1px" }} />
                 <div>
                   {lint.violations.map((v) => (
-                    <p key={v.field} style={{ fontSize: "12px", color: "#991b1b" }}>{`{{${v.field}}}`} — {v.reason}</p>
+                    <p key={v.field} style={{ fontSize: "12px", color: "#991b1b" }}>{`{{${v.field}}}`} ï¿½ {v.reason}</p>
                   ))}
                 </div>
               </div>
@@ -254,7 +254,7 @@ function NewTemplateModal({ isOpen, onClose, onSaved }) {
               fontWeight: 600, fontSize: "13px",
               cursor: saving || !lint.passed ? "not-allowed" : "pointer",
             }}>
-            {saving ? "Saving…" : "Save Template"}
+            {saving ? "Savingï¿½" : "Save Template"}
           </button>
         </div>
       </div>
@@ -273,7 +273,7 @@ function TemplatesTab({ onDispatchResult }) {
   const sendTest = async (t) => {
     setSendingId(t.id);
     const result = await dispatchNotification(t.id, {
-      employeeName: CURRENT_USER.name, leaveType: "Casual Leave", leaveDates: "12–13 Aug",
+      employeeName: CURRENT_USER.name, leaveType: "Casual Leave", leaveDates: "12ï¿½13 Aug",
       ticketId: "TCK-0001", policyTitle: "Code of Conduct", payslipMonth: "July 2026",
       payslipLink: "[view payslip]", courseName: "POSH Awareness", dueDate: "05 Aug",
       deviceInfo: "Chrome / Windows", loginTime: fmtDateTime(new Date().toISOString()),
@@ -316,7 +316,7 @@ function TemplatesTab({ onDispatchResult }) {
                       <button onClick={() => sendTest(t)} disabled={blocked || sendingId === t.id}
                         title={blocked ? "Blocked templates cannot be sent" : ""}
                         style={{ display: "flex", alignItems: "center", gap: "5px", padding: "6px 12px", background: blocked ? "var(--border)" : "var(--primary-light)", color: blocked ? "var(--subtext)" : "var(--primary)", border: "none", borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: "12px", cursor: blocked ? "not-allowed" : "pointer" }}>
-                        <Send size={12} /> {sendingId === t.id ? "Sending…" : "Send Test"}
+                        <Send size={12} /> {sendingId === t.id ? "Sendingï¿½" : "Send Test"}
                       </button>
                     </td>
                   </tr>
@@ -360,7 +360,7 @@ function ChannelsTab() {
                     {c.channel}
                   </td>
                   <td style={{ padding: "13px 16px" }}><StatusBadge label={c.status} color={meta.color} bg={meta.bg} /></td>
-                  <td style={{ padding: "13px 16px", fontSize: "12px", color: "var(--subtext)" }}>{c.lastChecked ? fmtDateTime(c.lastChecked) : "—"}</td>
+                  <td style={{ padding: "13px 16px", fontSize: "12px", color: "var(--subtext)" }}>{c.lastChecked ? fmtDateTime(c.lastChecked) : "ï¿½"}</td>
                   <td style={{ padding: "13px 16px" }}>
                     {canToggle && (
                       <button onClick={async () => { await simulateChannelOutage(c.channel, !isDown); load(); }}
@@ -376,7 +376,7 @@ function ChannelsTab() {
         </table>
       </div>
       <p style={{ fontSize: "11px", color: "var(--subtext)", padding: "12px 16px" }}>
-        Toggle a channel to "Down", then send a test notification from the Templates tab whose preference includes that channel — watch it retry and fall back to In-app.
+        Toggle a channel to "Down", then send a test notification from the Templates tab whose preference includes that channel ï¿½ watch it retry and fall back to In-app.
       </p>
     </div>
   );
@@ -387,12 +387,12 @@ function DispatchResultPanel({ result, onClose }) {
   return (
     <div style={{ background: "var(--card)", borderRadius: "var(--radius-lg)", border: "1px solid var(--primary)", boxShadow: "var(--shadow-md)", padding: "16px 18px", marginBottom: "16px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-        <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--text)" }}>Dispatch trail — {result.category}</p>
+        <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--text)" }}>Dispatch trail ï¿½ {result.category}</p>
         <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--subtext)", cursor: "pointer", fontSize: "12px" }}>Dismiss</button>
       </div>
       {result.bypassedOptOut && (
         <p style={{ fontSize: "12px", color: "var(--red)", marginBottom: "8px", display: "flex", alignItems: "center", gap: "5px" }}>
-          <ShieldAlert size={13} /> Security-critical — Email was sent despite the recipient's preference being fully opted out.
+          <ShieldAlert size={13} /> Security-critical ï¿½ Email was sent despite the recipient's preference being fully opted out.
         </p>
       )}
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -404,7 +404,7 @@ function DispatchResultPanel({ result, onClose }) {
                 {i > 0 && " ? "}attempt {t.attempt} {t.status.toLowerCase()}{t.backoffSeconds ? ` (backoff ${t.backoffSeconds}s)` : ""}
               </span>
             ))}
-            {" — "}
+            {" ï¿½ "}
             <span style={{ fontWeight: 600, color: r.finalStatus === "Delivered" ? "var(--green)" : "var(--red)" }}>{r.finalStatus}</span>
           </div>
         ))}

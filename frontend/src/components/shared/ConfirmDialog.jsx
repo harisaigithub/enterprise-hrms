@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ConfirmDialog — used for all destructive / high-impact actions
  * Implements the "confirmation step" from Golden Rule #7.
  *

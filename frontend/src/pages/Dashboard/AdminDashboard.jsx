@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Admin/Management dashboard — org-wide KPIs, hiring funnel, payroll trends.
  */
 import MainLayout from "../../components/layout/MainLayout";

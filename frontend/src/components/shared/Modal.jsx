@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Modal — generic modal wrapper used by Add Employee, Apply Leave, etc.
  */
 

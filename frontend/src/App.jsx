@@ -1,4 +1,4 @@
-/**
+﻿/**
  * App — TEMPORARY preview mode.
  * Renders EmployeeDashboard directly for quick viewing, wrapped in the same
  * providers the real app tree gives it (BrowserRouter for useNavigate(),
