@@ -816,6 +816,60 @@ export async function assertCanReadEmployeePerformance(
   }
 }
 
+const REVIEW_PHASES = [
+  "Goal Setting",
+  "Continuous Feedback",
+  "Self-Assessment",
+  "Manager Review",
+  "Calibration",
+  "Completed",
+] as const;
+
+export async function advanceActiveCyclePhase(
+  requestedPhase: string,
+  actorUserId?: string
+) {
+  const cycle = await prisma.performanceReviewCycle.findFirst({
+    where: { isActive: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!cycle) {
+    throw AppError.notFound("No active performance review cycle found");
+  }
+
+  const currentIndex = REVIEW_PHASES.indexOf(
+    cycle.phase as (typeof REVIEW_PHASES)[number]
+  );
+  const nextPhase = REVIEW_PHASES[currentIndex + 1];
+
+  if (currentIndex < 0 || !nextPhase) {
+    throw AppError.badRequest("The active review cycle cannot be advanced further");
+  }
+
+  if (requestedPhase !== nextPhase) {
+    throw AppError.badRequest(
+      `Review cycle can only advance from ${cycle.phase} to ${nextPhase}`
+    );
+  }
+
+  const updated = await prisma.performanceReviewCycle.update({
+    where: { id: cycle.id },
+    data: { phase: nextPhase },
+  });
+
+  await writeAuditLog({
+    actorUserId,
+    action: "UPDATE",
+    entityType: "PerformanceReviewCycle",
+    entityId: cycle.id,
+    oldValue: { phase: cycle.phase },
+    newValue: { phase: updated.phase },
+  });
+
+  return { data: serializeReviewCycle(updated) };
+}
+
 export async function getManagerReview(
   employeeCode: string,
   cycleCode?: string
@@ -897,6 +951,12 @@ export async function submitManagerReview(
     );
   }
 
+  if (cycle.phase !== "Manager Review") {
+    throw AppError.badRequest(
+      `Manager reviews can only be submitted during the Manager Review phase (current phase: ${cycle.phase})`
+    );
+  }
+
   /*
    * Manager Review cannot happen before
    * the employee submits the self-assessment.
@@ -922,6 +982,22 @@ export async function submitManagerReview(
   if (!responses || responses.length === 0) {
     throw AppError.badRequest(
       "Manager review responses cannot be empty"
+    );
+  }
+
+  const goalIds = [...new Set(responses.map((response) => response.goalId))];
+  const validGoalCount = await prisma.performanceGoal.count({
+    where: {
+      id: { in: goalIds },
+      employeeId: emp.id,
+      reviewCycleId: cycle.id,
+      status: "Locked",
+    },
+  });
+
+  if (validGoalCount !== goalIds.length) {
+    throw AppError.badRequest(
+      "Manager review contains a goal that is not a locked goal for this employee and cycle"
     );
   }
 
@@ -1177,15 +1253,17 @@ export async function createOneOnOne(
     );
   }
 
-  /*
-   * If partner is current employee's manager:
-   * employee=current
-   * manager=partner
-   *
-   * Otherwise current is assumed to be manager.
-   */
   const isPartnerManager =
     current.reportingManagerId === partner.id;
+
+  const isPartnerDirectReport =
+    partner.reportingManagerId === current.id;
+
+  if (!isPartnerManager && !isPartnerDirectReport) {
+    throw AppError.forbidden(
+      "1:1 notes can only be created between an employee and their direct manager"
+    );
+  }
 
   const employeeId = isPartnerManager
     ? current.id
@@ -1258,8 +1336,32 @@ export async function createOneOnOne(
 export async function toggleOneOnOneAction(
   oneOnOneId: string,
   actionId: string,
+  currentEmployeeCode: string,
   actorUserId?: string
 ) {
+  const current = await resolveEmployee(
+    currentEmployeeCode
+  );
+
+  const oneOnOne =
+    await prisma.performanceOneOnOne.findUnique({
+      where: { id: oneOnOneId },
+      select: { employeeId: true, managerId: true },
+    });
+
+  if (!oneOnOne) {
+    throw AppError.notFound("1:1 note not found");
+  }
+
+  if (
+    oneOnOne.employeeId !== current.id &&
+    oneOnOne.managerId !== current.id
+  ) {
+    throw AppError.forbidden(
+      "Only 1:1 participants can update action items"
+    );
+  }
+
   const action =
     await prisma.performanceOneOnOneAction.findFirst({
       where: {
@@ -1325,6 +1427,262 @@ export async function getRatingsHistory(
   return {
     data: serializeRatingHistoryList(list),
   };
+}
+
+export async function getManagerRatingsHistory(
+  managerEmployeeCode: string
+) {
+  const manager = await resolveEmployee(managerEmployeeCode);
+
+  const directReports = await prisma.employee.findMany({
+    where: { reportingManagerId: manager.id },
+    select: {
+      id: true,
+      employeeCode: true,
+      firstName: true,
+      lastName: true,
+      status: true,
+      ratingsHistory: {
+        orderBy: { releasedOn: "desc" },
+      },
+    },
+    orderBy: { employeeCode: "asc" },
+  });
+
+  return {
+    data: {
+      employees: directReports.map((employee) => ({
+        employeeId: employee.employeeCode,
+        name: `${employee.firstName} ${employee.lastName}`,
+        status: employee.status,
+        ratings: serializeRatingHistoryList(employee.ratingsHistory),
+      })),
+    },
+  };
+}
+
+export async function getAdminRatingsHistory() {
+  const employees = await prisma.employee.findMany({
+    select: {
+      employeeCode: true,
+      firstName: true,
+      lastName: true,
+      status: true,
+      ratingsHistory: {
+        orderBy: { releasedOn: "desc" },
+      },
+    },
+    orderBy: { employeeCode: "asc" },
+  });
+
+  const records = employees.flatMap((employee) =>
+    employee.ratingsHistory.map((rating) => ({
+      employeeId: employee.employeeCode,
+      employeeName: `${employee.firstName} ${employee.lastName}`,
+      employeeStatus: employee.status,
+      ...serializeRatingHistoryList([rating])[0],
+    }))
+  );
+
+  const averageFinalRating = records.length
+    ? Number(
+        (
+          records.reduce((sum, record) => sum + record.finalRating, 0) /
+          records.length
+        ).toFixed(2)
+      )
+    : null;
+
+  return {
+    data: {
+      summary: {
+        employees: employees.length,
+        employeesWithRatings: employees.filter(
+          (employee) => employee.ratingsHistory.length > 0
+        ).length,
+        totalRecords: records.length,
+        averageFinalRating,
+      },
+      records,
+    },
+  };
+}
+
+export async function getCalibrationCandidates() {
+  const cycle = await prisma.performanceReviewCycle.findFirst({
+    where: { isActive: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!cycle) {
+    throw AppError.notFound("No active performance review cycle found");
+  }
+
+  const managerReviews = await prisma.performanceReview.findMany({
+    where: {
+      reviewCycleId: cycle.id,
+      reviewType: "Manager",
+      status: "Submitted",
+    },
+    include: {
+      employee: {
+        select: {
+          employeeCode: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
+      items: true,
+    },
+    orderBy: { submittedAt: "asc" },
+  });
+
+  const employeeIds = managerReviews.map((review) => review.employeeId);
+  const [selfReviews, released] = await Promise.all([
+    prisma.performanceReview.findMany({
+      where: {
+        reviewCycleId: cycle.id,
+        reviewType: "Self",
+        status: "Submitted",
+        employeeId: { in: employeeIds },
+      },
+      include: { items: true },
+    }),
+    prisma.performanceRatingHistory.findMany({
+      where: {
+        reviewCycleId: cycle.id,
+        cycleName: cycle.name,
+        employeeId: { in: employeeIds },
+      },
+      select: { employeeId: true },
+    }),
+  ]);
+
+  const releasedEmployeeIds = new Set(released.map((item) => item.employeeId));
+  const average = (items: Array<{ rating: number }>) =>
+    items.length
+      ? Number((items.reduce((sum, item) => sum + item.rating, 0) / items.length).toFixed(2))
+      : null;
+
+  return {
+    data: {
+      cycle: { id: cycle.id, name: cycle.name, phase: cycle.phase },
+      candidates: managerReviews
+        .filter((review) => !releasedEmployeeIds.has(review.employeeId))
+        .map((review) => {
+          const selfReview = selfReviews.find(
+            (item) => item.employeeId === review.employeeId
+          );
+          return {
+            employeeId: review.employee.employeeCode,
+            employeeName: `${review.employee.firstName} ${review.employee.lastName}`,
+            selfRating: average(selfReview?.items || []),
+            managerRating: average(review.items),
+            managerReviewSubmittedAt: review.submittedAt,
+          };
+        }),
+    },
+  };
+}
+
+export interface ReleaseRatingInput {
+  employeeId: string;
+  finalRating: number;
+  increment: string;
+  promotion: boolean;
+  appraisalLetterUrl?: string | null;
+}
+
+export async function releaseCalibratedRating(
+  input: ReleaseRatingInput,
+  actorUserId?: string
+) {
+  const cycle = await prisma.performanceReviewCycle.findFirst({
+    where: { isActive: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!cycle) throw AppError.notFound("No active performance review cycle found");
+  if (cycle.phase !== "Calibration") {
+    throw AppError.conflict("Ratings can only be released during the Calibration phase");
+  }
+
+  const employee = await resolveEmployee(input.employeeId);
+  const [managerReview, selfReview, existing] = await Promise.all([
+    prisma.performanceReview.findFirst({
+      where: {
+        employeeId: employee.id,
+        reviewCycleId: cycle.id,
+        reviewType: "Manager",
+        status: "Submitted",
+      },
+      include: { items: true },
+    }),
+    prisma.performanceReview.findFirst({
+      where: {
+        employeeId: employee.id,
+        reviewCycleId: cycle.id,
+        reviewType: "Self",
+        status: "Submitted",
+      },
+      include: { items: true },
+    }),
+    prisma.performanceRatingHistory.findFirst({
+      where: {
+        employeeId: employee.id,
+        reviewCycleId: cycle.id,
+        cycleName: cycle.name,
+      },
+    }),
+  ]);
+
+  if (!managerReview) {
+    throw AppError.badRequest("A submitted manager review is required before release");
+  }
+  if (managerReview.items.length === 0) {
+    throw AppError.badRequest("Manager review does not contain any rated goals");
+  }
+  if (existing) throw AppError.conflict("This employee's rating has already been released");
+
+  const roundedAverage = (items: Array<{ rating: number }>) =>
+    Math.max(1, Math.min(5, Math.round(items.reduce((sum, item) => sum + item.rating, 0) / items.length)));
+  const managerRating = roundedAverage(managerReview.items);
+  const selfRating = selfReview?.items.length
+    ? roundedAverage(selfReview.items)
+    : managerRating;
+
+  const rating = await prisma.performanceRatingHistory.create({
+    data: {
+      employeeId: employee.id,
+      reviewCycleId: cycle.id,
+      cycleName: cycle.name,
+      selfRating,
+      originalManagerRating: managerRating,
+      finalRating: input.finalRating,
+      calibrationAdjusted: input.finalRating !== managerRating,
+      increment: input.increment.trim(),
+      promotion: input.promotion,
+      appraisalLetterUrl: input.appraisalLetterUrl?.trim() || null,
+      releasedOn: new Date(),
+    },
+  });
+
+  await writeAuditLog({
+    actorUserId,
+    action: "CREATE",
+    entityType: "PerformanceRatingHistory",
+    entityId: rating.id,
+    newValue: {
+      employeeCode: employee.employeeCode,
+      cycle: cycle.name,
+      originalManagerRating: managerRating,
+      finalRating: input.finalRating,
+      increment: input.increment,
+      promotion: input.promotion,
+    },
+  });
+
+  return { data: serializeRatingHistoryList([rating])[0] };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1675,4 +2033,13 @@ export async function getAdminEmployeePerformanceDetail(
         serializeRatingHistoryList(ratingsHistory),
     },
   };
+}
+
+export async function getAdminFeedback() {
+  const feedback = await prisma.performanceFeedback.findMany({
+    include: FEEDBACK_INCLUDE,
+    orderBy: { createdAt: "desc" },
+  });
+
+  return { data: serializeFeedbackList(feedback) };
 }
