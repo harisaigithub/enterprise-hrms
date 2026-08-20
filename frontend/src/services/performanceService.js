@@ -101,6 +101,26 @@ export const getRatingsHistory = async (employeeId) => {
   return res.data;
 };
 
+export const getManagerRatingsHistory = async () => {
+  const res = await api.get("/performance/manager/ratings-history");
+  return res.data;
+};
+
+export const getAdminRatingsHistory = async () => {
+  const res = await api.get("/performance/admin/ratings-history");
+  return res.data;
+};
+
+export const getCalibrationCandidates = async () => {
+  const res = await api.get("/performance/admin/calibration");
+  return res.data;
+};
+
+export const releaseCalibratedRating = async (payload) => {
+  const res = await api.post("/performance/admin/calibration/release", payload);
+  return res.data;
+};
+
 export const getAdminPerformanceOverview = async () => {
   const res = await api.get("/performance/admin/overview");
   return res.data;
@@ -116,5 +136,15 @@ export const getAdminEmployeePerformanceDetail = async (employeeId) => {
     `/performance/admin/employees/${employeeId}`
   );
 
+  return res.data;
+};
+
+export const getAdminFeedback = async () => {
+  const res = await api.get("/performance/admin/feedback");
+  return res.data;
+};
+
+export const advanceReviewCyclePhase = async (phase) => {
+  const res = await api.patch("/performance/admin/cycle/phase", { phase });
   return res.data;
 };

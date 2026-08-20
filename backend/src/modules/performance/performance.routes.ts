@@ -10,6 +10,16 @@ import * as performanceController from "./performance.controller";
 
 const router = Router();
 
+const advanceCyclePhaseSchema = z.object({
+  phase: z.enum([
+    "Continuous Feedback",
+    "Self-Assessment",
+    "Manager Review",
+    "Calibration",
+    "Completed",
+  ]),
+});
+
 const createGoalSchema = z.object({
   employeeId: z.string().optional(),
   title: z.string().min(1, "Goal title is required"),
@@ -85,11 +95,27 @@ const createOneOnOneSchema = z.object({
   notes: z.string().optional(),
 });
 
+const releaseRatingSchema = z.object({
+  employeeId: z.string().min(1, "Employee is required"),
+  finalRating: z.number().int().min(1).max(5),
+  increment: z.string().trim().min(1).max(20),
+  promotion: z.boolean(),
+  appraisalLetterUrl: z.string().trim().max(255).nullable().optional(),
+});
+
 const readAccess = requirePermission("performance:read");
 const writeAccess = requirePermission("performance:write");
 
 // Review Cycle
 router.get("/cycle", authenticate, readAccess, performanceController.getActiveCycle);
+router.patch(
+  "/admin/cycle/phase",
+  authenticate,
+  requireRole("ADMIN"),
+  writeAccess,
+  validate({ body: advanceCyclePhaseSchema }),
+  performanceController.advanceActiveCyclePhase
+);
 
 // Goals
 router.get("/goals", authenticate, readAccess, performanceController.getGoals);
@@ -128,6 +154,13 @@ router.post("/reviews/manager", authenticate, writeAccess, validate({ body: mana
 // Continuous Feedback
 router.get("/feedback", authenticate, readAccess, performanceController.getFeedback);
 router.post("/feedback", authenticate, writeAccess, validate({ body: createFeedbackSchema }), performanceController.createFeedback);
+router.get(
+  "/admin/feedback",
+  authenticate,
+  requireRole("ADMIN", "HR"),
+  readAccess,
+  performanceController.getAdminFeedback
+);
 
 // 1-on-1s
 router.get("/one-on-ones", authenticate, readAccess, performanceController.getOneOnOnes);
@@ -136,6 +169,35 @@ router.patch("/one-on-ones/:id/actions/:actionId", authenticate, writeAccess, pe
 
 // Ratings History
 router.get("/ratings-history", authenticate, readAccess, performanceController.getRatingsHistory);
+router.get(
+  "/manager/ratings-history",
+  authenticate,
+  requireRole("MANAGER"),
+  readAccess,
+  performanceController.getManagerRatingsHistory
+);
+router.get(
+  "/admin/ratings-history",
+  authenticate,
+  requireRole("ADMIN", "HR"),
+  readAccess,
+  performanceController.getAdminRatingsHistory
+);
+router.get(
+  "/admin/calibration",
+  authenticate,
+  requireRole("ADMIN", "HR"),
+  readAccess,
+  performanceController.getCalibrationCandidates
+);
+router.post(
+  "/admin/calibration/release",
+  authenticate,
+  requireRole("ADMIN", "HR"),
+  writeAccess,
+  validate({ body: releaseRatingSchema }),
+  performanceController.releaseCalibratedRating
+);
 
 /* -------------------------------------------------------------------------- */
 /*                              Admin Performance                             */

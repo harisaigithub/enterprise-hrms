@@ -34,6 +34,12 @@ export const getGoals = asyncHandler(
       );
     }
 
+    await performanceService.assertCanReadEmployeePerformance(
+      req.auth?.employeeCode,
+      employeeCode,
+      req.auth?.role
+    );
+
     const cycleCode =
       req.query.cycle as string | undefined;
 
@@ -174,6 +180,12 @@ export const getSelfAssessment = asyncHandler(
         "Authenticated user is not linked to an employee"
       );
     }
+
+    await performanceService.assertCanReadEmployeePerformance(
+      req.auth?.employeeCode,
+      employeeCode,
+      req.auth?.role
+    );
 
     const cycleCode =
       req.query.cycle as string | undefined;
@@ -350,9 +362,7 @@ export const createFeedback = asyncHandler(
 
 export const getOneOnOnes = asyncHandler(
   async (req: Request, res: Response) => {
-    const employeeCode =
-      (req.query.employeeId as string) ||
-      req.auth?.employeeCode;
+    const employeeCode = req.auth?.employeeCode;
 
     if (!employeeCode) {
       throw AppError.unauthorized(
@@ -402,10 +412,19 @@ export const toggleOneOnOneAction =
       req: Request,
       res: Response
     ) => {
+      const employeeCode = req.auth?.employeeCode;
+
+      if (!employeeCode) {
+        throw AppError.unauthorized(
+          "Authenticated user is not linked to an employee"
+        );
+      }
+
       const result =
         await performanceService.toggleOneOnOneAction(
           req.params.id,
           req.params.actionId,
+          employeeCode,
           req.auth?.sub
         );
 
@@ -419,9 +438,7 @@ export const toggleOneOnOneAction =
 
 export const getRatingsHistory = asyncHandler(
   async (req: Request, res: Response) => {
-    const employeeCode =
-      (req.query.employeeId as string) ||
-      req.auth?.employeeCode;
+    const employeeCode = req.auth?.employeeCode;
 
     if (!employeeCode) {
       throw AppError.unauthorized(
@@ -462,6 +479,65 @@ export const getAdminEmployeePerformanceDetail = asyncHandler(
       await performanceService.getAdminEmployeePerformanceDetail(
         req.params.employeeId
       );
+
+    sendSuccess(res, result.data);
+  }
+);
+
+export const getAdminFeedback = asyncHandler(
+  async (_req: Request, res: Response) => {
+    const result = await performanceService.getAdminFeedback();
+    sendSuccess(res, result.data);
+  }
+);
+
+export const getManagerRatingsHistory = asyncHandler(
+  async (req: Request, res: Response) => {
+    const employeeCode = req.auth?.employeeCode;
+
+    if (!employeeCode) {
+      throw AppError.unauthorized(
+        "Authenticated manager is not linked to an employee"
+      );
+    }
+
+    const result = await performanceService.getManagerRatingsHistory(
+      employeeCode
+    );
+    sendSuccess(res, result.data);
+  }
+);
+
+export const getAdminRatingsHistory = asyncHandler(
+  async (_req: Request, res: Response) => {
+    const result = await performanceService.getAdminRatingsHistory();
+    sendSuccess(res, result.data);
+  }
+);
+
+export const getCalibrationCandidates = asyncHandler(
+  async (_req: Request, res: Response) => {
+    const result = await performanceService.getCalibrationCandidates();
+    sendSuccess(res, result.data);
+  }
+);
+
+export const releaseCalibratedRating = asyncHandler(
+  async (req: Request, res: Response) => {
+    const result = await performanceService.releaseCalibratedRating(
+      req.body,
+      req.auth?.sub
+    );
+    sendSuccess(res, result.data, undefined, 201);
+  }
+);
+
+export const advanceActiveCyclePhase = asyncHandler(
+  async (req: Request, res: Response) => {
+    const result = await performanceService.advanceActiveCyclePhase(
+      req.body.phase,
+      req.auth?.sub
+    );
 
     sendSuccess(res, result.data);
   }

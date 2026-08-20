@@ -28,14 +28,22 @@ import {
   addGoal,
   updateGoal,
   getReviewCycle,
+  advanceReviewCyclePhase,
   getSelfAssessment,
   submitSelfAssessment,
   getManagerReview,
+  submitManagerReview,
   getFeedback,
   addFeedback,
+  getAdminFeedback,
   getOneOnOnes,
   addOneOnOne,
+  toggleActionItem,
   getRatingsHistory,
+  getManagerRatingsHistory,
+  getAdminRatingsHistory,
+  getCalibrationCandidates,
+  releaseCalibratedRating,
   getManagerGoals,
   getAdminPerformanceOverview,
   getAdminEmployeesPerformance,
@@ -1327,13 +1335,184 @@ function SubmitSelfAssessmentModal({ isOpen, onClose, goals, onSaved }) {
   );
 }
 
-function ReviewCycleTab({ cycle, goals, selfAssessment, managerReview, onSelfAssessmentSubmitted }) {
+function ManagerTeamReviewPanel({ goals }) {
+  const reviewableGoals = goals.filter((goal) => goal.status === "Locked");
+  const employeeCodes = [...new Set(reviewableGoals.map((goal) => goal.employeeId))];
+  const [employeeCode, setEmployeeCode] = useState(employeeCodes[0] || "");
+  const [selfAssessment, setSelfAssessment] = useState(null);
+  const [managerReview, setManagerReview] = useState(null);
+  const [ratings, setRatings] = useState({});
+  const [comments, setComments] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const employeeGoals = reviewableGoals.filter(
+    (goal) => goal.employeeId === employeeCode
+  );
+
+  useEffect(() => {
+    if (!employeeCode) return;
+
+    setLoading(true);
+    Promise.all([
+      getSelfAssessment(employeeCode),
+      getManagerReview(employeeCode),
+    ])
+      .then(([selfResult, managerResult]) => {
+        const selfData = selfResult.data;
+        const managerData = managerResult.data;
+        setSelfAssessment(selfData);
+        setManagerReview(managerData);
+
+        const nextRatings = {};
+        const nextComments = {};
+        (managerData?.responses || []).forEach((response) => {
+          nextRatings[response.goalId] = response.rating;
+          nextComments[response.goalId] = response.comments || "";
+        });
+        setRatings(nextRatings);
+        setComments(nextComments);
+      })
+      .catch((error) => {
+        console.error("Failed to load direct-report review:", error);
+        alert(error?.message || "Unable to load direct-report review");
+      })
+      .finally(() => setLoading(false));
+  }, [employeeCode]);
+
+  const handleSubmit = async () => {
+    if (!selfAssessment?.submitted) {
+      alert("The employee must submit their self-assessment first");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const responses = employeeGoals.map((goal) => ({
+        goalId: goal.id,
+        rating: Number(ratings[goal.id]) || 3,
+        comments: comments[goal.id] || "",
+      }));
+      const result = await submitManagerReview(employeeCode, responses);
+      setManagerReview(result.data);
+      alert("Manager review submitted successfully");
+    } catch (error) {
+      console.error("Failed to submit manager review:", error);
+      alert(error?.message || "Unable to submit manager review");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (employeeCodes.length === 0) {
+    return (
+      <EmptyState
+        icon={Users}
+        title="No direct reports ready for review"
+        subtitle="Direct reports with locked goals will appear here."
+      />
+    );
+  }
+
+  return (
+    <div style={{ ...cardStyle, padding: "20px 22px" }}>
+      <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)", marginBottom: "12px" }}>
+        Direct Report Review
+      </h3>
+      <select
+        value={employeeCode}
+        onChange={(event) => setEmployeeCode(event.target.value)}
+        style={{ ...inputStyle(false), height: "38px", maxWidth: "260px", marginBottom: "14px" }}
+      >
+        {employeeCodes.map((code) => <option key={code} value={code}>{code}</option>)}
+      </select>
+
+      {loading ? <Spinner /> : (
+        <>
+          <p style={{ fontSize: "12.5px", color: selfAssessment?.submitted ? "var(--green)" : "var(--red)", marginBottom: "12px" }}>
+            Self-assessment: {selfAssessment?.submitted ? "Submitted" : "Pending"}
+          </p>
+          {employeeGoals.map((goal) => {
+            const selfResponse = selfAssessment?.responses?.find(
+              (response) => response.goalId === goal.id
+            );
+            return (
+              <div key={goal.id} style={{ borderTop: "1px solid var(--border)", padding: "14px 0" }}>
+                <strong style={{ fontSize: "13.5px", color: "var(--text)" }}>{goal.title}</strong>
+                {selfResponse && (
+                  <p style={{ fontSize: "12px", color: "var(--subtext)", margin: "6px 0" }}>
+                    Employee: {selfResponse.rating}/5 — {selfResponse.comments || "No comments"}
+                  </p>
+                )}
+                <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: "10px" }}>
+                  <select
+                    value={ratings[goal.id] || 3}
+                    onChange={(event) => setRatings((previous) => ({ ...previous, [goal.id]: event.target.value }))}
+                    style={{ ...inputStyle(false), height: "38px" }}
+                  >
+                    {[1, 2, 3, 4, 5].map((rating) => <option key={rating} value={rating}>{rating}/5</option>)}
+                  </select>
+                  <input
+                    value={comments[goal.id] || ""}
+                    onChange={(event) => setComments((previous) => ({ ...previous, [goal.id]: event.target.value }))}
+                    placeholder="Manager comments"
+                    style={inputStyle(false)}
+                  />
+                </div>
+              </div>
+            );
+          })}
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "10px" }}>
+            <PrimaryButton onClick={handleSubmit} disabled={saving || !selfAssessment?.submitted}>
+              {saving ? "Submitting..." : managerReview?.submitted ? "Update Manager Review" : "Submit Manager Review"}
+            </PrimaryButton>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ReviewCycleTab({
+  cycle,
+  goals,
+  selfAssessment,
+  managerReview,
+  onSelfAssessmentSubmitted,
+  isAdmin,
+  onCycleUpdated,
+  isManager,
+  managerGoals,
+}) {
   const [showSelfAssessment, setShowSelfAssessment] = useState(false);
+  const [advancingPhase, setAdvancingPhase] = useState(false);
 
   if (!cycle) return <EmptyState icon={ClipboardCheck} title="No active review cycle" />;
 
   const phaseMeta = reviewPhaseMeta[cycle.phase];
-  const canSubmitSelfAssessment = cycle.phase === "Self-Assessment" && !selfAssessment.submitted;
+  const canSubmitSelfAssessment =
+    !isAdmin &&
+    cycle.phase === "Self-Assessment" &&
+    !selfAssessment.submitted &&
+    goals.length > 0;
+  const currentPhaseIndex = PHASES.indexOf(cycle.phase);
+  const nextPhase = PHASES[currentPhaseIndex + 1];
+
+  const handleAdvancePhase = async () => {
+    if (!nextPhase) return;
+    if (!window.confirm(`Advance review cycle to ${nextPhase}?`)) return;
+
+    try {
+      setAdvancingPhase(true);
+      const res = await advanceReviewCyclePhase(nextPhase);
+      onCycleUpdated(res.data);
+    } catch (error) {
+      console.error("Failed to advance review cycle:", error);
+      alert(error?.message || "Unable to advance review cycle");
+    } finally {
+      setAdvancingPhase(false);
+    }
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
@@ -1346,7 +1525,18 @@ function ReviewCycleTab({ cycle, goals, selfAssessment, managerReview, onSelfAss
           <StatusBadge label={cycle.phase} color={phaseMeta.color} bg={phaseMeta.bg} />
         </div>
         <PhaseStepper phase={cycle.phase} />
+        {isAdmin && nextPhase && (
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "16px" }}>
+            <PrimaryButton onClick={handleAdvancePhase} disabled={advancingPhase}>
+              {advancingPhase ? "Advancing..." : `Advance to ${nextPhase}`}
+            </PrimaryButton>
+          </div>
+        )}
       </div>
+
+      {isManager && cycle.phase === "Manager Review" && (
+        <ManagerTeamReviewPanel goals={managerGoals} />
+      )}
 
       {/* Self-assessment */}
       <div style={{ ...cardStyle, padding: "20px 22px" }}>
@@ -1451,28 +1641,29 @@ function GiveFeedbackModal({ isOpen, onClose, goals, onSaved }) {
     e.preventDefault();
     if (!validate()) return;
     setSaving(true);
-    const recipient = colleagues.find((c) => c.id === recipientId);
     const entry = {
-      id: `f-${Date.now()}`,
-      fromId: ME.id,
-      fromName: ME.name,
-      toId: recipient.id,
-      toName: recipient.name,
+      toEmployeeCode: recipientId,
       type,
       goalTag: goalTag || null,
       message: message.trim(),
       private: isPrivate,
-      createdAt: new Date().toISOString().slice(0, 10),
     };
-    const res = await addFeedback(entry);
-    setSaving(false);
-    onSaved(res.data);
-    onClose();
-    setRecipientId("");
-    setType("Praise");
-    setGoalTag("");
-    setMessage("");
-    setIsPrivate(false);
+
+    try {
+      const res = await addFeedback(entry);
+      onSaved(res.data);
+      onClose();
+      setRecipientId("");
+      setType("Praise");
+      setGoalTag("");
+      setMessage("");
+      setIsPrivate(false);
+    } catch (error) {
+      console.error("Failed to send feedback:", error);
+      alert(error?.message || "Unable to send feedback");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -1522,22 +1713,26 @@ function GiveFeedbackModal({ isOpen, onClose, goals, onSaved }) {
 
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Sending�" : "Send Feedback"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Sending..." : "Send Feedback"}</PrimaryButton>
         </div>
       </form>
     </Modal>
   );
 }
 
-function FeedbackCard({ entry }) {
+function FeedbackCard({ entry, currentEmployeeCode, organizationView }) {
   const meta = feedbackTypeMeta[entry.type] || feedbackTypeMeta.General;
-  const isReceived = entry.toId === ME.id;
+  const isReceived = entry.toId === currentEmployeeCode;
   return (
     <div style={{ ...cardStyle, padding: "16px 18px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px", marginBottom: "8px" }}>
         <div>
           <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--text)" }}>
-            {isReceived ? `From ${entry.fromName}` : `To ${entry.toName}`}
+            {organizationView
+              ? `${entry.fromName} → ${entry.toName}`
+              : isReceived
+                ? `From ${entry.fromName}`
+                : `To ${entry.toName}`}
           </span>
           {entry.goalTag && (
             <div style={{ fontSize: "11px", color: "var(--subtext)", marginTop: "2px" }}>on �{entry.goalTag}�</div>
@@ -1556,20 +1751,21 @@ function FeedbackCard({ entry }) {
   );
 }
 
-function FeedbackTab({ feedback, goals, onFeedbackAdded }) {
+function FeedbackTab({ feedback, goals, onFeedbackAdded, organizationView }) {
   const [showGive, setShowGive] = useState(false);
   const [filter, setFilter] = useState("all");
+  const currentEmployeeCode = getCurrentEmployeeCode();
 
   const filtered = feedback.filter((f) => {
-    if (filter === "received") return f.toId === ME.id;
-    if (filter === "given") return f.fromId === ME.id;
+    if (filter === "received") return f.toId === currentEmployeeCode;
+    if (filter === "given") return f.fromId === currentEmployeeCode;
     return true;
   });
 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
-        <div style={{ display: "flex", gap: "6px" }}>
+        {!organizationView && <div style={{ display: "flex", gap: "6px" }}>
           {[["all", "All"], ["received", "Received"], ["given", "Given"]].map(([key, label]) => (
             <button
               key={key}
@@ -1588,15 +1784,22 @@ function FeedbackTab({ feedback, goals, onFeedbackAdded }) {
               {label}
             </button>
           ))}
-        </div>
-        <PrimaryButton onClick={() => setShowGive(true)}><Plus size={16} /> Give Feedback</PrimaryButton>
+        </div>}
+        {!organizationView && <PrimaryButton onClick={() => setShowGive(true)}><Plus size={16} /> Give Feedback</PrimaryButton>}
       </div>
 
       {filtered.length === 0 ? (
         <EmptyState icon={MessageSquare} title="No feedback here yet" subtitle="Continuous feedback logged during the cycle will show up here." />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          {filtered.map((f) => <FeedbackCard key={f.id} entry={f} />)}
+          {filtered.map((f) => (
+            <FeedbackCard
+              key={f.id}
+              entry={f}
+              currentEmployeeCode={currentEmployeeCode}
+              organizationView={organizationView}
+            />
+          ))}
         </div>
       )}
 
@@ -1608,7 +1811,11 @@ function FeedbackTab({ feedback, goals, onFeedbackAdded }) {
 /* ---------------------------------- 1:1s tab ---------------------------------- */
 
 function AddNoteModal({ isOpen, onClose, onSaved }) {
-  const [withName, setWithName] = useState("Alice Quinn");
+  const currentEmployeeCode = getCurrentEmployeeCode();
+  const availableColleagues = colleagues.filter(
+    (colleague) => colleague.id !== currentEmployeeCode
+  );
+  const [withEmployeeCode, setWithEmployeeCode] = useState("");
   const [date, setDate] = useState("");
   const [agendaText, setAgendaText] = useState("");
   const [notes, setNotes] = useState("");
@@ -1622,6 +1829,7 @@ function AddNoteModal({ isOpen, onClose, onSaved }) {
 
   const validate = () => {
     const e = {};
+    if (!withEmployeeCode) e.withEmployeeCode = "Required";
     if (!date) e.date = "Required";
     if (!agendaText.trim()) e.agendaText = "Add at least one agenda topic";
     setErrors(e);
@@ -1632,23 +1840,27 @@ function AddNoteModal({ isOpen, onClose, onSaved }) {
     e.preventDefault();
     if (!validate()) return;
     setSaving(true);
-    const note = {
-      id: `o-${Date.now()}`,
-      withName,
-      withRole: "Engineering Manager",
-      date,
-      agenda: agendaText.split("\n").map((s) => s.trim()).filter(Boolean),
-      actionItems: actionItems.filter((a) => a.text.trim()).map((a, i) => ({ id: `a-${Date.now()}-${i}`, text: a.text.trim(), done: false })),
-      notes,
-    };
-    const res = await addOneOnOne(note);
-    setSaving(false);
-    onSaved(res.data);
-    onClose();
-    setDate("");
-    setAgendaText("");
-    setNotes("");
-    setActionItems([{ text: "" }]);
+    try {
+      const res = await addOneOnOne({
+        withEmployeeCode,
+        date,
+        agenda: agendaText.split("\n").map((s) => s.trim()).filter(Boolean),
+        actionItems: actionItems.filter((a) => a.text.trim()).map((a) => ({ text: a.text.trim(), done: false })),
+        notes,
+      });
+      onSaved(res.data);
+      onClose();
+      setWithEmployeeCode("");
+      setDate("");
+      setAgendaText("");
+      setNotes("");
+      setActionItems([{ text: "" }]);
+    } catch (error) {
+      console.error("Failed to save 1:1:", error);
+      alert(error?.response?.data?.message || "Unable to save the 1:1 note");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -1657,7 +1869,13 @@ function AddNoteModal({ isOpen, onClose, onSaved }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
             {fieldLabel("With")}
-            <input value={withName} onChange={(e) => setWithName(e.target.value)} style={inputStyle(false)} />
+            <select value={withEmployeeCode} onChange={(e) => setWithEmployeeCode(e.target.value)} style={inputStyle(errors.withEmployeeCode)}>
+              <option value="">Select employee or manager</option>
+              {availableColleagues.map((colleague) => (
+                <option key={colleague.id} value={colleague.id}>{colleague.name} - {colleague.role}</option>
+              ))}
+            </select>
+            {errors.withEmployeeCode && <span style={{ fontSize: "11px", color: "var(--red)" }}>{errors.withEmployeeCode}</span>}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
             {fieldLabel("Date *")}
@@ -1696,7 +1914,7 @@ function AddNoteModal({ isOpen, onClose, onSaved }) {
 
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving�" : "Save Note"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving..." : "Save Note"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -1752,14 +1970,14 @@ function OneOnOneCard({ note, onToggleAction }) {
   );
 }
 
-function OneOnOnesTab({ notes, onNoteAdded, onToggleAction }) {
+function OneOnOnesTab({ notes, onNoteAdded, onToggleAction, readOnly }) {
   const [showAdd, setShowAdd] = useState(false);
 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
         <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>1-on-1 Meeting Notes</h2>
-        <PrimaryButton onClick={() => setShowAdd(true)}><Plus size={16} /> New 1:1</PrimaryButton>
+        {!readOnly && <PrimaryButton onClick={() => setShowAdd(true)}><Plus size={16} /> New 1:1</PrimaryButton>}
       </div>
 
       {notes.length === 0 ? (
@@ -1770,15 +1988,150 @@ function OneOnOnesTab({ notes, onNoteAdded, onToggleAction }) {
         </div>
       )}
 
-      <AddNoteModal isOpen={showAdd} onClose={() => setShowAdd(false)} onSaved={onNoteAdded} />
+      {!readOnly && <AddNoteModal isOpen={showAdd} onClose={() => setShowAdd(false)} onSaved={onNoteAdded} />}
     </div>
   );
 }
 
 /* ---------------------------------- Ratings History tab ---------------------------------- */
 
-function RatingsTab({ ratings }) {
-  if (ratings.length === 0) return <EmptyState icon={Award} title="No ratings history yet" />;
+function RatingsTable({ ratings, showEmployee = false }) {
+  return (
+    <div style={{ ...cardStyle, overflow: "hidden" }}>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead><tr style={{ background: "var(--background)", borderBottom: "1px solid var(--border)" }}>
+            {(showEmployee ? ["Employee", "Cycle", "Self Rating", "Manager Rating", "Final Rating", "Increment", "Promotion", "Released"] : ["Cycle", "Self Rating", "Manager Rating", "Final Rating", "Increment", "Promotion", "Released"]).map((heading) => (
+              <th key={heading} style={{ padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.5px", whiteSpace: "nowrap" }}>{heading}</th>
+            ))}
+          </tr></thead>
+          <tbody>{ratings.map((rating, index) => (
+            <tr key={`${rating.employeeId || "self"}-${rating.id || rating.cycle}`} style={{ borderBottom: index < ratings.length - 1 ? "1px solid var(--border)" : "none" }}>
+              {showEmployee && <td style={{ padding: "13px 16px", whiteSpace: "nowrap" }}><div style={{ fontSize: "13.5px", fontWeight: 600 }}>{rating.employeeName}</div><div style={{ fontSize: "11px", color: "var(--subtext)" }}>{rating.employeeId}</div></td>}
+              <td style={{ padding: "13px 16px", fontSize: "13.5px", fontWeight: 600 }}>{rating.cycle}</td>
+              <td style={{ padding: "13px 16px", fontSize: "13.5px" }}>{rating.selfRating} / 5</td>
+              <td style={{ padding: "13px 16px", fontSize: "13.5px" }}>{rating.originalManagerRating} / 5{rating.calibrationAdjusted && <span style={{ marginLeft: "6px", fontSize: "11px", color: "var(--amber)", fontWeight: 600 }}>(pre-calibration)</span>}</td>
+              <td style={{ padding: "13px 16px", fontSize: "13.5px", color: "var(--primary)", fontWeight: 700 }}>{rating.finalRating} / 5</td>
+              <td style={{ padding: "13px 16px", fontSize: "13.5px", color: "var(--green)", fontWeight: 600 }}>{rating.increment}</td>
+              <td style={{ padding: "13px 16px" }}>{rating.promotion ? <StatusBadge label="Promoted" color="#16a34a" bg="#f0fdf4" /> : <span style={{ color: "var(--subtext)" }}>-</span>}</td>
+              <td style={{ padding: "13px 16px", fontSize: "12px", color: "var(--subtext)", whiteSpace: "nowrap" }}>{new Date(`${rating.releasedOn}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function CalibrationPanel({ cycle, onReleased }) {
+  const [data, setData] = useState({ candidates: [] });
+  const [forms, setForms] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [releasing, setReleasing] = useState(null);
+
+  const loadCandidates = async () => {
+    try {
+      const response = await getCalibrationCandidates();
+      const calibration = response.data || { candidates: [] };
+      setData(calibration);
+      setForms((current) => {
+        const next = { ...current };
+        calibration.candidates.forEach((candidate) => {
+          if (!next[candidate.employeeId]) {
+            next[candidate.employeeId] = {
+              finalRating: Math.max(1, Math.min(5, Math.round(candidate.managerRating || 3))),
+              increment: "0%",
+              promotion: false,
+              appraisalLetterUrl: "",
+            };
+          }
+        });
+        return next;
+      });
+    } catch (error) {
+      console.error("Failed to load calibration candidates:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadCandidates(); }, []);
+
+  const updateForm = (employeeId, field, value) => {
+    setForms((current) => ({
+      ...current,
+      [employeeId]: { ...current[employeeId], [field]: value },
+    }));
+  };
+
+  const release = async (candidate) => {
+    const form = forms[candidate.employeeId];
+    if (!form?.increment.trim()) return alert("Increment is required, for example 8% or 0%");
+    setReleasing(candidate.employeeId);
+    try {
+      await releaseCalibratedRating({
+        employeeId: candidate.employeeId,
+        finalRating: Number(form.finalRating),
+        increment: form.increment.trim(),
+        promotion: Boolean(form.promotion),
+        appraisalLetterUrl: form.appraisalLetterUrl.trim() || null,
+      });
+      await loadCandidates();
+      await onReleased();
+      alert(`Rating released for ${candidate.employeeName}`);
+    } catch (error) {
+      console.error("Failed to release rating:", error);
+      alert(error?.response?.data?.message || "Unable to release the rating");
+    } finally {
+      setReleasing(null);
+    }
+  };
+
+  if (loading) return <div style={{ ...cardStyle, padding: "20px" }}><Spinner /></div>;
+
+  const phase = data.cycle?.phase || cycle?.phase;
+  return <div style={{ ...cardStyle, padding: "20px", display: "flex", flexDirection: "column", gap: "14px" }}>
+    <div><h2 style={{ fontSize: "15px", fontWeight: 700 }}>Calibration & Release</h2><p style={{ fontSize: "12px", color: "var(--subtext)", marginTop: "4px" }}>Final ratings become visible in employee history immediately after release.</p></div>
+    {phase !== "Calibration" ? <div style={{ padding: "12px", borderRadius: "8px", background: "#fffbeb", color: "#92400e", fontSize: "13px" }}>Move the review cycle to <strong>Calibration</strong> before releasing ratings. Current phase: {phase || "Unknown"}.</div>
+    : data.candidates.length === 0 ? <EmptyState icon={Award} title="No ratings awaiting calibration" subtitle="Manager reviews must be submitted and each employee can be released only once per cycle." />
+    : data.candidates.map((candidate) => {
+      const form = forms[candidate.employeeId] || {};
+      return <div key={candidate.employeeId} style={{ border: "1px solid var(--border)", borderRadius: "10px", padding: "14px", display: "flex", flexDirection: "column", gap: "12px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}><div><strong style={{ fontSize: "13.5px" }}>{candidate.employeeName}</strong><div style={{ fontSize: "11.5px", color: "var(--subtext)" }}>{candidate.employeeId}</div></div><div style={{ fontSize: "12.5px" }}>Self: <strong>{candidate.selfRating ?? "N/A"}</strong> &nbsp; Manager: <strong>{candidate.managerRating ?? "N/A"}</strong></div></div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "10px" }}>
+          <label style={{ fontSize: "12px", fontWeight: 600 }}>Final rating<select value={form.finalRating || 3} onChange={(event) => updateForm(candidate.employeeId, "finalRating", event.target.value)} style={{ ...inputStyle(false), marginTop: "5px" }}>{[1,2,3,4,5].map((rating) => <option key={rating} value={rating}>{rating} / 5</option>)}</select></label>
+          <label style={{ fontSize: "12px", fontWeight: 600 }}>Increment<input value={form.increment || ""} onChange={(event) => updateForm(candidate.employeeId, "increment", event.target.value)} placeholder="e.g. 8%" style={{ ...inputStyle(false), marginTop: "5px" }} /></label>
+          <label style={{ fontSize: "12px", fontWeight: 600 }}>Appraisal letter URL<input value={form.appraisalLetterUrl || ""} onChange={(event) => updateForm(candidate.employeeId, "appraisalLetterUrl", event.target.value)} placeholder="Optional URL" style={{ ...inputStyle(false), marginTop: "5px" }} /></label>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}><label style={{ fontSize: "12.5px", display: "flex", alignItems: "center", gap: "7px" }}><input type="checkbox" checked={Boolean(form.promotion)} onChange={(event) => updateForm(candidate.employeeId, "promotion", event.target.checked)} /> Promotion approved</label><PrimaryButton disabled={releasing === candidate.employeeId} onClick={() => release(candidate)}>{releasing === candidate.employeeId ? "Releasing..." : "Release Rating"}</PrimaryButton></div>
+      </div>;
+    })}
+  </div>;
+}
+
+function RatingsTab({ ratings, teamRatings, organizationView, cycle, onRatingsChanged }) {
+  if (organizationView) {
+    const records = ratings?.records || [];
+    const summary = ratings?.summary || {};
+    return <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+      <CalibrationPanel cycle={cycle} onReleased={onRatingsChanged} />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "14px" }}>
+        {[['Employees Rated', `${summary.employeesWithRatings || 0} / ${summary.employees || 0}`], ['Rating Records', summary.totalRecords || 0], ['Average Final Rating', summary.averageFinalRating == null ? '-' : `${summary.averageFinalRating} / 5`]].map(([label, value]) => <div key={label} style={{ ...cardStyle, padding: "18px 20px" }}><p style={{ fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase" }}>{label}</p><p style={{ fontSize: "24px", fontWeight: 800, color: "var(--primary)", marginTop: "8px" }}>{value}</p></div>)}
+      </div>
+      {records.length ? <RatingsTable ratings={records} showEmployee /> : <EmptyState icon={Award} title="No organization ratings released yet" />}
+    </div>;
+  }
+
+  const directReportRecords = (teamRatings?.employees || []).flatMap((employee) =>
+    employee.ratings.map((rating) => ({ ...rating, employeeId: employee.employeeId, employeeName: employee.name }))
+  );
+
+  if (ratings.length === 0) {
+    return <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <EmptyState icon={Award} title="No personal ratings history yet" />
+      {teamRatings && <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}><h2 style={{ fontSize: "14px", fontWeight: 700 }}>Direct Report Ratings</h2>{directReportRecords.length ? <RatingsTable ratings={directReportRecords} showEmployee /> : <EmptyState icon={Users} title="No direct-report ratings released yet" />}</div>}
+    </div>;
+  }
 
   const latest = ratings[0];
 
@@ -1797,16 +2150,17 @@ function RatingsTab({ ratings }) {
         </div>
         <div style={{ ...cardStyle, padding: "18px 20px" }}>
           <p style={{ fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "8px" }}>Appraisal Letter</p>
-          <a href={latest.appraisalLetterUrl} style={{ fontSize: "13px", fontWeight: 700, color: "var(--primary)", textDecoration: "none" }}>
-            Download PDF
-          </a>
+          {latest.appraisalLetterUrl && latest.appraisalLetterUrl !== "#" ? <a href={latest.appraisalLetterUrl} style={{ fontSize: "13px", fontWeight: 700, color: "var(--primary)", textDecoration: "none" }}>Download PDF</a> : <span style={{ fontSize: "13px", color: "var(--subtext)" }}>Not available</span>}
           <p style={{ fontSize: "11.5px", color: "var(--subtext)", marginTop: "6px" }}>
             Released {new Date(latest.releasedOn + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
           </p>
         </div>
       </div>
 
-      <div style={{ ...cardStyle, overflow: "hidden" }}>
+      <RatingsTable ratings={ratings} />
+      {teamRatings && <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}><h2 style={{ fontSize: "14px", fontWeight: 700 }}>Direct Report Ratings</h2>{directReportRecords.length ? <RatingsTable ratings={directReportRecords} showEmployee /> : <EmptyState icon={Users} title="No direct-report ratings released yet" />}</div>}
+      {/* legacy table removed */}
+      {false && <div style={{ ...cardStyle, overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
@@ -1842,7 +2196,7 @@ function RatingsTab({ ratings }) {
             </tbody>
           </table>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }
@@ -2207,6 +2561,7 @@ export default function Performance() {
   const [feedback, setFeedback] = useState([]);
   const [oneOnOnes, setOneOnOnes] = useState([]);
   const [ratings, setRatings] = useState([]);
+  const [teamRatings, setTeamRatings] = useState(null);
 
   // Manager state
   const [managerGoals, setManagerGoals] = useState([]);
@@ -2241,9 +2596,9 @@ export default function Performance() {
           getReviewCycle(),
           Promise.resolve({ data: { submitted: false, responses: [] } }),
           Promise.resolve({ data: { submitted: false, responses: [] } }),
+          getAdminFeedback(),
           Promise.resolve({ data: [] }),
-          Promise.resolve({ data: [] }),
-          Promise.resolve({ data: [] }),
+          getAdminRatingsHistory(),
         ]
       : [
           getGoals(),
@@ -2258,6 +2613,7 @@ export default function Performance() {
     // Manager gets team goals.
     if (isManager) {
       requests.push(getManagerGoals());
+      requests.push(getManagerRatingsHistory());
     }
 
     // Admin + HR get organization-wide Performance data.
@@ -2273,11 +2629,13 @@ export default function Performance() {
         let index = 7;
 
         let managerGoalsResult = null;
+        let managerRatingsResult = null;
         let adminOverviewResult = null;
         let adminEmployeesResult = null;
 
         if (isManager) {
           managerGoalsResult = results[index++];
+          managerRatingsResult = results[index++];
         }
 
         if (hasOrgPerformanceView) {
@@ -2312,6 +2670,9 @@ export default function Performance() {
           setManagerGoals(
             managerGoalsResult.data || []
           );
+        }
+        if (isManager && managerRatingsResult) {
+          setTeamRatings(managerRatingsResult.data || { employees: [] });
         }
 
         // Admin / HR organization overview
@@ -2411,28 +2772,22 @@ export default function Performance() {
   /* 1-on-1 action toggle                                                   */
   /* ---------------------------------------------------------------------- */
 
-  const handleToggleAction = (
+  const handleToggleAction = async (
     noteId,
     actionId
   ) => {
-    setOneOnOnes((prev) =>
-      prev.map((n) =>
-        n.id === noteId
-          ? {
-              ...n,
-              actionItems:
-                n.actionItems.map((a) =>
-                  a.id === actionId
-                    ? {
-                        ...a,
-                        done: !a.done,
-                      }
-                    : a
-                ),
-            }
-          : n
-      )
-    );
+    try {
+      const response = await toggleActionItem(noteId, actionId);
+      const updatedAction = response.data;
+      setOneOnOnes((prev) => prev.map((note) =>
+        note.id === noteId
+          ? { ...note, actionItems: note.actionItems.map((action) => action.id === actionId ? { ...action, ...updatedAction } : action) }
+          : note
+      ));
+    } catch (error) {
+      console.error("Failed to update 1:1 action item:", error);
+      alert(error?.response?.data?.message || "Unable to update the action item");
+    }
   };
 
   /* ---------------------------------------------------------------------- */
@@ -2644,6 +2999,10 @@ export default function Performance() {
             onSelfAssessmentSubmitted={
               setSelfAssessment
             }
+            isAdmin={isAdmin}
+            onCycleUpdated={setCycle}
+            isManager={isManager}
+            managerGoals={managerGoals}
           />
         )}
 
@@ -2661,6 +3020,7 @@ export default function Performance() {
                 ...prev,
               ])
             }
+            organizationView={hasOrgPerformanceView}
           />
         )}
 
@@ -2680,6 +3040,7 @@ export default function Performance() {
             onToggleAction={
               handleToggleAction
             }
+            readOnly={hasOrgPerformanceView}
           />
         )}
 
@@ -2688,7 +3049,7 @@ export default function Performance() {
         {/* --------------------------------------------------------------- */}
 
         {activeTab === "ratings" && (
-          <RatingsTab ratings={ratings} />
+          <RatingsTab ratings={ratings} teamRatings={isManager ? teamRatings : null} organizationView={hasOrgPerformanceView} cycle={cycle} onRatingsChanged={async () => { const response = await getAdminRatingsHistory(); setRatings(response.data || { records: [], summary: {} }); }} />
         )}
 
         {/* --------------------------------------------------------------- */}
