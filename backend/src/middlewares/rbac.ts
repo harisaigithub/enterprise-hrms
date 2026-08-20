@@ -29,3 +29,34 @@ export function requirePermission(permission: string, requireAll = false) {
 export function requireAnyPermission(...permissions: string[]) {
   return requirePermission(permissions.join("|"));
 }
+
+
+/**
+ * Role guard.
+ * Allows access only when the authenticated user's role
+ * matches one of the supplied roles.
+ *
+ * Example:
+ * requireRole("ADMIN")
+ * requireRole("ADMIN", "HR")
+ */
+export function requireRole(...roles: string[]) {
+  return (req: Request, _res: Response, next: NextFunction): void => {
+    const auth = req.auth;
+
+    if (!auth) {
+      throw AppError.unauthorized("Authentication required");
+    }
+
+    const normalizedRoles = roles.map((role) => role.toUpperCase());
+    const userRole = auth.role?.toUpperCase();
+
+    if (!userRole || !normalizedRoles.includes(userRole)) {
+      throw AppError.forbidden(
+        `This action requires one of the following roles: ${roles.join(", ")}`
+      );
+    }
+
+    next();
+  };
+}

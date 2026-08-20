@@ -38,15 +38,6 @@ import {
 import { getEmployees } from "../../services/employeeService";
 import { getDepartments, getGrades } from "../../services/Orgmanagementservice";
 
-
-// import {
-//   requisitionStatusMeta,
-//   PIPELINE_STAGES,
-//   stageMeta,
-//   interviewStatusMeta,
-//   offerStatusMeta,
-// } from "../../mock/recruitment";
-
 const requisitionStatusMeta = {
   Draft: { color: "#64748b", bg: "#f1f5f9" },
   "Pending Approval": { color: "#d97706", bg: "#fffbeb" },
@@ -1099,18 +1090,6 @@ export default function Recruitment() {
   const [candidates, setCandidates] = useState([]);
   const [interviews, setInterviews] = useState([]);
   const [offers, setOffers] = useState([]);
-
-  // useEffect(() => {
-  //   setLoading(true);
-  //   Promise.all([getRequisitions(), getCandidates(), getInterviews(), getOffers()])
-  //     .then(([r, c, iv, o]) => {
-  //       setRequisitions(r.data);
-  //       setCandidates(c.data);
-  //       setInterviews(iv.data);
-  //       setOffers(o.data);
-  //     })
-  //     .finally(() => setLoading(false));
-  // }, []);
 
   useEffect(() => {
     const loadRecruitmentData = async () => {

@@ -43,7 +43,6 @@ import {
 } from "../../services/orgManagementService";
 import { statusMeta } from "../../mock/orgManagement";
 
-
 /* ---------------------------------- shared bits ---------------------------------- */
 
 const cardStyle = {
@@ -524,95 +523,6 @@ function CostCentersTab({ costCenters, departments, onAdded }) {
 
 /* ---------------------------------- Designations & Grades tab ---------------------------------- */
 
-// function DesignationsGradesTab({ designations, grades, onDesignationAdded, onGradeAdded }) {
-//   const [newDesignation, setNewDesignation] = useState("");
-//   const [newGrade, setNewGrade] = useState({ code: "", name: "" });
-
-//   const handleAddDesignation = async (e) => {
-//     e.preventDefault();
-
-//     if (!newDesignation.trim()) return;
-
-//     try {
-//       const d = {
-//         title: newDesignation.trim(),
-//       };
-
-//       const res = await addDesignation(d);
-
-//       onDesignationAdded(res.data);
-//       setNewDesignation("");
-//     } catch (error) {
-//       console.error("Failed to add designation:", error);
-//     }
-//   };
-
-//   const handleAddGrade = async (e) => {
-//     e.preventDefault();
-
-//     if (!newGrade.code.trim() || !newGrade.name.trim()) return;
-
-//     try {
-//       const g = {
-//         code: newGrade.code.trim(),
-//         name: newGrade.name.trim(),
-//         order: grades.length + 1,
-//       };
-
-//       const res = await addGrade(g);
-
-//       onGradeAdded(res.data);
-
-//       setNewGrade({
-//         code: "",
-//         name: "",
-//       });
-//     } catch (error) {
-//       console.error("Failed to add grade:", error);
-//     }
-//   };
-
-//   return (
-//     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-//       <div style={{ ...cardStyle, padding: "18px 20px" }}>
-//         <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)", marginBottom: "12px" }}>Designations</h3>
-//         {designations.map((d, i) => {
-//           const meta = statusMeta[d.status];
-//           return (
-//             <div key={d.id} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderTop: i > 0 ? "1px solid var(--border)" : "none" }}>
-//               <span style={{ fontSize: "13px", color: "var(--text)" }}>{d.title}</span>
-//               <StatusBadge label={d.status} color={meta.color} bg={meta.bg} />
-//             </div>
-//           );
-//         })}
-//         <form onSubmit={handleAddDesignation} style={{ display: "flex", gap: "8px", marginTop: "14px" }}>
-//           <input value={newDesignation} onChange={(e) => setNewDesignation(e.target.value)} placeholder="New designation title" style={inputStyle(false)} />
-//           <SecondaryButton type="submit" style={{ whiteSpace: "nowrap" }}>Add</SecondaryButton>
-//         </form>
-//       </div>
-
-//       <div style={{ ...cardStyle, padding: "18px 20px" }}>
-//         <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)", marginBottom: "12px" }}>Grades</h3>
-//         <p style={{ fontSize: "11px", color: "var(--subtext)", marginBottom: "10px" }}>Drives default Salary Structure templates and Leave Policy applicability.</p>
-//         {[...grades].sort((a, b) => a.order - b.order).map((g, i) => {
-//           const meta = statusMeta[g.status];
-//           return (
-//             <div key={g.id} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderTop: i > 0 ? "1px solid var(--border)" : "none" }}>
-//               <span style={{ fontSize: "13px", color: "var(--text)" }}><strong>{g.code}</strong> � {g.name}</span>
-//               <StatusBadge label={g.status} color={meta.color} bg={meta.bg} />
-//             </div>
-//           );
-//         })}
-//         <form onSubmit={handleAddGrade} style={{ display: "flex", gap: "8px", marginTop: "14px" }}>
-//           <input value={newGrade.code} onChange={(e) => setNewGrade((p) => ({ ...p, code: e.target.value }))} placeholder="Code" style={{ ...inputStyle(false), width: "80px" }} />
-//           <input value={newGrade.name} onChange={(e) => setNewGrade((p) => ({ ...p, name: e.target.value }))} placeholder="Name" style={inputStyle(false)} />
-//           <SecondaryButton type="submit" style={{ whiteSpace: "nowrap" }}>Add</SecondaryButton>
-//         </form>
-//       </div>
-//     </div>
-//   );
-// }
-
 function DesignationsGradesTab({
   designations,
   grades,
@@ -883,6 +793,7 @@ function ReassignManagerRow({ employee, roster, departments, onReassign, error }
         <div>
           <p style={{ fontSize: "13.5px", fontWeight: 600, color: "var(--text)" }}>{employee.name}</p>
           <p style={{ fontSize: "11.5px", color: "var(--subtext)" }}>{employee.title} � {dept?.name || "�"} � reports to {manager?.name || "� (top of hierarchy)"}</p>
+
         </div>
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
           <select value={managerId} onChange={(e) => setManagerId(e.target.value)} style={{ ...inputStyle(false), height: "32px", fontSize: "12px", width: "160px" }}>
