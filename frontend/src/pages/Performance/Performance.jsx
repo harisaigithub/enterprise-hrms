@@ -26,6 +26,7 @@ import Modal from "../../components/shared/Modal";
 import {
   getGoals,
   addGoal,
+  updateGoal,
   getReviewCycle,
   getSelfAssessment,
   submitSelfAssessment,
@@ -74,10 +75,10 @@ function getCurrentEmployeeCode() {
   }
 }
 
-const ME = {
+const getCurrentEmployee = () => ({
   id: getCurrentEmployeeCode(),
   name: "Current Employee",
-};
+});
 
 const PHASES = ["Goal Setting", "Continuous Feedback", "Self-Assessment", "Manager Review", "Calibration", "Completed"];
 
@@ -189,12 +190,35 @@ function TabNav({ tabs, active, onChange }) {
 
 /* ---------------------------------- Goals & OKRs tab ---------------------------------- */
 
-function AddGoalModal({ isOpen, onClose, onSaved, cycleName }) {
+function AddGoalModal({ isOpen, onClose, onSaved, cycleName, goal = null }) {
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("Technical");
   const [keyResults, setKeyResults] = useState([{ text: "" }]);
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+
+  const isEditing = Boolean(goal);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (goal) {
+      setTitle(goal.title || "");
+      setCategory(goal.category || "Technical");
+      setKeyResults(
+        goal.keyResults?.length
+          ? goal.keyResults.map((kr) => ({
+              id: kr.id,
+              text: kr.text,
+              progress: kr.progress || 0,
+            }))
+          : [{ text: "", progress: 0 }]
+      );
+      setErrors({});
+    } else {
+      reset();
+    }
+  }, [isOpen, goal]);
 
   const reset = () => {
     setTitle("");
@@ -204,7 +228,11 @@ function AddGoalModal({ isOpen, onClose, onSaved, cycleName }) {
   };
 
   const updateKR = (i, value) => {
-    setKeyResults((prev) => prev.map((kr, idx) => (idx === i ? { text: value } : kr)));
+    setKeyResults((prev) =>
+      prev.map((kr, idx) =>
+        idx === i ? { ...kr, text: value } : kr
+      )
+    );
   };
 
   const addKR = () => setKeyResults((prev) => [...prev, { text: "" }]);
@@ -220,33 +248,51 @@ function AddGoalModal({ isOpen, onClose, onSaved, cycleName }) {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!validate()) return;
-    setSaving(true);
-    const goal = {
-      id: `g-${Date.now()}`,
-      employeeId: ME.id,
-      cycle: cycleName,
+  e.preventDefault();
+  if (!validate()) return;
+
+  setSaving(true);
+
+  try {
+    const payload = {
       title: title.trim(),
       category,
       keyResults: keyResults
         .filter((kr) => kr.text.trim())
-        .map((kr, i) => ({ id: `kr-${Date.now()}-${i}`, text: kr.text.trim(), progress: 0 })),
-      status: "Pending Approval",
-      createdAt: new Date().toISOString().slice(0, 10),
+        .map((kr) => ({
+          ...(kr.id ? { id: kr.id } : {}),
+          text: kr.text.trim(),
+          progress: kr.progress || 0,
+        })),
+      ...(isEditing ? { status: "Pending Approval" } : {}),
     };
-    const res = await addGoal(goal);
-    setSaving(false);
+
+    const res = isEditing
+      ? await updateGoal(goal.id, payload)
+      : await addGoal(payload);
+
     onSaved(res.data);
     onClose();
     reset();
-  };
+  } catch (error) {
+    console.error("Failed to save goal:", error);
+    alert(error?.message || "Unable to save goal");
+  } finally {
+    setSaving(false);
+  }
+};
 
   return (
-    <Modal isOpen={isOpen} title="Add Goal (OKR)" onClose={onClose}>
+    <Modal
+      isOpen={isOpen}
+      title={isEditing ? "Edit & Resubmit Goal" : "Add Goal (OKR)"}
+      onClose={onClose}
+    >
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         <p style={{ fontSize: "12.5px", color: "var(--subtext)", margin: 0 }}>
-          This goal will need manager approval before it locks for {cycleName}.
+          {isEditing
+            ? "Update the requested changes and resubmit this goal for manager approval."
+            : `This goal will need manager approval before it locks for ${cycleName}.`}
         </p>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
@@ -294,7 +340,13 @@ function AddGoalModal({ isOpen, onClose, onSaved, cycleName }) {
 
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving�" : "Submit for Approval"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>
+            {saving
+              ? "Saving..."
+              : isEditing
+                ? "Save & Resubmit"
+                : "Submit for Approval"}
+          </PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -313,7 +365,7 @@ function KeyResultRow({ kr }) {
   );
 }
 
-function GoalCard({ goal }) {
+function GoalCard({ goal, onEdit, canEdit }) {
   const meta = goalStatusMeta[goal.status] || goalStatusMeta.Draft;
   const overall = Math.round(goal.keyResults.reduce((sum, kr) => sum + kr.progress, 0) / goal.keyResults.length) || 0;
   return (
@@ -336,12 +388,20 @@ function GoalCard({ goal }) {
         <span style={{ fontSize: "11.5px", color: "var(--subtext)" }}>Overall progress</span>
         <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--text)" }}>{overall}%</span>
       </div>
+      {goal.status === "Revision Requested" && (
+        <div style={{ marginTop: "14px", paddingTop: "12px", borderTop: "1px solid var(--border)" }}>
+          <PrimaryButton onClick={() => onEdit(goal)} disabled={!canEdit}>
+            Edit & Resubmit
+          </PrimaryButton>
+        </div>
+      )}
     </div>
   );
 }
 
 function GoalsTab({ goals, cycle, onGoalAdded }) {
   const [showAdd, setShowAdd] = useState(false);
+  const [editingGoal, setEditingGoal] = useState(null);
   const goalsLocked = cycle && cycle.phase !== "Goal Setting";
 
   return (
@@ -361,12 +421,27 @@ function GoalsTab({ goals, cycle, onGoalAdded }) {
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: "14px" }}>
           {goals.map((g) => (
-            <GoalCard key={g.id} goal={g} />
+            <GoalCard
+              key={g.id}
+              goal={g}
+              canEdit={!goalsLocked}
+              onEdit={setEditingGoal}
+            />
           ))}
         </div>
       )}
 
       <AddGoalModal isOpen={showAdd} onClose={() => setShowAdd(false)} onSaved={onGoalAdded} cycleName={cycle?.name?.replace(" Performance Review", "") || "current cycle"} />
+      <AddGoalModal
+        isOpen={Boolean(editingGoal)}
+        goal={editingGoal}
+        cycleName={cycle?.name?.replace(" Performance Review", "") || "current cycle"}
+        onClose={() => setEditingGoal(null)}
+        onSaved={(updatedGoal) => {
+          onGoalAdded(updatedGoal, true);
+          setEditingGoal(null);
+        }}
+      />
     </div>
   );
 }
@@ -2103,219 +2178,301 @@ function AdminEmployeeDetailModal({
   );
 }
 
-
 export default function Performance() {
   const role = localStorage.getItem("hrms_role");
-const isManager = role === "MANAGER";
-const isAdmin = role === "ADMIN";
+
+  const isManager = role === "MANAGER";
+  const isAdmin = role === "ADMIN";
+  const isHR = role === "HR";
+
+  // Admin + HR both get organization-wide read access.
+  const hasOrgPerformanceView = isAdmin || isHR;
 
   const [activeTab, setActiveTab] = useState("goals");
   const [loading, setLoading] = useState(true);
 
   const [goals, setGoals] = useState([]);
   const [cycle, setCycle] = useState(null);
-  const [selfAssessment, setSelfAssessment] = useState({ submitted: false, responses: [] });
-  const [managerReview, setManagerReview] = useState({ submitted: false, responses: [] });
+
+  const [selfAssessment, setSelfAssessment] = useState({
+    submitted: false,
+    responses: [],
+  });
+
+  const [managerReview, setManagerReview] = useState({
+    submitted: false,
+    responses: [],
+  });
+
   const [feedback, setFeedback] = useState([]);
   const [oneOnOnes, setOneOnOnes] = useState([]);
   const [ratings, setRatings] = useState([]);
 
- const [managerGoals, setManagerGoals] = useState([]);
-const [managerActionId, setManagerActionId] = useState(null);
-const [goalView, setGoalView] = useState(isManager ? "team" : "mine");
-const [adminOverview, setAdminOverview] = useState(null);
-const [adminEmployees, setAdminEmployees] = useState([]);
-const [selectedAdminEmployee, setSelectedAdminEmployee] = useState(null);
-const [adminEmployeeDetail, setAdminEmployeeDetail] = useState(null);
-const [adminDetailLoading, setAdminDetailLoading] = useState(false);
- useEffect(() => {
-  setLoading(true);
+  // Manager state
+  const [managerGoals, setManagerGoals] = useState([]);
+  const [managerActionId, setManagerActionId] = useState(null);
 
-  const requests = [
-    getGoals(),
-    getReviewCycle(),
-    getSelfAssessment(),
-    getManagerReview(ME.id),
-    getFeedback(),
-    getOneOnOnes(),
-    getRatingsHistory(),
-  ];
+  const [goalView, setGoalView] = useState(
+    isManager ? "team" : "mine"
+  );
 
-  // Manager-specific request
-  if (isManager) {
-    requests.push(getManagerGoals());
-  }
+  // Admin / HR organization state
+  const [adminOverview, setAdminOverview] = useState(null);
+  const [adminEmployees, setAdminEmployees] = useState([]);
 
-  // Admin overview request
-  if (isAdmin) {
-    requests.push(getAdminPerformanceOverview());
-  }
+  const [selectedAdminEmployee, setSelectedAdminEmployee] =
+    useState(null);
 
-  // Admin employee performance request
-  if (isAdmin) {
-    requests.push(getAdminEmployeesPerformance());
-  }
+  const [adminEmployeeDetail, setAdminEmployeeDetail] =
+    useState(null);
 
-  Promise.all(requests)
-    .then((results) => {
-      const [g, c, sa, mr, fb, oo, r] = results;
+  const [adminDetailLoading, setAdminDetailLoading] =
+    useState(false);
 
-      let index = 7;
+  useEffect(() => {
+    setLoading(true);
 
-      let managerGoalsResult = null;
-      let adminOverviewResult = null;
-      let adminEmployeesResult = null;
+    // Admin/HR accounts are not guaranteed to be linked to an employee.
+    // Keep the result slots stable without calling employee-scoped endpoints
+    // that would reject and prevent the organization overview from loading.
+    const requests = hasOrgPerformanceView
+      ? [
+          Promise.resolve({ data: [] }),
+          getReviewCycle(),
+          Promise.resolve({ data: { submitted: false, responses: [] } }),
+          Promise.resolve({ data: { submitted: false, responses: [] } }),
+          Promise.resolve({ data: [] }),
+          Promise.resolve({ data: [] }),
+          Promise.resolve({ data: [] }),
+        ]
+      : [
+          getGoals(),
+          getReviewCycle(),
+          getSelfAssessment(),
+          getManagerReview(),
+          getFeedback(),
+          getOneOnOnes(),
+          getRatingsHistory(),
+        ];
 
-      // Manager gets one extra result
-      if (isManager) {
-        managerGoalsResult = results[index++];
-      }
+    // Manager gets team goals.
+    if (isManager) {
+      requests.push(getManagerGoals());
+    }
 
-      // Admin gets two extra results
-      if (isAdmin) {
-        adminOverviewResult = results[index++];
-        adminEmployeesResult = results[index++];
-      }
+    // Admin + HR get organization-wide Performance data.
+    if (hasOrgPerformanceView) {
+      requests.push(getAdminPerformanceOverview());
+      requests.push(getAdminEmployeesPerformance());
+    }
 
-      // Common data
-      setGoals(g?.data || []);
-      setCycle(c?.data || null);
+    Promise.all(requests)
+      .then((results) => {
+        const [g, c, sa, mr, fb, oo, r] = results;
 
-      setSelfAssessment(
-        sa?.data || {
-          submitted: false,
-          responses: [],
+        let index = 7;
+
+        let managerGoalsResult = null;
+        let adminOverviewResult = null;
+        let adminEmployeesResult = null;
+
+        if (isManager) {
+          managerGoalsResult = results[index++];
         }
-      );
 
-      setManagerReview(
-        mr?.data || {
-          submitted: false,
-          responses: [],
+        if (hasOrgPerformanceView) {
+          adminOverviewResult = results[index++];
+          adminEmployeesResult = results[index++];
         }
+
+        // Common logged-in-user data
+        setGoals(g?.data || []);
+        setCycle(c?.data || null);
+
+        setSelfAssessment(
+          sa?.data || {
+            submitted: false,
+            responses: [],
+          }
+        );
+
+        setManagerReview(
+          mr?.data || {
+            submitted: false,
+            responses: [],
+          }
+        );
+
+        setFeedback(fb?.data || []);
+        setOneOnOnes(oo?.data || []);
+        setRatings(r?.data || []);
+
+        // Manager data
+        if (isManager && managerGoalsResult) {
+          setManagerGoals(
+            managerGoalsResult.data || []
+          );
+        }
+
+        // Admin / HR organization overview
+        if (
+          hasOrgPerformanceView &&
+          adminOverviewResult
+        ) {
+          setAdminOverview(
+            adminOverviewResult.data || null
+          );
+        }
+
+        // Admin / HR employee list
+        if (
+          hasOrgPerformanceView &&
+          adminEmployeesResult
+        ) {
+          setAdminEmployees(
+            adminEmployeesResult.data?.employees || []
+          );
+        }
+      })
+      .catch((error) => {
+        console.error(
+          "Failed to load performance data:",
+          error
+        );
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [isManager, hasOrgPerformanceView]);
+
+  /* ---------------------------------------------------------------------- */
+  /* Manager goal actions                                                   */
+  /* ---------------------------------------------------------------------- */
+
+  const handleApproveManagerGoal = async (goalId) => {
+    try {
+      setManagerActionId(goalId);
+
+      const res =
+        await approveManagerGoal(goalId);
+
+      setManagerGoals((prev) =>
+        prev.map((goal) =>
+          goal.id === goalId
+            ? res.data
+            : goal
+        )
       );
-
-      setFeedback(fb?.data || []);
-      setOneOnOnes(oo?.data || []);
-      setRatings(r?.data || []);
-
-      // Manager data
-      if (isManager && managerGoalsResult) {
-        setManagerGoals(
-          managerGoalsResult.data || []
-        );
-      }
-
-      // Admin overview data
-      if (isAdmin && adminOverviewResult) {
-        setAdminOverview(
-          adminOverviewResult.data || null
-        );
-      }
-
-      // Admin employee list data
-      if (isAdmin && adminEmployeesResult) {
-        setAdminEmployees(
-          adminEmployeesResult.data?.employees || []
-        );
-      }
-    })
-    .catch((error) => {
+    } catch (error) {
       console.error(
-        "Failed to load performance data:",
+        "Failed to approve goal:",
         error
       );
-    })
-    .finally(() => {
-      setLoading(false);
-    });
-}, [isManager, isAdmin]);
-  
-const handleApproveManagerGoal = async (goalId) => {
-  try {
-    setManagerActionId(goalId);
 
-    const res = await approveManagerGoal(goalId);
+      alert(
+        error?.response?.data?.message ||
+          "Unable to approve goal"
+      );
+    } finally {
+      setManagerActionId(null);
+    }
+  };
 
-    setManagerGoals((prev) =>
-      prev.map((goal) =>
-        goal.id === goalId ? res.data : goal
-      )
-    );
-  } catch (error) {
-    console.error("Failed to approve goal:", error);
+  const handleRejectManagerGoal = async (goalId) => {
+    try {
+      setManagerActionId(goalId);
 
-    alert(
-      error?.response?.data?.message ||
-        "Unable to approve goal"
-    );
-  } finally {
-    setManagerActionId(null);
-  }
-};
+      const res =
+        await rejectManagerGoal(goalId);
 
-const handleRejectManagerGoal = async (goalId) => {
-  try {
-    setManagerActionId(goalId);
+      setManagerGoals((prev) =>
+        prev.map((goal) =>
+          goal.id === goalId
+            ? res.data
+            : goal
+        )
+      );
+    } catch (error) {
+      console.error(
+        "Failed to request revision:",
+        error
+      );
 
-    const res = await rejectManagerGoal(goalId);
+      alert(
+        error?.response?.data?.message ||
+          "Unable to request revision"
+      );
+    } finally {
+      setManagerActionId(null);
+    }
+  };
 
-    setManagerGoals((prev) =>
-      prev.map((goal) =>
-        goal.id === goalId ? res.data : goal
-      )
-    );
-  } catch (error) {
-    console.error("Failed to request revision:", error);
+  /* ---------------------------------------------------------------------- */
+  /* 1-on-1 action toggle                                                   */
+  /* ---------------------------------------------------------------------- */
 
-    alert(
-      error?.response?.data?.message ||
-        "Unable to request revision"
-    );
-  } finally {
-    setManagerActionId(null);
-  }
-};
-  const handleToggleAction = (noteId, actionId) => {
+  const handleToggleAction = (
+    noteId,
+    actionId
+  ) => {
     setOneOnOnes((prev) =>
       prev.map((n) =>
         n.id === noteId
-          ? { ...n, actionItems: n.actionItems.map((a) => (a.id === actionId ? { ...a, done: !a.done } : a)) }
+          ? {
+              ...n,
+              actionItems:
+                n.actionItems.map((a) =>
+                  a.id === actionId
+                    ? {
+                        ...a,
+                        done: !a.done,
+                      }
+                    : a
+                ),
+            }
           : n
       )
     );
   };
 
-  const handleOpenAdminEmployee = async (employeeId) => {
-  try {
-    setAdminDetailLoading(true);
-    setSelectedAdminEmployee(employeeId);
+  /* ---------------------------------------------------------------------- */
+  /* Admin / HR employee detail                                             */
+  /* ---------------------------------------------------------------------- */
 
-    const res =
-      await getAdminEmployeePerformanceDetail(employeeId);
+  const handleOpenAdminEmployee = async (
+    employeeId
+  ) => {
+    try {
+      setAdminDetailLoading(true);
+      setSelectedAdminEmployee(employeeId);
 
-    setAdminEmployeeDetail(res.data);
-  } catch (error) {
-    console.error(
-      "Failed to load employee performance detail:",
-      error
-    );
+      const res =
+        await getAdminEmployeePerformanceDetail(
+          employeeId
+        );
 
-    alert(
-      error?.response?.data?.message ||
-        "Unable to load employee performance details"
-    );
+      setAdminEmployeeDetail(res.data);
+    } catch (error) {
+      console.error(
+        "Failed to load employee performance detail:",
+        error
+      );
 
+      alert(
+        error?.response?.data?.message ||
+          "Unable to load employee performance details"
+      );
+
+      setSelectedAdminEmployee(null);
+    } finally {
+      setAdminDetailLoading(false);
+    }
+  };
+
+  const handleCloseAdminEmployee = () => {
     setSelectedAdminEmployee(null);
-  } finally {
-    setAdminDetailLoading(false);
-  }
-};
-
-const handleCloseAdminEmployee = () => {
-  setSelectedAdminEmployee(null);
-  setAdminEmployeeDetail(null);
-};
+    setAdminEmployeeDetail(null);
+  };
 
   if (loading) {
     return (
@@ -2327,107 +2484,156 @@ const handleCloseAdminEmployee = () => {
 
   return (
     <MainLayout>
-      <div style={{ maxWidth: "1480px", margin: "0 auto" }}>
-        <PageHeader title="Performance" subtitle={cycle ? `${cycle.name} � Goals, reviews and feedback` : "Goals, reviews and feedback"} />
+      <div
+        style={{
+          maxWidth: "1480px",
+          margin: "0 auto",
+        }}
+      >
+        <PageHeader
+          title="Performance"
+          subtitle={
+            cycle
+              ? `${cycle.name} · Goals, reviews and feedback`
+              : "Goals, reviews and feedback"
+          }
+        />
 
-        <TabNav tabs={TABS} active={activeTab} onChange={setActiveTab} />
+        <TabNav
+          tabs={TABS}
+          active={activeTab}
+          onChange={setActiveTab}
+        />
 
-      {activeTab === "goals" && (
-  <>
-    {isAdmin ? (
-      /* ---------------- ADMIN PERFORMANCE ---------------- */
-     <AdminPerformanceOverview
-  overview={adminOverview}
-  employees={adminEmployees}
-  onOpenEmployee={handleOpenAdminEmployee}
-/>
-    ) : (
-      <>
-        {/* ---------------- MANAGER VIEW SWITCH ---------------- */}
-        {isManager && (
-          <div
-            style={{
-              display: "flex",
-              gap: "6px",
-              marginBottom: "18px",
-            }}
-          >
-            <button
-              onClick={() => setGoalView("team")}
-              style={{
-                padding: "7px 15px",
-                borderRadius: "99px",
-                border: `1px solid ${
-                  goalView === "team"
-                    ? "var(--primary)"
-                    : "var(--border)"
-                }`,
-                background:
-                  goalView === "team"
-                    ? "var(--primary-light)"
-                    : "var(--card)",
-                color:
-                  goalView === "team"
-                    ? "var(--primary)"
-                    : "var(--subtext)",
-                fontWeight: 600,
-                fontSize: "12.5px",
-                cursor: "pointer",
-              }}
-            >
-              Team Goals
-            </button>
+        {/* --------------------------------------------------------------- */}
+        {/* Goals / Organization Performance                               */}
+        {/* --------------------------------------------------------------- */}
 
-            <button
-              onClick={() => setGoalView("mine")}
-              style={{
-                padding: "7px 15px",
-                borderRadius: "99px",
-                border: `1px solid ${
-                  goalView === "mine"
-                    ? "var(--primary)"
-                    : "var(--border)"
-                }`,
-                background:
-                  goalView === "mine"
-                    ? "var(--primary-light)"
-                    : "var(--card)",
-                color:
-                  goalView === "mine"
-                    ? "var(--primary)"
-                    : "var(--subtext)",
-                fontWeight: 600,
-                fontSize: "12.5px",
-                cursor: "pointer",
-              }}
-            >
-              My Goals
-            </button>
-          </div>
+        {activeTab === "goals" && (
+          <>
+            {hasOrgPerformanceView ? (
+              <AdminPerformanceOverview
+                overview={adminOverview}
+                employees={adminEmployees}
+                onOpenEmployee={
+                  handleOpenAdminEmployee
+                }
+              />
+            ) : (
+              <>
+                {/* Manager Team/My Goals switch */}
+
+                {isManager && (
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "6px",
+                      marginBottom: "18px",
+                    }}
+                  >
+                    <button
+                      onClick={() =>
+                        setGoalView("team")
+                      }
+                      style={{
+                        padding: "7px 15px",
+                        borderRadius: "99px",
+
+                        border: `1px solid ${
+                          goalView === "team"
+                            ? "var(--primary)"
+                            : "var(--border)"
+                        }`,
+
+                        background:
+                          goalView === "team"
+                            ? "var(--primary-light)"
+                            : "var(--card)",
+
+                        color:
+                          goalView === "team"
+                            ? "var(--primary)"
+                            : "var(--subtext)",
+
+                        fontWeight: 600,
+                        fontSize: "12.5px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Team Goals
+                    </button>
+
+                    <button
+                      onClick={() =>
+                        setGoalView("mine")
+                      }
+                      style={{
+                        padding: "7px 15px",
+                        borderRadius: "99px",
+
+                        border: `1px solid ${
+                          goalView === "mine"
+                            ? "var(--primary)"
+                            : "var(--border)"
+                        }`,
+
+                        background:
+                          goalView === "mine"
+                            ? "var(--primary-light)"
+                            : "var(--card)",
+
+                        color:
+                          goalView === "mine"
+                            ? "var(--primary)"
+                            : "var(--subtext)",
+
+                        fontWeight: 600,
+                        fontSize: "12.5px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      My Goals
+                    </button>
+                  </div>
+                )}
+
+                {/* Manager team goals OR logged-in employee goals */}
+
+                {isManager &&
+                goalView === "team" ? (
+                  <ManagerGoalsTab
+                    goals={managerGoals}
+                    actionId={managerActionId}
+                    onApprove={
+                      handleApproveManagerGoal
+                    }
+                    onReject={
+                      handleRejectManagerGoal
+                    }
+                  />
+                ) : (
+                  <GoalsTab
+                    goals={goals}
+                    cycle={cycle}
+                    onGoalAdded={(g, isUpdate = false) =>
+                      setGoals((prev) =>
+                        isUpdate
+                          ? prev.map((goal) =>
+                              goal.id === g.id ? g : goal
+                            )
+                          : [g, ...prev]
+                      )
+                    }
+                  />
+                )}
+              </>
+            )}
+          </>
         )}
 
-        {/* ---------------- MANAGER / EMPLOYEE CONTENT ---------------- */}
-
-        {isManager && goalView === "team" ? (
-          <ManagerGoalsTab
-            goals={managerGoals}
-            actionId={managerActionId}
-            onApprove={handleApproveManagerGoal}
-            onReject={handleRejectManagerGoal}
-          />
-        ) : (
-          <GoalsTab
-            goals={goals}
-            cycle={cycle}
-            onGoalAdded={(g) =>
-              setGoals((prev) => [g, ...prev])
-            }
-          />
-        )}
-      </>
-    )}
-  </>
-)}
+        {/* --------------------------------------------------------------- */}
+        {/* Review Cycle                                                     */}
+        {/* --------------------------------------------------------------- */}
 
         {activeTab === "review" && (
           <ReviewCycleTab
@@ -2435,27 +2641,73 @@ const handleCloseAdminEmployee = () => {
             goals={goals}
             selfAssessment={selfAssessment}
             managerReview={managerReview}
-            onSelfAssessmentSubmitted={setSelfAssessment}
+            onSelfAssessmentSubmitted={
+              setSelfAssessment
+            }
           />
         )}
 
+        {/* --------------------------------------------------------------- */}
+        {/* Feedback                                                         */}
+        {/* --------------------------------------------------------------- */}
+
         {activeTab === "feedback" && (
-          <FeedbackTab feedback={feedback} goals={goals} onFeedbackAdded={(f) => setFeedback((prev) => [f, ...prev])} />
+          <FeedbackTab
+            feedback={feedback}
+            goals={goals}
+            onFeedbackAdded={(f) =>
+              setFeedback((prev) => [
+                f,
+                ...prev,
+              ])
+            }
+          />
         )}
+
+        {/* --------------------------------------------------------------- */}
+        {/* 1:1                                                             */}
+        {/* --------------------------------------------------------------- */}
 
         {activeTab === "oneOnOnes" && (
-          <OneOnOnesTab notes={oneOnOnes} onNoteAdded={(n) => setOneOnOnes((prev) => [n, ...prev])} onToggleAction={handleToggleAction} />
+          <OneOnOnesTab
+            notes={oneOnOnes}
+            onNoteAdded={(n) =>
+              setOneOnOnes((prev) => [
+                n,
+                ...prev,
+              ])
+            }
+            onToggleAction={
+              handleToggleAction
+            }
+          />
         )}
 
-        {activeTab === "ratings" && <RatingsTab ratings={ratings} />}
-        <AdminEmployeeDetailModal
-  isOpen={Boolean(selectedAdminEmployee)}
-  onClose={handleCloseAdminEmployee}
-  detail={adminEmployeeDetail}
-  loading={adminDetailLoading}
-/>
+        {/* --------------------------------------------------------------- */}
+        {/* Ratings                                                          */}
+        {/* --------------------------------------------------------------- */}
+
+        {activeTab === "ratings" && (
+          <RatingsTab ratings={ratings} />
+        )}
+
+        {/* --------------------------------------------------------------- */}
+        {/* Admin / HR employee drill-down modal                             */}
+        {/* --------------------------------------------------------------- */}
+
+        {hasOrgPerformanceView && (
+          <AdminEmployeeDetailModal
+            isOpen={Boolean(
+              selectedAdminEmployee
+            )}
+            onClose={
+              handleCloseAdminEmployee
+            }
+            detail={adminEmployeeDetail}
+            loading={adminDetailLoading}
+          />
+        )}
       </div>
     </MainLayout>
-    
   );
 }

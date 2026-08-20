@@ -56,7 +56,13 @@ export const submitSelfAssessment = async (responses, employeeId) => {
 };
 
 export const getManagerReview = async (employeeId) => {
-  const res = await api.get("/performance/reviews/manager", { params: { employeeId } });
+  const res = await api.get(
+    "/performance/reviews/manager",
+    employeeId
+      ? { params: { employeeId } }
+      : undefined
+  );
+
   return res.data;
 };
 
