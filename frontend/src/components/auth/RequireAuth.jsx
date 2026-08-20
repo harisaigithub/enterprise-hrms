@@ -1,4 +1,4 @@
-/**
+﻿/**
  * RequireAuth — route guard.
  * Redirects unauthenticated users to /login; shows a spinner while the
  * session is being restored from the stored access token.

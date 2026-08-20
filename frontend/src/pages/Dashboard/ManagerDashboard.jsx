@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Manager Dashboard — 
  * "Manager sees Employee Dashboard (for themselves) + Manager-specific widgets"
  * — so this renders the same personal widgets as EmployeeDashboard.jsx, plus

@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+﻿import { useNavigate } from "react-router-dom";
 import { Wallet, TrendingUp } from "lucide-react";
 import DashboardWidgetCard from "./DashboardWidgetCard";
 import { useDashboardWidget } from "../../hooks/useDashboardWidget";

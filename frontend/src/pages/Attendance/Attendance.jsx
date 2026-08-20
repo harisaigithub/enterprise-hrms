@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Attendance Page
  * Module 5 — Attendance & Time
  * Features: summary stat cards, monthly record table, check-in/check-out, status badges

@@ -1,5 +1,5 @@
-/**
- * Helpdesk Page — Module 17
+ï»¿/**
+ * Helpdesk Page ï¿½ Module 17
  * Tabs: My Tickets (raise + track), Agent Queue (resolve).
  * SLA escalation and reopen-window auto-close are computed live by the
  * service , not stored/stale flags.
@@ -26,7 +26,7 @@ function RaiseTicketModal({ isOpen, onClose, onRaised }) {
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
-  const isConfidential = form.category === "HR — Grievance/Confidential";
+  const isConfidential = form.category === "HR ï¿½ Grievance/Confidential";
 
   const validate = () => {
     const e = {};
@@ -82,7 +82,7 @@ function RaiseTicketModal({ isOpen, onClose, onRaised }) {
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Description *</label>
           <textarea value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} rows={4}
-            placeholder="Describe the issue in as much detail as you can…"
+            placeholder="Describe the issue in as much detail as you canï¿½"
             style={{ width: "100%", padding: "10px 12px", border: `1px solid ${errors.description ? "var(--red)" : "var(--border)"}`, borderRadius: "var(--radius-sm)", fontSize: "13.5px", color: "var(--text)", outline: "none", resize: "vertical", fontFamily: "inherit" }} />
           {errors.description && <span style={{ fontSize: "11px", color: "var(--red)" }}>{errors.description}</span>}
         </div>
@@ -100,7 +100,7 @@ function RaiseTicketModal({ isOpen, onClose, onRaised }) {
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <button type="button" onClick={onClose} style={{ padding: "9px 20px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "none", color: "var(--label)", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>Cancel</button>
           <button id="raise-ticket-btn" type="submit" disabled={saving} style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "#fff", fontWeight: 600, fontSize: "13px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
-            {saving ? "Raising…" : "Raise Ticket"}
+            {saving ? "Raisingï¿½" : "Raise Ticket"}
           </button>
         </div>
       </form>
@@ -137,14 +137,14 @@ function ResolveModal({ ticket, onClose, onResolved }) {
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Resolution Notes *</label>
           <textarea value={notes} onChange={(e) => { setNotes(e.target.value); setError(""); }} rows={4}
-            placeholder="What was done to resolve this? (required — a ticket cannot be closed without this)"
+            placeholder="What was done to resolve this? (required ï¿½ a ticket cannot be closed without this)"
             style={{ width: "100%", padding: "10px 12px", border: `1px solid ${error ? "var(--red)" : "var(--border)"}`, borderRadius: "var(--radius-sm)", fontSize: "13.5px", color: "var(--text)", outline: "none", resize: "vertical", fontFamily: "inherit" }} />
           {error && <span style={{ fontSize: "11px", color: "var(--red)" }}>{error}</span>}
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <button onClick={onClose} style={{ padding: "9px 20px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "none", color: "var(--label)", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>Cancel</button>
           <button onClick={handleResolve} disabled={saving} style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--green)", color: "#fff", fontWeight: 600, fontSize: "13px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
-            {saving ? "Resolving…" : "Mark Resolved"}
+            {saving ? "Resolvingï¿½" : "Mark Resolved"}
           </button>
         </div>
       </div>
@@ -156,12 +156,12 @@ function SlaBadge({ ticket }) {
   if (ticket.escalated) {
     return (
       <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 600, color: "var(--red)" }}>
-        <AlertTriangle size={11} /> SLA breached — escalated to {ticket.escalatedTo}
+        <AlertTriangle size={11} /> SLA breached ï¿½ escalated to {ticket.escalatedTo}
       </span>
     );
   }
   if (["Resolved", "Reopened"].includes(ticket.status) === false) {
-    return <span style={{ fontSize: "11px", color: "var(--subtext)" }}>SLA: {ticket.slaHours}h · due {fmtDateTime(ticket.slaDeadline)}</span>;
+    return <span style={{ fontSize: "11px", color: "var(--subtext)" }}>SLA: {ticket.slaHours}h ï¿½ due {fmtDateTime(ticket.slaDeadline)}</span>;
   }
   return null;
 }
@@ -195,7 +195,7 @@ export default function Helpdesk() {
   };
 
   const handleReopen = async (ticket) => {
-    await reopenTicket(ticket.id, "Reopening — issue is not fully resolved.");
+    await reopenTicket(ticket.id, "Reopening ï¿½ issue is not fully resolved.");
     loadMine();
   };
 
@@ -304,7 +304,7 @@ export default function Helpdesk() {
                                 <RotateCcw size={12} /> Reopen
                               </button>
                             ) : (
-                              <span style={{ fontSize: "12px", color: "var(--subtext)" }}>—</span>
+                              <span style={{ fontSize: "12px", color: "var(--subtext)" }}>ï¿½</span>
                             )}
                           </td>
                         )}

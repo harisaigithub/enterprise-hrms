@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Navbar — Global search (Ctrl+K), notifications dropdown, user menu with logout.
  * Reads from SearchContext for unified search state.
  *

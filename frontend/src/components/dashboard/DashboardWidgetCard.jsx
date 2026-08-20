@@ -1,4 +1,4 @@
-// Shared card shell for dashboard widgets.
+﻿// Shared card shell for dashboard widgets.
 // Handles loading (skeleton), error (retry), and empty states.
 import { ChevronRight, RotateCcw } from "lucide-react";
 

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Spinner — loading indicator
  */
 

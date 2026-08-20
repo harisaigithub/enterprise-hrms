@@ -1,4 +1,4 @@
-/**
+﻿/**
  * SearchContext
  * Provides global search state shared between Navbar input and SearchResults page.
  * Debounced calls hit the real backend /search endpoint.

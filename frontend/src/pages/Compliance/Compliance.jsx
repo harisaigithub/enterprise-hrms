@@ -1,6 +1,6 @@
-/**
- * Compliance Page — Module 24
- * Tabs: Dashboard · Calendar & Filings · Compliance Cases · Retention & Audit
+ï»¿/**
+ * Compliance Page ï¿½ Module 24
+ * Tabs: Dashboard ï¿½ Calendar & Filings ï¿½ Compliance Cases ï¿½ Retention & Audit
  */
 
 import { useState, useEffect } from "react";
@@ -42,8 +42,8 @@ import {
 } from "../../services/complianceService";
 import { OBLIGATION_CATEGORIES, obligationStatusMeta, caseStatusMeta, severityMeta, complianceActors } from "../../mock/compliance";
 
-const fmtDate = (d) => (d ? new Date(d.slice(0, 10) + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—");
-const fmtDateTime = (d) => (d ? new Date(d).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—");
+const fmtDate = (d) => (d ? new Date(d.slice(0, 10) + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "ï¿½");
+const fmtDateTime = (d) => (d ? new Date(d).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "ï¿½");
 
 /* ---------------------------------- shared bits ---------------------------------- */
 
@@ -118,7 +118,7 @@ function ActorSelector({ actorId, onChange }) {
     <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
       <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Viewing as:</label>
       <select value={actorId} onChange={(e) => onChange(e.target.value)} style={{ ...inputStyle(), width: "auto", height: "34px", cursor: "pointer" }}>
-        {complianceActors.map((a) => <option key={a.id} value={a.id}>{a.name} — {a.role}</option>)}
+        {complianceActors.map((a) => <option key={a.id} value={a.id}>{a.name} ï¿½ {a.role}</option>)}
       </select>
       {actor?.role === "Auditor" && <span style={{ fontSize: "11px", color: "var(--subtext)", fontStyle: "italic" }}>Read-only visibility</span>}
     </div>
@@ -137,7 +137,7 @@ function DashboardTab({ summary }) {
   return (
     <div>
       <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)", marginBottom: "6px" }}>Compliance Alerts</h2>
-      <p style={{ fontSize: "12px", color: "var(--subtext)", marginBottom: "16px" }}>Feeds the HR Dashboard's Compliance Alerts widget — counts only, no case detail exposed here.</p>
+      <p style={{ fontSize: "12px", color: "var(--subtext)", marginBottom: "16px" }}>Feeds the HR Dashboard's Compliance Alerts widget ï¿½ counts only, no case detail exposed here.</p>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "14px" }}>
         {cards.map((c) => (
           <div key={c.label} style={{ ...cardStyle, padding: "18px 20px" }}>
@@ -204,7 +204,7 @@ function AddObligationModal({ isOpen, onClose, onSaved, by }) {
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Adding…" : "Add Obligation"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Addingï¿½" : "Add Obligation"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -236,7 +236,7 @@ function CalendarFilingsTab({ obligations, onObligationAdded, onObligationUpdate
               <div key={o.id} style={{ ...cardStyle, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
                 <div>
                   <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)" }}>{o.title}</p>
-                  <p style={{ fontSize: "12px", color: "var(--subtext)" }}>{o.category} · due {fmtDate(o.dueDate)} · owner {o.owner} · {o.recurring}</p>
+                  <p style={{ fontSize: "12px", color: "var(--subtext)" }}>{o.category} ï¿½ due {fmtDate(o.dueDate)} ï¿½ owner {o.owner} ï¿½ {o.recurring}</p>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                   <StatusBadge label={o.status} color={meta.color} bg={meta.bg} />
@@ -282,7 +282,7 @@ function LegalHoldModal({ isOpen, onClose, target, onApplied, actorId }) {
   if (!target) return null;
 
   return (
-    <Modal isOpen={isOpen} title={`Apply Legal Hold — ${target.caseNumber}`} onClose={onClose}>
+    <Modal isOpen={isOpen} title={`Apply Legal Hold ï¿½ ${target.caseNumber}`} onClose={onClose}>
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         <p style={{ fontSize: "11.5px", color: "var(--subtext)", margin: 0 }}>This override is itself audit-logged with the reason and authorizing user.</p>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
@@ -292,7 +292,7 @@ function LegalHoldModal({ isOpen, onClose, target, onApplied, actorId }) {
         {error && <p style={{ fontSize: "12px", color: "var(--red)" }}>{error}</p>}
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Applying…" : "Apply Legal Hold"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Applyingï¿½" : "Apply Legal Hold"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -346,14 +346,14 @@ function CaseDetailPanel({ caseId, actorId, onClose, onUpdated }) {
       </div>
       <p style={{ fontSize: "12.5px", color: "var(--subtext)", marginBottom: "10px" }}>{kase.summary}</p>
       <p style={{ fontSize: "12px", color: "var(--text)" }}>Investigators: {kase.investigatorIds.join(", ")}</p>
-      <p style={{ fontSize: "12px", color: "var(--text)" }}>Opened {fmtDate(kase.openedAt)}{kase.closedAt ? ` · Closed ${fmtDate(kase.closedAt)}` : ""}</p>
+      <p style={{ fontSize: "12px", color: "var(--text)" }}>Opened {fmtDate(kase.openedAt)}{kase.closedAt ? ` ï¿½ Closed ${fmtDate(kase.closedAt)}` : ""}</p>
       <p style={{ fontSize: "12px", color: "var(--text)", marginBottom: "10px" }}>Retention until {fmtDate(kase.retentionUntil)}</p>
 
       {kase.legalHold ? (
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f5f3ff", padding: "8px 12px", borderRadius: "var(--radius-sm)" }}>
           <p style={{ fontSize: "12px", color: "#7c3aed" }}>
             <Lock size={12} style={{ verticalAlign: "-2px", marginRight: "4px" }} />
-            Legal hold active — "{kase.legalHoldReason}" ({kase.legalHoldBy})
+            Legal hold active ï¿½ "{kase.legalHoldReason}" ({kase.legalHoldBy})
           </p>
           <button onClick={handleClearHold} style={{ fontSize: "12px", fontWeight: 700, color: "var(--primary)", border: "none", background: "none", cursor: "pointer" }}>Clear</button>
         </div>
@@ -389,7 +389,7 @@ function SelfTestPanel() {
         <h3 style={{ fontSize: "13px", fontWeight: 700, color: "var(--text)", display: "flex", alignItems: "center", gap: "6px" }}>
           <FlaskConical size={14} /> Access Control Self-Test
         </h3>
-        <SecondaryButton onClick={handleRun} disabled={running} style={{ padding: "6px 12px", fontSize: "12px" }}>{running ? "Running…" : "Run Test"}</SecondaryButton>
+        <SecondaryButton onClick={handleRun} disabled={running} style={{ padding: "6px 12px", fontSize: "12px" }}>{running ? "Runningï¿½" : "Run Test"}</SecondaryButton>
       </div>
       <p style={{ fontSize: "11.5px", color: "var(--subtext)", marginBottom: result ? "10px" : 0 }}>
         Exercises the case-access check directly (the service layer, not the UI) against several actor IDs.
@@ -421,7 +421,7 @@ function ComplianceCasesTab({ caseSummaries, actorId, onCaseUpdated }) {
       <div>
         <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)", marginBottom: "6px" }}>Compliance Cases</h2>
         <p style={{ fontSize: "12px", color: "var(--subtext)", marginBottom: "14px" }}>
-          Status and legal-hold flag only — full case detail requires being a named investigator, checked server-side.
+          Status and legal-hold flag only ï¿½ full case detail requires being a named investigator, checked server-side.
         </p>
         {caseSummaries.length === 0 ? (
           <EmptyState icon={ShieldAlert} title="No compliance cases" />
@@ -433,7 +433,7 @@ function ComplianceCasesTab({ caseSummaries, actorId, onCaseUpdated }) {
                 <div key={c.id}>
                   <div style={{ ...cardStyle, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
                     <div>
-                      <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)" }}>{c.caseNumber} · {c.category}</p>
+                      <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)" }}>{c.caseNumber} ï¿½ {c.category}</p>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                       {c.legalHold && <Lock size={14} style={{ color: "#7c3aed" }} />}
@@ -478,7 +478,7 @@ function RecordLegalHoldModal({ isOpen, onClose, record, onSaved, by }) {
   if (!record) return null;
 
   return (
-    <Modal isOpen={isOpen} title={`Apply Legal Hold — ${record.label}`} onClose={onClose}>
+    <Modal isOpen={isOpen} title={`Apply Legal Hold ï¿½ ${record.label}`} onClose={onClose}>
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           {fieldLabel("Reason *")}
@@ -486,7 +486,7 @@ function RecordLegalHoldModal({ isOpen, onClose, record, onSaved, by }) {
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Applying…" : "Apply Hold"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Applyingï¿½" : "Apply Hold"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -516,13 +516,13 @@ function RetentionTab({ records, onRecordUpdated, actorName, readOnly }) {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
         <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Retention & Purge</h2>
-        {!readOnly && <PrimaryButton onClick={handleRunJob} disabled={running}><Archive size={15} /> {running ? "Running…" : "Run Retention Job"}</PrimaryButton>}
+        {!readOnly && <PrimaryButton onClick={handleRunJob} disabled={running}><Archive size={15} /> {running ? "Runningï¿½" : "Run Retention Job"}</PrimaryButton>}
       </div>
 
       {jobResult && (
         <div style={{ ...cardStyle, padding: "12px 16px", marginBottom: "14px" }}>
           <p style={{ fontSize: "12.5px", color: "var(--text)" }}>
-            {jobResult.purged.length} purged · {jobResult.blockedByHold.length} blocked by legal hold · {jobResult.needsReview.length} flagged for manual review · {jobResult.notDue.length} not yet due
+            {jobResult.purged.length} purged ï¿½ {jobResult.blockedByHold.length} blocked by legal hold ï¿½ {jobResult.needsReview.length} flagged for manual review ï¿½ {jobResult.notDue.length} not yet due
           </p>
         </div>
       )}
@@ -533,9 +533,9 @@ function RetentionTab({ records, onRecordUpdated, actorName, readOnly }) {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "10px" }}>
               <div>
                 <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--text)" }}>{r.label}</p>
-                <p style={{ fontSize: "12px", color: "var(--subtext)" }}>{r.sourceModule} · {r.recordType} · expires {fmtDate(r.retentionExpiresAt)}</p>
+                <p style={{ fontSize: "12px", color: "var(--subtext)" }}>{r.sourceModule} ï¿½ {r.recordType} ï¿½ expires {fmtDate(r.retentionExpiresAt)}</p>
                 <p style={{ fontSize: "11px", color: r.classification === "Unclassified" ? "#d97706" : "var(--subtext)" }}>
-                  Classification: {r.classification}{r.jobStatus ? ` · Last job result: ${r.jobStatus}` : ""}
+                  Classification: {r.classification}{r.jobStatus ? ` ï¿½ Last job result: ${r.jobStatus}` : ""}
                 </p>
               </div>
               {!readOnly && (
@@ -548,7 +548,7 @@ function RetentionTab({ records, onRecordUpdated, actorName, readOnly }) {
             </div>
             {r.legalHold && (
               <p style={{ fontSize: "11.5px", color: "#7c3aed", marginTop: "8px", display: "flex", alignItems: "center", gap: "5px" }}>
-                <Lock size={12} /> Legal hold — "{r.legalHoldReason}" ({r.legalHoldBy})
+                <Lock size={12} /> Legal hold ï¿½ "{r.legalHoldReason}" ({r.legalHoldBy})
               </p>
             )}
           </div>
@@ -584,7 +584,7 @@ function AuditFeedTab() {
       <div>
         <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)", marginBottom: "6px" }}>Cross-Module Audit Trail</h2>
         <p style={{ fontSize: "12px", color: "var(--subtext)", marginBottom: "14px" }}>
-          Shows that a change occurred and by whom — never the underlying sensitive value, unless a separately granted reveal permission applies.
+          Shows that a change occurred and by whom ï¿½ never the underlying sensitive value, unless a separately granted reveal permission applies.
         </p>
         <div style={{ ...cardStyle, padding: "14px 18px", marginBottom: "14px" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr auto", gap: "10px", alignItems: "end" }}>
@@ -592,9 +592,9 @@ function AuditFeedTab() {
               {fieldLabel("Module")}
               <select value={moduleFilter} onChange={(e) => setModuleFilter(e.target.value)} style={{ ...inputStyle(), height: "36px", cursor: "pointer" }}>
                 <option value="">All</option>
-                <option value="Module 2 — Employee Master">Module 2 — Employee Master</option>
-                <option value="Module 25 — Security">Module 25 — Security</option>
-                <option value="Module 7 — Payroll">Module 7 — Payroll</option>
+                <option value="Module 2 ï¿½ Employee Master">Module 2 ï¿½ Employee Master</option>
+                <option value="Module 25 ï¿½ Security">Module 25 ï¿½ Security</option>
+                <option value="Module 7 ï¿½ Payroll">Module 7 ï¿½ Payroll</option>
               </select>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
@@ -627,7 +627,7 @@ function AuditFeedTab() {
                 <div key={r.id} style={{ ...cardStyle, padding: "12px 16px" }}>
                   <p style={{ fontSize: "12.5px", color: "var(--text)" }}>
                     <strong>{r.actor}</strong> {r.action.toLowerCase()} <strong>{r.field}</strong> in {r.module}
-                    {r.maskedValue ? ` — new value: ${r.maskedValue}` : ""}{r.employeeRef ? ` (${r.employeeRef})` : ""}
+                    {r.maskedValue ? ` ï¿½ new value: ${r.maskedValue}` : ""}{r.employeeRef ? ` (${r.employeeRef})` : ""}
                   </p>
                   <p style={{ fontSize: "11px", color: "var(--subtext)" }}>{fmtDateTime(r.timestamp)}</p>
                 </div>
@@ -652,7 +652,7 @@ function AuditFeedTab() {
                     <StatusBadge label={e.severity} color={meta.color} bg={meta.bg} />
                   </div>
                   <p style={{ fontSize: "12px", color: "var(--subtext)" }}>{e.details}</p>
-                  <p style={{ fontSize: "11px", color: "var(--subtext)", marginTop: "4px" }}>{e.actor} · {e.category} · {fmtDateTime(e.timestamp)}</p>
+                  <p style={{ fontSize: "11px", color: "var(--subtext)", marginTop: "4px" }}>{e.actor} ï¿½ {e.category} ï¿½ {fmtDateTime(e.timestamp)}</p>
                 </div>
               );
             })}

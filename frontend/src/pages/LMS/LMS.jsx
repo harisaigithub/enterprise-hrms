@@ -1,6 +1,6 @@
-/**
- * LMS Page — Module 11
- * Tabs: Course Catalog · My Learning · Compliance Dashboard
+ï»¿/**
+ * LMS Page ï¿½ Module 11
+ * Tabs: Course Catalog ï¿½ My Learning ï¿½ Compliance Dashboard
  */
 
 import { useState, useEffect } from "react";
@@ -171,7 +171,7 @@ function CreateCourseModal({ isOpen, onClose, onSaved }) {
         )}
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving…" : "Save as Draft"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Savingï¿½" : "Save as Draft"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -197,7 +197,7 @@ function AssignCourseModal({ isOpen, onClose, course, onSaved }) {
   if (!course) return null;
 
   return (
-    <Modal isOpen={isOpen} title={`Assign — ${course.title}`} onClose={onClose}>
+    <Modal isOpen={isOpen} title={`Assign ï¿½ ${course.title}`} onClose={onClose}>
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           {fieldLabel("Employee *")}
@@ -208,7 +208,7 @@ function AssignCourseModal({ isOpen, onClose, course, onSaved }) {
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Assigning…" : "Assign Course"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Assigningï¿½" : "Assign Course"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -251,7 +251,7 @@ function CatalogTab({ courses, onCourseAdded, onCourseUpdated }) {
                 </div>
                 <p style={{ fontSize: "12.5px", color: "var(--subtext)", marginBottom: "10px" }}>{c.description}</p>
                 <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "10px" }}>
-                  {c.isCompliance && <span style={{ fontSize: "10.5px", fontWeight: 700, color: "#7c3aed", background: "#f5f3ff", padding: "2px 8px", borderRadius: "99px" }}>Compliance · renews {c.expiryMonths}mo</span>}
+                  {c.isCompliance && <span style={{ fontSize: "10.5px", fontWeight: 700, color: "#7c3aed", background: "#f5f3ff", padding: "2px 8px", borderRadius: "99px" }}>Compliance ï¿½ renews {c.expiryMonths}mo</span>}
                   <span style={{ fontSize: "10.5px", fontWeight: 700, color: "var(--subtext)", background: "var(--background)", padding: "2px 8px", borderRadius: "99px" }}>{c.contentModules.length} modules</span>
                   <span style={{ fontSize: "10.5px", fontWeight: 700, color: "var(--subtext)", background: "var(--background)", padding: "2px 8px", borderRadius: "99px" }}>Pass = {c.passThreshold}%</span>
                 </div>
@@ -301,23 +301,23 @@ function QuizModal({ isOpen, onClose, enrollment, course, onSaved }) {
   if (!enrollment || !course) return null;
 
   return (
-    <Modal isOpen={isOpen} title={`Quiz — ${course.title}`} onClose={handleClose}>
+    <Modal isOpen={isOpen} title={`Quiz ï¿½ ${course.title}`} onClose={handleClose}>
       {!result ? (
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <p style={{ fontSize: "12.5px", color: "var(--subtext)", margin: 0 }}>
-            {totalQuestions} questions · pass threshold {course.passThreshold}% · attempt {enrollment.attempts + 1} of {MAX_ATTEMPTS}
+            {totalQuestions} questions ï¿½ pass threshold {course.passThreshold}% ï¿½ attempt {enrollment.attempts + 1} of {MAX_ATTEMPTS}
           </p>
           <p style={{ fontSize: "11.5px", color: "var(--subtext)", margin: 0, fontStyle: "italic" }}>
-            (Demo: choose how many you'd answer correctly — scoring is computed here, standing in for a server-side check.)
+            (Demo: choose how many you'd answer correctly ï¿½ scoring is computed here, standing in for a server-side check.)
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-            {fieldLabel(`Correct answers (0–${totalQuestions})`)}
+            {fieldLabel(`Correct answers (0ï¿½${totalQuestions})`)}
             <input type="range" min={0} max={totalQuestions} value={correct} onChange={(e) => setCorrect(e.target.value)} />
             <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--text)" }}>{correct} / {totalQuestions}</span>
           </div>
           <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
             <SecondaryButton type="button" onClick={handleClose}>Cancel</SecondaryButton>
-            <PrimaryButton type="submit" disabled={saving}>{saving ? "Submitting…" : "Submit Quiz"}</PrimaryButton>
+            <PrimaryButton type="submit" disabled={saving}>{saving ? "Submittingï¿½" : "Submit Quiz"}</PrimaryButton>
           </div>
         </form>
       ) : (
@@ -327,10 +327,10 @@ function QuizModal({ isOpen, onClose, enrollment, course, onSaved }) {
           ) : (
             <XCircle size={40} style={{ color: "var(--red)", marginBottom: "10px" }} />
           )}
-          <h3 style={{ fontSize: "16px", fontWeight: 700, color: "var(--text)" }}>{result.status === "Passed" ? "Passed!" : result.status === "Locked" ? "Not passed — attempts used up" : "Not passed"}</h3>
+          <h3 style={{ fontSize: "16px", fontWeight: 700, color: "var(--text)" }}>{result.status === "Passed" ? "Passed!" : result.status === "Locked" ? "Not passed ï¿½ attempts used up" : "Not passed"}</h3>
           <p style={{ fontSize: "13px", color: "var(--subtext)", marginTop: "4px" }}>Score: {result.score}% (needed {course.passThreshold}%)</p>
           {result.status === "Failed" && <p style={{ fontSize: "12px", color: "var(--subtext)", marginTop: "6px" }}>{MAX_ATTEMPTS - result.attempts} attempt(s) remaining.</p>}
-          {result.certifiedAt && <p style={{ fontSize: "12px", color: "var(--green)", marginTop: "6px", fontWeight: 600 }}>Certified — {result.expiresAt ? `renews by ${fmtDate(result.expiresAt)}` : "no expiry"}</p>}
+          {result.certifiedAt && <p style={{ fontSize: "12px", color: "var(--green)", marginTop: "6px", fontWeight: 600 }}>Certified ï¿½ {result.expiresAt ? `renews by ${fmtDate(result.expiresAt)}` : "no expiry"}</p>}
           <div style={{ marginTop: "18px" }}>
             <PrimaryButton onClick={handleClose}>Done</PrimaryButton>
           </div>
@@ -361,7 +361,7 @@ function MyLearningCard({ enrollment, course, onQuiz }) {
       )}
       {enrollment.certifiedAt && (
         <p style={{ fontSize: "12px", color: "var(--green)", fontWeight: 600, display: "flex", alignItems: "center", gap: "5px" }}>
-          <Award size={13} /> Certified {fmtDate(enrollment.certifiedAt)}{enrollment.expiresAt ? ` · renews by ${fmtDate(enrollment.expiresAt)}` : ""}
+          <Award size={13} /> Certified {fmtDate(enrollment.certifiedAt)}{enrollment.expiresAt ? ` ï¿½ renews by ${fmtDate(enrollment.expiresAt)}` : ""}
         </p>
       )}
 
@@ -372,7 +372,7 @@ function MyLearningCard({ enrollment, course, onQuiz }) {
           </PrimaryButton>
         ) : enrollment.status === "Locked" ? (
           <span style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "12px", color: "var(--red)", fontWeight: 600 }}>
-            <Lock size={13} /> Max attempts reached — contact L&D
+            <Lock size={13} /> Max attempts reached ï¿½ contact L&D
           </span>
         ) : null}
       </div>
@@ -439,7 +439,7 @@ function ComplianceTab({ courses, allEnrollments }) {
             {overdue.length > 0 && (
               <div style={{ marginBottom: "10px" }}>
                 <p style={{ fontSize: "11px", fontWeight: 700, color: "var(--red)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "6px" }}>
-                  Overdue / not completed — escalates to employee + manager
+                  Overdue / not completed ï¿½ escalates to employee + manager
                 </p>
                 <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                   {overdue.map((e) => (
@@ -456,7 +456,7 @@ function ComplianceTab({ courses, allEnrollments }) {
                 </p>
                 <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                   {expiringSoon.map((e) => (
-                    <span key={e.id} style={{ fontSize: "11.5px", color: "var(--amber)", background: "#fffbeb", padding: "3px 10px", borderRadius: "99px" }}>{e.employeeName} — renews {fmtDate(e.expiresAt)}</span>
+                    <span key={e.id} style={{ fontSize: "11.5px", color: "var(--amber)", background: "#fffbeb", padding: "3px 10px", borderRadius: "99px" }}>{e.employeeName} ï¿½ renews {fmtDate(e.expiresAt)}</span>
                   ))}
                 </div>
               </div>

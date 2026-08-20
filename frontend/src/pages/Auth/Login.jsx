@@ -1,4 +1,4 @@
-// Sign-in page — supports both email/password and role-based quick access.
+﻿// Sign-in page — supports both email/password and role-based quick access.
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth, DEMO_ACCOUNTS } from "../../context/AuthContext";

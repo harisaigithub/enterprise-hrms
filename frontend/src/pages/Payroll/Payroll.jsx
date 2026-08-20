@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Payroll Page — Module 7
  * Features: payroll run list, payslip detail view, ConfirmDialog for Run Payroll (Golden Rule #7)
  */

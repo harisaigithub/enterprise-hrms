@@ -1,6 +1,6 @@
-/**
+ï»¿/**
  * Onboarding Checklist Page
- * Module 4 — Onboarding
+ * Module 4 ï¿½ Onboarding
  * Features: summary stat cards, new-joiner list with progress, per-employee
  * checklist grouped by category, hard-blocked items (dependsOn), probation date.
  */
@@ -80,7 +80,7 @@ function ChecklistItemRow({ item, onChangeStatus }) {
           <p style={{ fontSize: "11.5px", color: "var(--red)", marginTop: "2px" }}>{item.blockedReason}</p>
         )}
         {!isBlocked && item.isOverdue && (
-          <p style={{ fontSize: "11.5px", color: "var(--amber)", marginTop: "2px" }}>Overdue — was due {new Date(item.dueDate + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</p>
+          <p style={{ fontSize: "11.5px", color: "var(--amber)", marginTop: "2px" }}>Overdue ï¿½ was due {new Date(item.dueDate + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}</p>
         )}
       </div>
 
@@ -145,7 +145,7 @@ export default function OnboardingChecklist() {
   return (
     <MainLayout>
       <div style={{ maxWidth: "1480px", margin: "0 auto" }}>
-        <PageHeader title="Onboarding" subtitle="Checklists for new joiners — Day 1 readiness" />
+        <PageHeader title="Onboarding" subtitle="Checklists for new joiners ï¿½ Day 1 readiness" />
 
         {summary && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "14px", marginBottom: "24px" }}>
@@ -175,7 +175,7 @@ export default function OnboardingChecklist() {
                   <img src={selected.avatar} alt={selected.employeeName} style={{ width: "56px", height: "56px", borderRadius: "50%", objectFit: "cover", border: "2px solid var(--border)" }} />
                   <div style={{ flex: 1, minWidth: "200px" }}>
                     <h2 style={{ fontSize: "17px", fontWeight: 700, color: "var(--text)" }}>{selected.employeeName}</h2>
-                    <p style={{ fontSize: "13px", color: "var(--subtext)" }}>{selected.designation} · {selected.department}</p>
+                    <p style={{ fontSize: "13px", color: "var(--subtext)" }}>{selected.designation} ï¿½ {selected.department}</p>
                   </div>
                   <div style={{ display: "flex", gap: "22px", flexWrap: "wrap" }}>
                     <div>

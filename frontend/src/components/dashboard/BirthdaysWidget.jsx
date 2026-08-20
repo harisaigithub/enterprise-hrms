@@ -1,4 +1,4 @@
-import { Cake } from "lucide-react";
+﻿import { Cake } from "lucide-react";
 import DashboardWidgetCard from "./DashboardWidgetCard";
 import { useDashboardWidget } from "../../hooks/useDashboardWidget";
 import { getUpcomingBirthdays } from "../../services/employeeDashboardService";

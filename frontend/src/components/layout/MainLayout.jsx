@@ -1,4 +1,4 @@
-/**
+﻿/**
  * MainLayout
  * Wraps every authenticated page with Sidebar + Navbar.
  *
