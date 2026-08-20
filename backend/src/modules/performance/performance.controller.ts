@@ -222,13 +222,20 @@ export const submitSelfAssessment = asyncHandler(
 export const getManagerReview = asyncHandler(
   async (req: Request, res: Response) => {
     const employeeCode =
-      req.query.employeeId as string;
+      (req.query.employeeId as string) ||
+      req.auth?.employeeCode;
 
     if (!employeeCode) {
-      throw AppError.badRequest(
-        "employeeId is required"
+      throw AppError.unauthorized(
+        "Authenticated user is not linked to an employee"
       );
     }
+
+    await performanceService.assertCanReadEmployeePerformance(
+      req.auth?.employeeCode,
+      employeeCode,
+      req.auth?.role
+    );
 
     const cycleCode =
       req.query.cycle as string | undefined;

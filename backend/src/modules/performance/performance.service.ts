@@ -786,6 +786,36 @@ export async function submitSelfAssessment(
 /*                             Manager Review                                 */
 /* -------------------------------------------------------------------------- */
 
+export async function assertCanReadEmployeePerformance(
+  requesterEmployeeCode: string | undefined,
+  targetEmployeeCode: string,
+  requesterRole: string | undefined
+) {
+  const role = requesterRole?.toUpperCase();
+
+  if (role === "ADMIN" || role === "HR") {
+    return;
+  }
+
+  if (!requesterEmployeeCode) {
+    throw AppError.forbidden(
+      "Authenticated user is not linked to an employee"
+    );
+  }
+
+  const requester = await resolveEmployee(requesterEmployeeCode);
+  const target = await resolveEmployee(targetEmployeeCode);
+
+  const isSelf = requester.id === target.id;
+  const isDirectManager = target.reportingManagerId === requester.id;
+
+  if (!isSelf && !isDirectManager) {
+    throw AppError.forbidden(
+      "You can only view your own performance or that of your direct reports"
+    );
+  }
+}
+
 export async function getManagerReview(
   employeeCode: string,
   cycleCode?: string
