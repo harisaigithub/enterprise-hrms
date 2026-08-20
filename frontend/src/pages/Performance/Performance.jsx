@@ -1,0 +1,1036 @@
+/**
+ * Performance Page — Module 10
+ * Tabs: Goals & OKRs · Review Cycle · Feedback · 1:1s · Ratings History
+ */
+
+import { useState, useEffect } from "react";
+import {
+  Target,
+  ClipboardCheck,
+  MessageSquare,
+  Users,
+  Award,
+  Plus,
+  X,
+  Lock,
+  CheckCircle2,
+  Circle,
+  Sparkles,
+} from "lucide-react";
+import MainLayout from "../../components/layout/MainLayout";
+import PageHeader from "../../components/shared/PageHeader";
+import StatusBadge from "../../components/shared/StatusBadge";
+import Spinner from "../../components/shared/Spinner";
+import EmptyState from "../../components/shared/EmptyState";
+import Modal from "../../components/shared/Modal";
+import {
+  getGoals,
+  addGoal,
+  getReviewCycle,
+  getSelfAssessment,
+  submitSelfAssessment,
+  getManagerReview,
+  getFeedback,
+  addFeedback,
+  getOneOnOnes,
+  addOneOnOne,
+  getRatingsHistory,
+} from "../../services/performanceService";
+import { goalStatusMeta, reviewPhaseMeta, feedbackTypeMeta, colleagues } from "../../mock/performance";
+
+const ME = { id: "EMP001", name: "Matsya Singh" };
+const PHASES = ["Goal Setting", "Continuous Feedback", "Self-Assessment", "Manager Review", "Calibration", "Completed"];
+
+/* ---------------------------------- shared bits ---------------------------------- */
+
+const cardStyle = {
+  background: "var(--card)",
+  borderRadius: "var(--radius-lg)",
+  border: "1px solid var(--border)",
+  boxShadow: "var(--shadow-sm)",
+};
+
+function inputStyle(hasError) {
+  return {
+    width: "100%",
+    padding: "9px 12px",
+    border: `1px solid ${hasError ? "var(--red)" : "var(--border)"}`,
+    borderRadius: "var(--radius-sm)",
+    fontSize: "13.5px",
+    color: "var(--text)",
+    outline: "none",
+    background: "var(--card)",
+    fontFamily: "inherit",
+  };
+}
+
+function fieldLabel(text) {
+  return <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>{text}</label>;
+}
+
+function PrimaryButton({ children, ...props }) {
+  return (
+    <button
+      {...props}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "6px",
+        padding: "9px 16px",
+        background: "var(--primary)",
+        color: "#fff",
+        border: "none",
+        borderRadius: "var(--radius-sm)",
+        fontWeight: 600,
+        fontSize: "13px",
+        cursor: props.disabled ? "not-allowed" : "pointer",
+        opacity: props.disabled ? 0.6 : 1,
+        ...props.style,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function SecondaryButton({ children, ...props }) {
+  return (
+    <button
+      {...props}
+      style={{
+        padding: "9px 16px",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius-sm)",
+        background: "none",
+        color: "var(--label)",
+        fontWeight: 600,
+        fontSize: "13px",
+        cursor: "pointer",
+        ...props.style,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function TabNav({ tabs, active, onChange }) {
+  return (
+    <div style={{ display: "flex", gap: "4px", borderBottom: "1px solid var(--border)", marginBottom: "22px", overflowX: "auto" }}>
+      {tabs.map((t) => {
+        const isActive = t.key === active;
+        return (
+          <button
+            key={t.key}
+            onClick={() => onChange(t.key)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "7px",
+              padding: "10px 16px",
+              border: "none",
+              borderBottom: isActive ? "2px solid var(--primary)" : "2px solid transparent",
+              background: "none",
+              color: isActive ? "var(--primary)" : "var(--subtext)",
+              fontWeight: 600,
+              fontSize: "13.5px",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <t.icon size={15} />
+            {t.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ---------------------------------- Goals & OKRs tab ---------------------------------- */
+
+function AddGoalModal({ isOpen, onClose, onSaved, cycleName }) {
+  const [title, setTitle] = useState("");
+  const [category, setCategory] = useState("Technical");
+  const [keyResults, setKeyResults] = useState([{ text: "" }]);
+  const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  const reset = () => {
+    setTitle("");
+    setCategory("Technical");
+    setKeyResults([{ text: "" }]);
+    setErrors({});
+  };
+
+  const updateKR = (i, value) => {
+    setKeyResults((prev) => prev.map((kr, idx) => (idx === i ? { text: value } : kr)));
+  };
+
+  const addKR = () => setKeyResults((prev) => [...prev, { text: "" }]);
+  const removeKR = (i) => setKeyResults((prev) => prev.filter((_, idx) => idx !== i));
+
+  const validate = () => {
+    const e = {};
+    if (!title.trim()) e.title = "Give this goal a title";
+    const filledKRs = keyResults.filter((kr) => kr.text.trim());
+    if (filledKRs.length === 0) e.keyResults = "Add at least one key result";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validate()) return;
+    setSaving(true);
+    const goal = {
+      id: `g-${Date.now()}`,
+      employeeId: ME.id,
+      cycle: cycleName,
+      title: title.trim(),
+      category,
+      keyResults: keyResults
+        .filter((kr) => kr.text.trim())
+        .map((kr, i) => ({ id: `kr-${Date.now()}-${i}`, text: kr.text.trim(), progress: 0 })),
+      status: "Pending Approval",
+      createdAt: new Date().toISOString().slice(0, 10),
+    };
+    const res = await addGoal(goal);
+    setSaving(false);
+    onSaved(res.data);
+    onClose();
+    reset();
+  };
+
+  return (
+    <Modal isOpen={isOpen} title="Add Goal (OKR)" onClose={onClose}>
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        <p style={{ fontSize: "12.5px", color: "var(--subtext)", margin: 0 }}>
+          This goal will need manager approval before it locks for {cycleName}.
+        </p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+          {fieldLabel("Objective *")}
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="e.g. Improve API response times across core services"
+            style={inputStyle(errors.title)}
+          />
+          {errors.title && <span style={{ fontSize: "11px", color: "var(--red)" }}>{errors.title}</span>}
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+          {fieldLabel("Category")}
+          <select value={category} onChange={(e) => setCategory(e.target.value)} style={{ ...inputStyle(false), height: "38px", cursor: "pointer" }}>
+            {["Technical", "Leadership", "Business Impact", "Process", "Learning & Growth"].map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {fieldLabel("Key Results *")}
+          {keyResults.map((kr, i) => (
+            <div key={i} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <input
+                value={kr.text}
+                onChange={(e) => updateKR(i, e.target.value)}
+                placeholder={`Key result ${i + 1}`}
+                style={inputStyle(false)}
+              />
+              {keyResults.length > 1 && (
+                <button type="button" onClick={() => removeKR(i)} style={{ border: "none", background: "none", cursor: "pointer", color: "var(--subtext)", padding: "4px" }}>
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+          ))}
+          {errors.keyResults && <span style={{ fontSize: "11px", color: "var(--red)" }}>{errors.keyResults}</span>}
+          <button type="button" onClick={addKR} style={{ alignSelf: "flex-start", display: "flex", alignItems: "center", gap: "5px", border: "none", background: "none", color: "var(--primary)", fontWeight: 600, fontSize: "12.5px", cursor: "pointer", padding: "2px 0" }}>
+            <Plus size={14} /> Add key result
+          </button>
+        </div>
+
+        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+          <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving…" : "Submit for Approval"}</PrimaryButton>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function KeyResultRow({ kr }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "8px 0" }}>
+      <span style={{ fontSize: "13px", color: "var(--text)", flex: 1 }}>{kr.text}</span>
+      <div style={{ width: "110px", height: "6px", background: "var(--border)", borderRadius: "99px", overflow: "hidden", flexShrink: 0 }}>
+        <div style={{ height: "100%", width: `${kr.progress}%`, background: kr.progress >= 100 ? "var(--green)" : "var(--primary)", borderRadius: "99px" }} />
+      </div>
+      <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--subtext)", width: "34px", textAlign: "right" }}>{kr.progress}%</span>
+    </div>
+  );
+}
+
+function GoalCard({ goal }) {
+  const meta = goalStatusMeta[goal.status] || goalStatusMeta.Draft;
+  const overall = Math.round(goal.keyResults.reduce((sum, kr) => sum + kr.progress, 0) / goal.keyResults.length) || 0;
+  return (
+    <div style={{ ...cardStyle, padding: "18px 20px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px", marginBottom: "6px" }}>
+        <div>
+          <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.4px" }}>{goal.category}</span>
+          <h3 style={{ fontSize: "15px", fontWeight: 700, color: "var(--text)", marginTop: "3px" }}>{goal.title}</h3>
+        </div>
+        <StatusBadge label={meta.label} color={meta.color} bg={meta.bg} />
+      </div>
+
+      <div style={{ margin: "12px 0 4px", paddingTop: "10px", borderTop: "1px solid var(--border)" }}>
+        {goal.keyResults.map((kr) => (
+          <KeyResultRow key={kr.id} kr={kr} />
+        ))}
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px" }}>
+        <span style={{ fontSize: "11.5px", color: "var(--subtext)" }}>Overall progress</span>
+        <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--text)" }}>{overall}%</span>
+      </div>
+    </div>
+  );
+}
+
+function GoalsTab({ goals, cycle, onGoalAdded }) {
+  const [showAdd, setShowAdd] = useState(false);
+  const goalsLocked = cycle && cycle.phase !== "Goal Setting";
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
+        <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>
+          My Goals — {cycle?.name?.replace(" Performance Review", "") || "This Cycle"}
+        </h2>
+        <PrimaryButton onClick={() => setShowAdd(true)} disabled={goalsLocked} title={goalsLocked ? "Goal-setting window is closed for this cycle" : undefined}>
+          {goalsLocked ? <Lock size={14} /> : <Plus size={16} />}
+          Add Goal
+        </PrimaryButton>
+      </div>
+
+      {goals.length === 0 ? (
+        <EmptyState icon={Target} title="No goals yet" subtitle="Add your OKRs for this cycle to get started." />
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: "14px" }}>
+          {goals.map((g) => (
+            <GoalCard key={g.id} goal={g} />
+          ))}
+        </div>
+      )}
+
+      <AddGoalModal isOpen={showAdd} onClose={() => setShowAdd(false)} onSaved={onGoalAdded} cycleName={cycle?.name?.replace(" Performance Review", "") || "current cycle"} />
+    </div>
+  );
+}
+
+/* ---------------------------------- Review Cycle tab ---------------------------------- */
+
+function PhaseStepper({ phase }) {
+  const currentIndex = PHASES.indexOf(phase);
+  return (
+    <div style={{ display: "flex", alignItems: "center", overflowX: "auto", padding: "4px 0" }}>
+      {PHASES.map((p, i) => {
+        const done = i < currentIndex;
+        const active = i === currentIndex;
+        return (
+          <div key={p} style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", minWidth: "108px" }}>
+              <div
+                style={{
+                  width: "26px",
+                  height: "26px",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: done ? "var(--green)" : active ? "var(--primary)" : "var(--border)",
+                  color: done || active ? "#fff" : "var(--subtext)",
+                }}
+              >
+                {done ? <CheckCircle2 size={15} /> : <span style={{ fontSize: "11px", fontWeight: 700 }}>{i + 1}</span>}
+              </div>
+              <span style={{ fontSize: "11px", fontWeight: active ? 700 : 500, color: active ? "var(--text)" : "var(--subtext)", textAlign: "center" }}>{p}</span>
+            </div>
+            {i < PHASES.length - 1 && <div style={{ width: "36px", height: "2px", background: done ? "var(--green)" : "var(--border)", marginBottom: "22px" }} />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function SubmitSelfAssessmentModal({ isOpen, onClose, goals, onSaved }) {
+  const [ratings, setRatings] = useState({});
+  const [comments, setComments] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    const responses = goals.map((g) => ({
+      goalId: g.id,
+      rating: Number(ratings[g.id]) || 3,
+      comments: comments[g.id] || "",
+    }));
+    const res = await submitSelfAssessment(responses);
+    setSaving(false);
+    onSaved(res.data);
+    onClose();
+  };
+
+  return (
+    <Modal isOpen={isOpen} title="Submit Self-Assessment" onClose={onClose}>
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+        {goals.map((g) => (
+          <div key={g.id} style={{ borderBottom: "1px solid var(--border)", paddingBottom: "16px" }}>
+            <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)", marginBottom: "8px" }}>{g.title}</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "5px", marginBottom: "10px" }}>
+              {fieldLabel("Self-rating (1–5)")}
+              <select value={ratings[g.id] || 3} onChange={(e) => setRatings((p) => ({ ...p, [g.id]: e.target.value }))} style={{ ...inputStyle(false), height: "36px", width: "90px", cursor: "pointer" }}>
+                {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+              {fieldLabel("Comments")}
+              <textarea
+                rows={2}
+                value={comments[g.id] || ""}
+                onChange={(e) => setComments((p) => ({ ...p, [g.id]: e.target.value }))}
+                placeholder="Summarize progress and impact…"
+                style={{ ...inputStyle(false), resize: "vertical" }}
+              />
+            </div>
+          </div>
+        ))}
+        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+          <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Submitting…" : "Submit Self-Assessment"}</PrimaryButton>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function ReviewCycleTab({ cycle, goals, selfAssessment, managerReview, onSelfAssessmentSubmitted }) {
+  const [showSelfAssessment, setShowSelfAssessment] = useState(false);
+
+  if (!cycle) return <EmptyState icon={ClipboardCheck} title="No active review cycle" />;
+
+  const phaseMeta = reviewPhaseMeta[cycle.phase];
+  const canSubmitSelfAssessment = cycle.phase === "Self-Assessment" && !selfAssessment.submitted;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+      <div style={{ ...cardStyle, padding: "20px 22px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "10px", marginBottom: "18px" }}>
+          <div>
+            <h2 style={{ fontSize: "16px", fontWeight: 700, color: "var(--text)" }}>{cycle.name}</h2>
+            <p style={{ fontSize: "12.5px", color: "var(--subtext)", marginTop: "2px" }}>Current phase</p>
+          </div>
+          <StatusBadge label={cycle.phase} color={phaseMeta.color} bg={phaseMeta.bg} />
+        </div>
+        <PhaseStepper phase={cycle.phase} />
+      </div>
+
+      {/* Self-assessment */}
+      <div style={{ ...cardStyle, padding: "20px 22px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+          <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Self-Assessment</h3>
+          {canSubmitSelfAssessment && <PrimaryButton onClick={() => setShowSelfAssessment(true)}>Complete Self-Assessment</PrimaryButton>}
+        </div>
+        {selfAssessment.submitted ? (
+          <>
+            <p style={{ fontSize: "12px", color: "var(--green)", fontWeight: 600, marginBottom: "12px" }}>
+              Submitted on {new Date(selfAssessment.submittedAt + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+            </p>
+            {selfAssessment.responses.map((r) => {
+              const goal = goals.find((g) => g.id === r.goalId);
+              return (
+                <div key={r.goalId} style={{ padding: "10px 0", borderTop: "1px solid var(--border)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: "10px" }}>
+                    <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>{goal?.title || "Goal"}</span>
+                    <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--primary)", whiteSpace: "nowrap" }}>{r.rating} / 5</span>
+                  </div>
+                  <p style={{ fontSize: "12.5px", color: "var(--subtext)", marginTop: "4px" }}>{r.comments}</p>
+                </div>
+              );
+            })}
+          </>
+        ) : (
+          <p style={{ fontSize: "13px", color: "var(--subtext)" }}>
+            {cycle.phase === "Self-Assessment" ? "Not yet submitted for this cycle." : "The self-assessment window hasn't opened yet."}
+          </p>
+        )}
+      </div>
+
+      {/* Manager review */}
+      <div style={{ ...cardStyle, padding: "20px 22px" }}>
+        <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)", marginBottom: "12px" }}>Manager Review</h3>
+        {managerReview.submitted ? (
+          <>
+            <p style={{ fontSize: "12px", color: "var(--green)", fontWeight: 600, marginBottom: "12px" }}>
+              Submitted on {new Date(managerReview.submittedAt + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+            </p>
+            {managerReview.responses.map((r) => {
+              const goal = goals.find((g) => g.id === r.goalId);
+              return (
+                <div key={r.goalId} style={{ padding: "10px 0", borderTop: "1px solid var(--border)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: "10px" }}>
+                    <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>{goal?.title || "Goal"}</span>
+                    <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--primary)", whiteSpace: "nowrap" }}>{r.rating} / 5</span>
+                  </div>
+                  <p style={{ fontSize: "12.5px", color: "var(--subtext)", marginTop: "4px" }}>{r.comments}</p>
+                </div>
+              );
+            })}
+          </>
+        ) : (
+          <p style={{ fontSize: "13px", color: "var(--subtext)" }}>
+            {selfAssessment.submitted
+              ? "Your manager hasn't submitted their review yet — you'll be notified once it's ready."
+              : "Manager review opens once your self-assessment is submitted."}
+          </p>
+        )}
+      </div>
+
+      {/* 360 status */}
+      {cycle.is360Enabled && (
+        <div style={{ ...cardStyle, padding: "20px 22px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+            <Sparkles size={16} style={{ color: "var(--primary)" }} />
+            <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>360° Feedback</h3>
+          </div>
+          <p style={{ fontSize: "13px", color: "var(--subtext)" }}>
+            {cycle.peerResponsesReceived} of {cycle.peerReviewersNominated} nominated peers have responded.
+            Results are shown to you only as an anonymized summary once the cycle completes — individual reviewers are never identified.
+          </p>
+        </div>
+      )}
+
+      <SubmitSelfAssessmentModal isOpen={showSelfAssessment} onClose={() => setShowSelfAssessment(false)} goals={goals} onSaved={onSelfAssessmentSubmitted} />
+    </div>
+  );
+}
+
+/* ---------------------------------- Feedback tab ---------------------------------- */
+
+function GiveFeedbackModal({ isOpen, onClose, goals, onSaved }) {
+  const [recipientId, setRecipientId] = useState("");
+  const [type, setType] = useState("Praise");
+  const [goalTag, setGoalTag] = useState("");
+  const [message, setMessage] = useState("");
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  const validate = () => {
+    const e = {};
+    if (!recipientId) e.recipientId = "Choose who this is for";
+    if (!message.trim()) e.message = "Write your feedback";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validate()) return;
+    setSaving(true);
+    const recipient = colleagues.find((c) => c.id === recipientId);
+    const entry = {
+      id: `f-${Date.now()}`,
+      fromId: ME.id,
+      fromName: ME.name,
+      toId: recipient.id,
+      toName: recipient.name,
+      type,
+      goalTag: goalTag || null,
+      message: message.trim(),
+      private: isPrivate,
+      createdAt: new Date().toISOString().slice(0, 10),
+    };
+    const res = await addFeedback(entry);
+    setSaving(false);
+    onSaved(res.data);
+    onClose();
+    setRecipientId("");
+    setType("Praise");
+    setGoalTag("");
+    setMessage("");
+    setIsPrivate(false);
+  };
+
+  return (
+    <Modal isOpen={isOpen} title="Give Feedback" onClose={onClose}>
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+          {fieldLabel("For *")}
+          <select value={recipientId} onChange={(e) => setRecipientId(e.target.value)} style={{ ...inputStyle(errors.recipientId), height: "38px", cursor: "pointer" }}>
+            <option value="">Select colleague</option>
+            {colleagues.map((c) => <option key={c.id} value={c.id}>{c.name} — {c.role}</option>)}
+          </select>
+          {errors.recipientId && <span style={{ fontSize: "11px", color: "var(--red)" }}>{errors.recipientId}</span>}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+            {fieldLabel("Type")}
+            <select value={type} onChange={(e) => setType(e.target.value)} style={{ ...inputStyle(false), height: "38px", cursor: "pointer" }}>
+              {["Praise", "Constructive", "General"].map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+            {fieldLabel("Tag to a goal (optional)")}
+            <select value={goalTag} onChange={(e) => setGoalTag(e.target.value)} style={{ ...inputStyle(false), height: "38px", cursor: "pointer" }}>
+              <option value="">None</option>
+              {goals.map((g) => <option key={g.id} value={g.title}>{g.title}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+          {fieldLabel("Message *")}
+          <textarea
+            rows={4}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Be specific and constructive…"
+            style={{ ...inputStyle(errors.message), resize: "vertical" }}
+          />
+          {errors.message && <span style={{ fontSize: "11px", color: "var(--red)" }}>{errors.message}</span>}
+        </div>
+
+        <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12.5px", color: "var(--label)", cursor: "pointer" }}>
+          <input type="checkbox" checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} />
+          Mark private to their manager (not shown to the recipient directly)
+        </label>
+
+        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+          <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Sending…" : "Send Feedback"}</PrimaryButton>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function FeedbackCard({ entry }) {
+  const meta = feedbackTypeMeta[entry.type] || feedbackTypeMeta.General;
+  const isReceived = entry.toId === ME.id;
+  return (
+    <div style={{ ...cardStyle, padding: "16px 18px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px", marginBottom: "8px" }}>
+        <div>
+          <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--text)" }}>
+            {isReceived ? `From ${entry.fromName}` : `To ${entry.toName}`}
+          </span>
+          {entry.goalTag && (
+            <div style={{ fontSize: "11px", color: "var(--subtext)", marginTop: "2px" }}>on “{entry.goalTag}”</div>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: "6px", alignItems: "center", flexShrink: 0 }}>
+          {entry.private && <StatusBadge label="Private to manager" color="#64748b" bg="#f1f5f9" />}
+          <StatusBadge label={entry.type} color={meta.color} bg={meta.bg} />
+        </div>
+      </div>
+      <p style={{ fontSize: "13.5px", color: "var(--text)", lineHeight: 1.5 }}>{entry.message}</p>
+      <p style={{ fontSize: "11px", color: "var(--subtext)", marginTop: "8px" }}>
+        {new Date(entry.createdAt + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+      </p>
+    </div>
+  );
+}
+
+function FeedbackTab({ feedback, goals, onFeedbackAdded }) {
+  const [showGive, setShowGive] = useState(false);
+  const [filter, setFilter] = useState("all");
+
+  const filtered = feedback.filter((f) => {
+    if (filter === "received") return f.toId === ME.id;
+    if (filter === "given") return f.fromId === ME.id;
+    return true;
+  });
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
+        <div style={{ display: "flex", gap: "6px" }}>
+          {[["all", "All"], ["received", "Received"], ["given", "Given"]].map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setFilter(key)}
+              style={{
+                padding: "6px 14px",
+                borderRadius: "99px",
+                border: `1px solid ${filter === key ? "var(--primary)" : "var(--border)"}`,
+                background: filter === key ? "var(--primary-light)" : "var(--card)",
+                color: filter === key ? "var(--primary)" : "var(--subtext)",
+                fontWeight: 600,
+                fontSize: "12.5px",
+                cursor: "pointer",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <PrimaryButton onClick={() => setShowGive(true)}><Plus size={16} /> Give Feedback</PrimaryButton>
+      </div>
+
+      {filtered.length === 0 ? (
+        <EmptyState icon={MessageSquare} title="No feedback here yet" subtitle="Continuous feedback logged during the cycle will show up here." />
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {filtered.map((f) => <FeedbackCard key={f.id} entry={f} />)}
+        </div>
+      )}
+
+      <GiveFeedbackModal isOpen={showGive} onClose={() => setShowGive(false)} goals={goals} onSaved={onFeedbackAdded} />
+    </div>
+  );
+}
+
+/* ---------------------------------- 1:1s tab ---------------------------------- */
+
+function AddNoteModal({ isOpen, onClose, onSaved }) {
+  const [withName, setWithName] = useState("Alice Quinn");
+  const [date, setDate] = useState("");
+  const [agendaText, setAgendaText] = useState("");
+  const [notes, setNotes] = useState("");
+  const [actionItems, setActionItems] = useState([{ text: "" }]);
+  const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  const updateAI = (i, value) => setActionItems((prev) => prev.map((a, idx) => (idx === i ? { text: value } : a)));
+  const addAI = () => setActionItems((prev) => [...prev, { text: "" }]);
+  const removeAI = (i) => setActionItems((prev) => prev.filter((_, idx) => idx !== i));
+
+  const validate = () => {
+    const e = {};
+    if (!date) e.date = "Required";
+    if (!agendaText.trim()) e.agendaText = "Add at least one agenda topic";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validate()) return;
+    setSaving(true);
+    const note = {
+      id: `o-${Date.now()}`,
+      withName,
+      withRole: "Engineering Manager",
+      date,
+      agenda: agendaText.split("\n").map((s) => s.trim()).filter(Boolean),
+      actionItems: actionItems.filter((a) => a.text.trim()).map((a, i) => ({ id: `a-${Date.now()}-${i}`, text: a.text.trim(), done: false })),
+      notes,
+    };
+    const res = await addOneOnOne(note);
+    setSaving(false);
+    onSaved(res.data);
+    onClose();
+    setDate("");
+    setAgendaText("");
+    setNotes("");
+    setActionItems([{ text: "" }]);
+  };
+
+  return (
+    <Modal isOpen={isOpen} title="New 1:1 Note" onClose={onClose}>
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+            {fieldLabel("With")}
+            <input value={withName} onChange={(e) => setWithName(e.target.value)} style={inputStyle(false)} />
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+            {fieldLabel("Date *")}
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inputStyle(errors.date)} />
+            {errors.date && <span style={{ fontSize: "11px", color: "var(--red)" }}>{errors.date}</span>}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+          {fieldLabel("Agenda (one topic per line) *")}
+          <textarea rows={3} value={agendaText} onChange={(e) => setAgendaText(e.target.value)} placeholder={"Sprint blockers\nCareer growth check-in"} style={{ ...inputStyle(errors.agendaText), resize: "vertical" }} />
+          {errors.agendaText && <span style={{ fontSize: "11px", color: "var(--red)" }}>{errors.agendaText}</span>}
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {fieldLabel("Action items")}
+          {actionItems.map((a, i) => (
+            <div key={i} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <input value={a.text} onChange={(e) => updateAI(i, e.target.value)} placeholder={`Action item ${i + 1}`} style={inputStyle(false)} />
+              {actionItems.length > 1 && (
+                <button type="button" onClick={() => removeAI(i)} style={{ border: "none", background: "none", cursor: "pointer", color: "var(--subtext)" }}>
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+          ))}
+          <button type="button" onClick={addAI} style={{ alignSelf: "flex-start", display: "flex", alignItems: "center", gap: "5px", border: "none", background: "none", color: "var(--primary)", fontWeight: 600, fontSize: "12.5px", cursor: "pointer", padding: "2px 0" }}>
+            <Plus size={14} /> Add action item
+          </button>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+          {fieldLabel("Notes")}
+          <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Free-form notes from the conversation…" style={{ ...inputStyle(false), resize: "vertical" }} />
+        </div>
+
+        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+          <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving…" : "Save Note"}</PrimaryButton>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function OneOnOneCard({ note, onToggleAction }) {
+  return (
+    <div style={{ ...cardStyle, padding: "18px 20px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
+        <div>
+          <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>1:1 with {note.withName}</h3>
+          <p style={{ fontSize: "11.5px", color: "var(--subtext)" }}>{note.withRole}</p>
+        </div>
+        <span style={{ fontSize: "12px", color: "var(--subtext)", whiteSpace: "nowrap" }}>
+          {new Date(note.date + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+        </span>
+      </div>
+
+      {note.agenda?.length > 0 && (
+        <div style={{ marginBottom: "10px" }}>
+          <p style={{ fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "6px" }}>Agenda</p>
+          <ul style={{ margin: 0, paddingLeft: "18px" }}>
+            {note.agenda.map((item, i) => (
+              <li key={i} style={{ fontSize: "13px", color: "var(--text)", marginBottom: "2px" }}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {note.notes && (
+        <p style={{ fontSize: "13px", color: "var(--subtext)", lineHeight: 1.5, marginBottom: "10px" }}>{note.notes}</p>
+      )}
+
+      {note.actionItems?.length > 0 && (
+        <div>
+          <p style={{ fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "6px" }}>Action Items</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            {note.actionItems.map((a) => (
+              <button
+                key={a.id}
+                onClick={() => onToggleAction(note.id, a.id)}
+                style={{ display: "flex", alignItems: "center", gap: "8px", border: "none", background: "none", cursor: "pointer", padding: 0, textAlign: "left" }}
+              >
+                {a.done ? <CheckCircle2 size={16} style={{ color: "var(--green)", flexShrink: 0 }} /> : <Circle size={16} style={{ color: "var(--subtext)", flexShrink: 0 }} />}
+                <span style={{ fontSize: "13px", color: a.done ? "var(--subtext)" : "var(--text)", textDecoration: a.done ? "line-through" : "none" }}>{a.text}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OneOnOnesTab({ notes, onNoteAdded, onToggleAction }) {
+  const [showAdd, setShowAdd] = useState(false);
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+        <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>1-on-1 Meeting Notes</h2>
+        <PrimaryButton onClick={() => setShowAdd(true)}><Plus size={16} /> New 1:1</PrimaryButton>
+      </div>
+
+      {notes.length === 0 ? (
+        <EmptyState icon={Users} title="No 1:1 notes yet" subtitle="Log notes from your check-ins to keep a running history." />
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          {notes.map((n) => <OneOnOneCard key={n.id} note={n} onToggleAction={onToggleAction} />)}
+        </div>
+      )}
+
+      <AddNoteModal isOpen={showAdd} onClose={() => setShowAdd(false)} onSaved={onNoteAdded} />
+    </div>
+  );
+}
+
+/* ---------------------------------- Ratings History tab ---------------------------------- */
+
+function RatingsTab({ ratings }) {
+  if (ratings.length === 0) return <EmptyState icon={Award} title="No ratings history yet" />;
+
+  const latest = ratings[0];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "14px" }}>
+        <div style={{ ...cardStyle, padding: "18px 20px" }}>
+          <p style={{ fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "8px" }}>Latest Rating</p>
+          <p style={{ fontSize: "26px", fontWeight: 800, color: "var(--primary)" }}>{latest.finalRating} / 5</p>
+          <p style={{ fontSize: "11.5px", color: "var(--subtext)", marginTop: "2px" }}>{latest.cycle}</p>
+        </div>
+        <div style={{ ...cardStyle, padding: "18px 20px" }}>
+          <p style={{ fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "8px" }}>Latest Increment</p>
+          <p style={{ fontSize: "26px", fontWeight: 800, color: "var(--green)" }}>{latest.increment}</p>
+          <p style={{ fontSize: "11.5px", color: "var(--subtext)", marginTop: "2px" }}>{latest.promotion ? "+ Promotion" : "No promotion this cycle"}</p>
+        </div>
+        <div style={{ ...cardStyle, padding: "18px 20px" }}>
+          <p style={{ fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "8px" }}>Appraisal Letter</p>
+          <a href={latest.appraisalLetterUrl} style={{ fontSize: "13px", fontWeight: 700, color: "var(--primary)", textDecoration: "none" }}>
+            Download PDF
+          </a>
+          <p style={{ fontSize: "11.5px", color: "var(--subtext)", marginTop: "6px" }}>
+            Released {new Date(latest.releasedOn + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+          </p>
+        </div>
+      </div>
+
+      <div style={{ ...cardStyle, overflow: "hidden" }}>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: "var(--background)", borderBottom: "1px solid var(--border)" }}>
+                {["Cycle", "Self Rating", "Manager Rating", "Final Rating", "Increment", "Promotion", "Released"].map((h) => (
+                  <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.5px", whiteSpace: "nowrap" }}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {ratings.map((r, i) => (
+                <tr key={r.cycle} style={{ borderBottom: i < ratings.length - 1 ? "1px solid var(--border)" : "none" }}>
+                  <td style={{ padding: "13px 16px", fontSize: "13.5px", color: "var(--text)", fontWeight: 600 }}>{r.cycle}</td>
+                  <td style={{ padding: "13px 16px", fontSize: "13.5px", color: "var(--text)" }}>{r.selfRating} / 5</td>
+                  <td style={{ padding: "13px 16px", fontSize: "13.5px", color: "var(--text)" }}>
+                    {r.originalManagerRating} / 5
+                    {r.calibrationAdjusted && (
+                      <span style={{ marginLeft: "6px", fontSize: "11px", color: "var(--amber)", fontWeight: 600 }}>(pre-calibration)</span>
+                    )}
+                  </td>
+                  <td style={{ padding: "13px 16px", fontSize: "13.5px", color: "var(--primary)", fontWeight: 700 }}>{r.finalRating} / 5</td>
+                  <td style={{ padding: "13px 16px", fontSize: "13.5px", color: "var(--green)", fontWeight: 600 }}>{r.increment}</td>
+                  <td style={{ padding: "13px 16px" }}>
+                    {r.promotion ? <StatusBadge label="Promoted" color="#16a34a" bg="#f0fdf4" /> : <span style={{ fontSize: "12.5px", color: "var(--subtext)" }}>—</span>}
+                  </td>
+                  <td style={{ padding: "13px 16px", fontSize: "12px", color: "var(--subtext)", whiteSpace: "nowrap" }}>
+                    {new Date(r.releasedOn + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------- Page ---------------------------------- */
+
+const TABS = [
+  { key: "goals", label: "Goals & OKRs", icon: Target },
+  { key: "review", label: "Review Cycle", icon: ClipboardCheck },
+  { key: "feedback", label: "Feedback", icon: MessageSquare },
+  { key: "oneOnOnes", label: "1:1s", icon: Users },
+  { key: "ratings", label: "Ratings History", icon: Award },
+];
+
+export default function Performance() {
+  const [activeTab, setActiveTab] = useState("goals");
+  const [loading, setLoading] = useState(true);
+
+  const [goals, setGoals] = useState([]);
+  const [cycle, setCycle] = useState(null);
+  const [selfAssessment, setSelfAssessment] = useState({ submitted: false, responses: [] });
+  const [managerReview, setManagerReview] = useState({ submitted: false, responses: [] });
+  const [feedback, setFeedback] = useState([]);
+  const [oneOnOnes, setOneOnOnes] = useState([]);
+  const [ratings, setRatings] = useState([]);
+
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([
+      getGoals(ME.id),
+      getReviewCycle(),
+      getSelfAssessment(),
+      getManagerReview(),
+      getFeedback(ME.id),
+      getOneOnOnes(ME.id),
+      getRatingsHistory(ME.id),
+    ]).then(([g, c, sa, mr, fb, oo, r]) => {
+      setGoals(g.data);
+      setCycle(c.data);
+      setSelfAssessment(sa.data);
+      setManagerReview(mr.data);
+      setFeedback(fb.data);
+      setOneOnOnes(oo.data);
+      setRatings(r.data);
+    }).finally(() => setLoading(false));
+  }, []);
+
+  const handleToggleAction = (noteId, actionId) => {
+    setOneOnOnes((prev) =>
+      prev.map((n) =>
+        n.id === noteId
+          ? { ...n, actionItems: n.actionItems.map((a) => (a.id === actionId ? { ...a, done: !a.done } : a)) }
+          : n
+      )
+    );
+  };
+
+  if (loading) {
+    return (
+      <MainLayout>
+        <Spinner />
+      </MainLayout>
+    );
+  }
+
+  return (
+    <MainLayout>
+      <div style={{ maxWidth: "1480px", margin: "0 auto" }}>
+        <PageHeader title="Performance" subtitle={cycle ? `${cycle.name} — Goals, reviews and feedback` : "Goals, reviews and feedback"} />
+
+        <TabNav tabs={TABS} active={activeTab} onChange={setActiveTab} />
+
+        {activeTab === "goals" && (
+          <GoalsTab goals={goals} cycle={cycle} onGoalAdded={(g) => setGoals((prev) => [g, ...prev])} />
+        )}
+
+        {activeTab === "review" && (
+          <ReviewCycleTab
+            cycle={cycle}
+            goals={goals}
+            selfAssessment={selfAssessment}
+            managerReview={managerReview}
+            onSelfAssessmentSubmitted={setSelfAssessment}
+          />
+        )}
+
+        {activeTab === "feedback" && (
+          <FeedbackTab feedback={feedback} goals={goals} onFeedbackAdded={(f) => setFeedback((prev) => [f, ...prev])} />
+        )}
+
+        {activeTab === "oneOnOnes" && (
+          <OneOnOnesTab notes={oneOnOnes} onNoteAdded={(n) => setOneOnOnes((prev) => [n, ...prev])} onToggleAction={handleToggleAction} />
+        )}
+
+        {activeTab === "ratings" && <RatingsTab ratings={ratings} />}
+      </div>
+    </MainLayout>
+  );
+}

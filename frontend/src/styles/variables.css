@@ -1,0 +1,73 @@
+:root {
+  /* ─── Brand: Ocean Teal ───────────────────────────────── */
+  --primary: #0f766e;          /* Teal-700 — main CTA, links  */
+  --primary-hover: #0d6860;    /* Darker on hover             */
+  --primary-light: #f0fdfa;    /* Teal-50  — tinted bg        */
+  --primary-text: #ffffff;
+
+  --accent: #0891b2;           /* Cyan-600 — secondary accent */
+  --accent-light: #ecfeff;
+
+  /* ─── Backgrounds ─────────────────────────────────────── */
+  --background: #f0f4f8;       /* Cool off-white page bg      */
+  --card: #ffffff;
+  --card-hover: #fafcfe;
+
+  /* ─── Sidebar — deep navy ─────────────────────────────── */
+  --sidebar-bg: #0d1b2a;       /* Deep navy                   */
+  --sidebar-gradient: linear-gradient(180deg, #0d1b2a 0%, #0f2539 100%);
+  --sidebar-active: rgba(15,118,110,0.18);    /* Teal glow    */
+  --sidebar-active-border: #0f766e;
+  --sidebar-text: #8ba3b8;
+  --sidebar-text-active: #ffffff;
+  --sidebar-section: rgba(139,163,184,0.45);
+
+  /* ─── Navbar ──────────────────────────────────────────── */
+  --navbar-bg: rgba(255,255,255,0.92);
+  --navbar-blur: blur(12px);
+
+  /* ─── Borders ─────────────────────────────────────────── */
+  --border: #dde5ee;
+  --border-focus: #0f766e;
+
+  /* ─── Typography ──────────────────────────────────────── */
+  --text: #0e1e2c;             /* Near-black                  */
+  --subtext: #5a7a8e;
+  --label: #3d5a70;
+
+  /* ─── Semantic ────────────────────────────────────────── */
+  --green: #059669;
+  --green-light: #ecfdf5;
+  --amber: #d97706;
+  --amber-light: #fffbeb;
+  --red: #dc2626;
+  --red-light: #fef2f2;
+  --blue: #2563eb;
+  --blue-light: #eff6ff;
+  --purple: #7c3aed;
+  --purple-light: #f5f3ff;
+
+  /* ─── Elevation ───────────────────────────────────────── */
+  --shadow-xs:  0 1px 2px rgba(13,27,42,0.04);
+  --shadow-sm:  0 1px 4px rgba(13,27,42,0.06), 0 1px 2px rgba(13,27,42,0.04);
+  --shadow-md:  0 4px 16px rgba(13,27,42,0.09), 0 2px 6px rgba(13,27,42,0.05);
+  --shadow-lg:  0 8px 32px rgba(13,27,42,0.12), 0 4px 12px rgba(13,27,42,0.07);
+  --shadow-xl:  0 20px 60px rgba(13,27,42,0.16), 0 8px 20px rgba(13,27,42,0.08);
+
+  /* Colored glow shadows for hero cards */
+  --shadow-teal: 0 8px 32px rgba(15,118,110,0.18);
+  --shadow-cyan: 0 8px 32px rgba(8,145,178,0.18);
+
+  /* ─── Geometry ────────────────────────────────────────── */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 28px;
+
+  /* ─── Layout ──────────────────────────────────────────── */
+  --sidebar-width: 248px;
+  --sidebar-collapsed: 64px;
+  --navbar-height: 64px;
+}
