@@ -206,6 +206,7 @@ async function main() {
   await prisma.designation.deleteMany();
   await prisma.location.deleteMany();
   await prisma.department.deleteMany();
+  await prisma.businessUnit.deleteMany();
   await prisma.company.deleteMany();
 
   // Company
@@ -213,10 +214,15 @@ async function main() {
     data: { name: "Proteccio Technologies Pvt. Ltd.", registrationNumber: "U72900TG2023PTC123456", country: "India", currency: "INR" },
   });
 
+  // Business Unit
+  const bu = await prisma.businessUnit.create({
+    data: { companyId: company.id, name: "Core Business" },
+  });
+
   // Departments / Locations / Designations
   const deptByName = new Map<string, string>();
   for (const name of DEPARTMENTS) {
-    const d = await prisma.department.create({ data: { companyId: company.id, name } });
+    const d = await prisma.department.create({ data: { companyId: company.id, businessUnitId: bu.id, name } });
     deptByName.set(name, d.id);
   }
 

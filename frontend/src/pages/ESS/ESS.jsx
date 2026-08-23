@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Employee Self Service (ESS) Page � Module 16
  * Tabs: Overview � Tax Declaration � Download My Data
  *
@@ -24,6 +24,7 @@ import {
   Plus,
   ShieldCheck,
   Clock3,
+  UserCog,
 } from "lucide-react";
 import MainLayout from "../../components/layout/MainLayout";
 import PageHeader from "../../components/shared/PageHeader";
