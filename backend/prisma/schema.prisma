@@ -591,6 +591,13 @@ model Application {
   stage         String   @default("Applied") @db.VarChar(30)
   rating        Int      @default(0)
   notes         String?  @db.Text
+  approvalStatus String   @default("HR Review") @map("approval_status") @db.VarChar(40)
+  firstApprovedBy String? @map("first_approved_by") @db.Uuid
+  firstApprovedAt DateTime? @map("first_approved_at") @db.Timestamp(6)
+  secondApprovedBy String? @map("second_approved_by") @db.Uuid
+  secondApprovedAt DateTime? @map("second_approved_at") @db.Timestamp(6)
+  approvalNotes String? @map("approval_notes") @db.Text
+  employeeId String? @unique @map("employee_id") @db.Uuid
   appliedOn     DateTime @default(now()) @map("applied_on") @db.Date
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
@@ -599,6 +606,7 @@ model Application {
   requisition JobRequisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
   interviews  Interview[]
   offer       Offer?
+  documents   CandidateDocument[]
 
   @@unique([candidateId, requisitionId])
   @@index([candidateId])
@@ -666,6 +674,10 @@ model Offer {
   financeOverride Boolean   @default(false) @map("finance_override")
   overrideReason  String?   @map("override_reason") @db.Text
   sentAt          DateTime? @map("sent_at") @db.Date
+  invitationTokenHash String? @unique @map("invitation_token_hash") @db.VarChar(64)
+  invitationExpiresAt DateTime? @map("invitation_expires_at") @db.Timestamp(6)
+  decisionAt DateTime? @map("decision_at") @db.Timestamp(6)
+  joiningDate DateTime? @map("joining_date") @db.Date
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
 
@@ -673,6 +685,26 @@ model Offer {
 
   @@index([status])
   @@map("offers")
+}
+
+model CandidateDocument {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  applicationId   String    @map("application_id") @db.Uuid
+  documentType    String    @map("document_type") @db.VarChar(60)
+  fileName        String    @map("file_name") @db.VarChar(255)
+  fileUrl         String    @map("file_url") @db.Text
+  status          String    @default("Pending Verification") @db.VarChar(30)
+  rejectionReason String?   @map("rejection_reason") @db.Text
+  verifiedBy      String?   @map("verified_by") @db.Uuid
+  verifiedAt      DateTime? @map("verified_at") @db.Timestamp(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@index([status])
+  @@map("candidate_documents")
 }
 
 // ── Performance Management (Module 10) ──────────────────────────────────────

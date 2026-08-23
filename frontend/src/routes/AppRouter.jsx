@@ -38,6 +38,7 @@ const Reports             = lazy(() => import("../pages/Reports/Reports"));
 const Notifications       = lazy(() => import("../pages/Notifications/Notifications"));
 const Compliance          = lazy(() => import("../pages/Compliance/Compliance"));
 const SecurityAdmin       = lazy(() => import("../pages/SecurityAdmin/SecurityAdmin"));
+const CandidatePortal     = lazy(() => import("../pages/CandidatePortal/CandidatePortal"));
 
 function Loading() {
   return (
@@ -54,6 +55,8 @@ export default function AppRouter() {
         <Routes>
           {/* Public */}
           <Route path="/login" element={<Login />} />
+          <Route path="/careers" element={<CandidatePortal />} />
+          <Route path="/candidate/offer/:token" element={<CandidatePortal />} />
 
           {/* Authenticated — dashboard chosen by the logged-in user's real role */}
           <Route path="/" element={<RequireAuth><DashboardRouter /></RequireAuth>} />
@@ -67,7 +70,7 @@ export default function AppRouter() {
           <Route path="/performance"         element={<RequireAuth><Performance /></RequireAuth>} />
 
           {/* Talent */}
-          <Route path="/recruitment"         element={<RequireAuth><Recruitment /></RequireAuth>} />
+          <Route path="/recruitment"         element={<RequireAuth permission="recruitment:read"><Recruitment /></RequireAuth>} />
           <Route path="/onboarding"          element={<RequireAuth><Onboarding /></RequireAuth>} />
           <Route path="/lms"                 element={<RequireAuth><LMS /></RequireAuth>} />
 

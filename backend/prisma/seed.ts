@@ -190,6 +190,16 @@ async function main() {
   await prisma.workflowInstance.deleteMany();
   await prisma.workflowDefinitionStep.deleteMany();
   await prisma.workflowDefinition.deleteMany();
+  await prisma.performanceReviewItem.deleteMany();
+  await prisma.performanceReview.deleteMany();
+  await prisma.performanceKeyResult.deleteMany();
+  await prisma.performanceGoal.deleteMany();
+  await prisma.performanceFeedback.deleteMany();
+  await prisma.performanceOneOnOneAgenda.deleteMany();
+  await prisma.performanceOneOnOneAction.deleteMany();
+  await prisma.performanceOneOnOne.deleteMany();
+  await prisma.performanceRatingHistory.deleteMany();
+  await prisma.performanceReviewCycle.deleteMany();
   await prisma.payslip.deleteMany();
   await prisma.payrollRun.deleteMany();
   await prisma.salaryStructure.deleteMany();
