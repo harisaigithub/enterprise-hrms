@@ -488,8 +488,18 @@ function CandidateCard({ candidate, requisitionTitle, onMove }) {
   const nextStage = PIPELINE_STAGES[idx + 1];
 
   return (
-    <div style={{ ...cardStyle, padding: "12px 14px", marginBottom: "10px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+<div
+  style={{
+    ...cardStyle,
+    width: "100%",
+    minWidth: 0,
+    boxSizing: "border-box",
+    padding: "12px 14px",
+    marginBottom: "10px",
+    overflow: "hidden",
+  }}
+>
+<div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
         <div>
           <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--text)" }}>{candidate.name}</p>
           <p style={{ fontSize: "11px", color: "var(--subtext)" }}>{requisitionTitle}</p>
@@ -524,13 +534,22 @@ function PipelineTab({ candidates, requisitions, onCandidateAdded, onMove }) {
         <PrimaryButton onClick={() => setShowAdd(true)}><Plus size={16} /> Add Candidate</PrimaryButton>
       </div>
 
-      <div style={{ display: "flex", gap: "14px", overflowX: "auto", paddingBottom: "8px" }}>
+<div
+  style={{
+    display: "grid",
+    gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+    gap: "14px",
+    width: "100%",
+    minWidth: 0,
+    paddingBottom: "8px",
+  }}
+>
         {PIPELINE_STAGES.map((stage) => {
           const stageCandidates = candidates.filter((c) => c.stage === stage);
           const meta = stageMeta[stage];
           return (
-            <div key={stage} style={{ minWidth: "230px", flexShrink: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+<div key={stage} style={{ minWidth: 0 }}>
+<div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
                 <span style={{ fontSize: "11.5px", fontWeight: 700, color: meta.color, background: meta.bg, padding: "3px 10px", borderRadius: "99px" }}>{stage}</span>
                 <span style={{ fontSize: "11.5px", color: "var(--subtext)" }}>{stageCandidates.length}</span>
               </div>
