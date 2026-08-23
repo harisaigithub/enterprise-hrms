@@ -13,6 +13,7 @@ import {
   Star,
   X,
   ShieldCheck,
+  UserPlus,
   AlertTriangle,
 } from "lucide-react";
 import MainLayout from "../../components/layout/MainLayout";
@@ -33,10 +34,11 @@ import {
   getOffers,
   createOffer,
   updateOfferStatus,
-} from "../../services/recruitmentService";
+} from "../../services/Recruitmentservice";
 
 import { getEmployees } from "../../services/employeeService";
 import { getDepartments, getGrades } from "../../services/Orgmanagementservice";
+import CandidateLifecycleTab from "./CandidateLifecycleTab";
 
 const requisitionStatusMeta = {
   Draft: { color: "#64748b", bg: "#f1f5f9" },
@@ -1081,6 +1083,7 @@ const TABS = [
   { key: "pipeline", label: "Candidate Pipeline", icon: KanbanSquare },
   { key: "interviews", label: "Interviews", icon: Users2 },
   { key: "offers", label: "Offers", icon: FileSignature },
+  { key: "candidate-lifecycle", label: "Candidate Onboarding", icon: UserPlus },
 ];
 
 export default function Recruitment() {
@@ -1185,6 +1188,7 @@ export default function Recruitment() {
             onUpdate={handleOfferUpdate}
           />
         )}
+        {activeTab === "candidate-lifecycle" && <CandidateLifecycleTab />}
       </div>
     </MainLayout>
   );

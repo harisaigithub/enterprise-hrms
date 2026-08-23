@@ -9,6 +9,7 @@ import payrollRoutes from "../modules/payroll/payroll.routes";
 import searchRoutes from "../modules/search/search.routes";
 import workflowRoutes from "../modules/workflow/workflow.routes";
 import performanceRoutes from "../modules/performance/performance.routes";
+import candidateLifecycleRoutes from "../modules/candidateLifecycle/candidateLifecycle.routes";
 
 const router = Router();
 
@@ -18,6 +19,7 @@ if (!serviceName || serviceName === "auth") router.use("/auth", authRoutes);
 if (!serviceName || serviceName === "organization") router.use("/organization", organizationManagementRoutes);
 if (!serviceName || serviceName === "employees") router.use("/employees", employeeRoutes);
 if (!serviceName || serviceName === "recruitment") router.use("/recruitment", recruitmentRoutes);
+if (!serviceName || serviceName === "recruitment") router.use("/candidate-lifecycle", candidateLifecycleRoutes);
 if (!serviceName || serviceName === "attendance") router.use("/attendance", attendanceRoutes);
 if (!serviceName || serviceName === "leave") router.use("/leave", leaveRoutes);
 if (!serviceName || serviceName === "payroll") router.use("/payroll", payrollRoutes);

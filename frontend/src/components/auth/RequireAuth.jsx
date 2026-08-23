@@ -8,8 +8,8 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import Spinner from "../shared/Spinner";
 
-export default function RequireAuth({ children }) {
-  const { user, loading } = useAuth();
+export default function RequireAuth({ children, permission }) {
+  const { user, loading, permissions } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -22,6 +22,10 @@ export default function RequireAuth({ children }) {
 
   if (!user) {
     return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  if (permission && !permissions.includes(permission)) {
+    return <Navigate to="/" replace />;
   }
 
   return children;
