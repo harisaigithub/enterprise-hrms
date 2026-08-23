@@ -19,6 +19,12 @@ Two apps, run locally:
 start-all.cmd
 ```
 
+> **If Docker is failing or not installed:** You can use `start-local.cmd` instead. It will skip checking for Docker and use your local Postgres instance running on port 5432 directly.
+
+```bash
+start-local.cmd
+```
+
 That single command:
 1. performs first-time setup automatically — installs dependencies, creates
    `backend/.env` and `frontend/.env` from their `.env.example` files
