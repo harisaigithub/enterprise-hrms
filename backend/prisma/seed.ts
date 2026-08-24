@@ -99,7 +99,6 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     "tasks:read", "tasks:write",
     "expenses:read", "expenses:write",
     "travel:read", "travel:write",
-    "onboarding:read",
     "separation:read",
     "workflows:read", "workflows:approve",
     "notifications:read",
