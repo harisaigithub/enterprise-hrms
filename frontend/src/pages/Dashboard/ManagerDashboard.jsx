@@ -15,6 +15,8 @@ import AnnouncementsWidget from "../../components/dashboard/AnnouncementsWidget"
 import BirthdaysWidget from "../../components/dashboard/BirthdaysWidget";
 import SelfAssessmentWidget from "../../components/dashboard/SelfAssessmentWidget";
 import ComplianceCoursesWidget from "../../components/dashboard/ComplianceCoursesWidget";
+import DashboardQuickActions from "../../components/dashboard/DashboardQuickActions";
+import CollapsibleDashboardSection from "../../components/dashboard/CollapsibleDashboardSection";
 
 
 export default function ManagerDashboard({ user }) {
@@ -28,6 +30,8 @@ export default function ManagerDashboard({ user }) {
           <p style={{ fontSize: "14px", color: "var(--subtext)", marginTop: "4px" }}>Here's your team and your day at a glance</p>
         </div>
 
+        <DashboardQuickActions />
+
         <p style={{ fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "10px" }}>Your Team</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px", marginBottom: "24px" }}>
           <TeamApprovalsWidget />
@@ -39,12 +43,17 @@ export default function ManagerDashboard({ user }) {
           <AttendanceWidget />
           <LeaveBalanceWidget />
           <PayslipWidget />
-          <HolidaysWidget />
-          <AnnouncementsWidget />
-          <BirthdaysWidget />
           <SelfAssessmentWidget />
-          <ComplianceCoursesWidget />
         </div>
+
+        <CollapsibleDashboardSection title="Updates & reminders" subtitle="Holidays, announcements, birthdays and training">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px" }}>
+            <HolidaysWidget />
+            <AnnouncementsWidget />
+            <BirthdaysWidget />
+            <ComplianceCoursesWidget />
+          </div>
+        </CollapsibleDashboardSection>
       </div>
     </MainLayout>
   );

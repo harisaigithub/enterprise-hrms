@@ -15,7 +15,7 @@ export const balance = asyncHandler(async (req: Request, res: Response) => {
   const result = await leaveService.getLeaveBalance({
     employeeId: q.employeeId,
     year: q.year ? Number(q.year) : undefined,
-  });
+  }, req.auth);
   sendSuccess(res, result.data);
 });
 
@@ -24,12 +24,12 @@ export const listRequests = asyncHandler(async (req: Request, res: Response) => 
   const result = await leaveService.listLeaveRequests({
     employeeId: q.employeeId,
     status: q.status,
-  });
+  }, req.auth);
   sendSuccess(res, result.data, result.total);
 });
 
 export const apply = asyncHandler(async (req: Request, res: Response) => {
-  const result = await leaveService.applyLeave(req.body, req.auth?.employeeId);
+  const result = await leaveService.applyLeave(req.body, req.auth);
   sendSuccess(res, result.data, undefined, 201);
 });
 

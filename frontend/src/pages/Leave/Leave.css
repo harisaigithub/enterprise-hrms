@@ -1,0 +1,156 @@
+.leave-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(260px, 0.8fr);
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.leave-donut-panel,
+.leave-detail-panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.leave-donut-panel {
+  padding: 22px;
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 24px;
+  align-items: center;
+}
+
+.leave-donut-wrap { display: grid; place-items: center; }
+.leave-donut {
+  width: 164px;
+  height: 164px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  transition: transform 180ms ease;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.05);
+  cursor: pointer;
+}
+.leave-donut:hover { transform: scale(1.025); }
+.leave-donut-center {
+  width: 108px;
+  height: 108px;
+  border-radius: 50%;
+  background: var(--card);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08);
+}
+.leave-donut-center strong { font-size: 28px; line-height: 1; color: var(--text); }
+.leave-donut-center span { margin-top: 5px; font-size: 10.5px; color: var(--subtext); }
+.leave-eyebrow { font-size: 10.5px; font-weight: 800; color: var(--primary); text-transform: uppercase; letter-spacing: 0.08em; }
+.leave-donut-legend h2 { margin-top: 4px; font-size: 18px; color: var(--text); }
+.leave-helper { margin-top: 4px; font-size: 12px; color: var(--subtext); }
+.leave-legend-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 15px; }
+.leave-legend {
+  border: 1px solid transparent;
+  background: var(--background);
+  border-radius: 9px;
+  padding: 8px 9px;
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) auto;
+  gap: 7px;
+  align-items: center;
+  color: var(--label);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  font-size: 11.5px;
+}
+.leave-legend:hover, .leave-legend.active { border-color: var(--primary); background: var(--primary-light); }
+.leave-legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+.leave-legend strong { color: var(--text); }
+.leave-detail-panel { padding: 22px; display: flex; flex-direction: column; justify-content: space-between; }
+.leave-detail-panel h3 { font-size: 19px; margin-top: 4px; color: var(--text); }
+.leave-detail-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 18px 0; }
+.leave-detail-grid div { padding: 10px; border-radius: 9px; background: var(--background); }
+.leave-detail-grid strong { display: block; font-size: 18px; color: var(--text); }
+.leave-detail-grid span { display: block; margin-top: 2px; font-size: 10.5px; color: var(--subtext); }
+.leave-progress { height: 6px; background: var(--border); border-radius: 999px; overflow: hidden; }
+.leave-progress span { display: block; height: 100%; border-radius: inherit; background: var(--primary); transition: width 250ms ease; }
+
+.leave-balance-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin-bottom: 28px; }
+.leave-balance-card {
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: var(--radius-lg);
+  padding: 12px 14px;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  box-shadow: var(--shadow-sm);
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+.leave-balance-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.leave-balance-card.active { border-color: var(--leave-color); box-shadow: 0 0 0 2px color-mix(in srgb, var(--leave-color) 14%, transparent); }
+.leave-card-icon { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; color: var(--leave-color); background: color-mix(in srgb, var(--leave-color) 11%, white); }
+.leave-balance-card strong { display: block; color: var(--text); font-size: 18px; line-height: 1; }
+.leave-balance-card small { display: block; color: var(--subtext); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.leave-card-total { font-size: 11px; color: var(--subtext); }
+
+.leave-request-header { display: flex; justify-content: space-between; align-items: end; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+.leave-request-header h2 { font-size: 15px; color: var(--text); }
+.leave-request-header p { margin-top: 3px; font-size: 11.5px; color: var(--subtext); }
+.leave-status-cards { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.leave-status-card {
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--status-color);
+  cursor: pointer;
+  font: inherit;
+}
+.leave-status-card span { color: var(--label); font-size: 12px; }
+.leave-status-card strong { margin-left: auto; color: var(--text); }
+.leave-status-card:hover, .leave-status-card.active { border-color: var(--status-color); background: color-mix(in srgb, var(--status-color) 7%, white); }
+
+.leave-decision-cell { min-width: 220px; padding: 13px 16px; font-size: 12px; color: var(--subtext); }
+.leave-decision-cell div { display: grid; gap: 3px; }
+.leave-decision-cell strong { color: var(--text); font-size: 12px; }
+.leave-decision-cell p { margin-top: 3px; white-space: normal; line-height: 1.4; color: var(--label); }
+.leave-decision-cell .leave-rejection-reason { color: #b91c1c; background: #fef2f2; border-left: 3px solid #dc2626; border-radius: 5px; padding: 6px 8px; }
+.leave-awaiting, .leave-self-note { color: var(--subtext); font-size: 11.5px; white-space: nowrap; }
+.leave-row-actions { display: flex; gap: 7px; }
+.leave-row-actions button, .leave-decision-actions button { border: 0; border-radius: 7px; padding: 8px 11px; font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.leave-approve-button, .leave-approve-confirm { color: #fff; background: #059669; }
+.leave-reject-button, .leave-reject-confirm { color: #fff; background: #dc2626; }
+.leave-row-actions button:hover, .leave-decision-actions button:hover { filter: brightness(0.94); }
+.leave-decision-form { display: grid; gap: 10px; }
+.leave-decision-summary { display: grid; gap: 4px; padding: 12px; border-radius: 9px; background: var(--background); }
+.leave-decision-summary strong { color: var(--text); }
+.leave-decision-summary span, .leave-decision-summary small { color: var(--subtext); }
+.leave-decision-summary small { margin-top: 4px; line-height: 1.4; }
+.leave-decision-form label { margin-top: 4px; color: var(--label); font-size: 12px; font-weight: 700; }
+.leave-decision-form textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); background: var(--card); font: inherit; font-size: 13px; resize: vertical; outline: none; }
+.leave-decision-form textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent); }
+.leave-character-count { justify-self: end; color: var(--subtext); font-size: 10.5px; }
+.leave-decision-error { color: #b91c1c; background: #fef2f2; border-radius: 7px; padding: 9px 10px; font-size: 12px; }
+.leave-decision-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 5px; }
+.leave-decision-actions .leave-secondary-button { color: var(--label); background: var(--background); border: 1px solid var(--border); }
+.leave-decision-actions button:disabled { cursor: not-allowed; opacity: 0.65; }
+
+@media (max-width: 900px) {
+  .leave-overview { grid-template-columns: 1fr; }
+  .leave-detail-panel { min-height: 220px; }
+}
+@media (max-width: 640px) {
+  .leave-donut-panel { grid-template-columns: 1fr; }
+  .leave-legend-list { grid-template-columns: 1fr; }
+  .leave-status-cards { grid-template-columns: repeat(2, 1fr); }
+}
