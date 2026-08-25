@@ -8,6 +8,7 @@ import {
   serializeLeaveRequestList,
 } from "../../serializers/leave.serializer";
 import { countWeekdays, startOfDay } from "../../serializers/helpers";
+import type { AccessTokenPayload } from "../../lib/jwt";
 
 const REQUEST_INCLUDE = {
   employee: { select: { employeeCode: true, firstName: true, lastName: true } },
@@ -27,11 +28,15 @@ export interface BalanceFilters {
   year?: number;
 }
 
-export async function getLeaveBalance(filters: BalanceFilters) {
+export async function getLeaveBalance(filters: BalanceFilters, actor?: AccessTokenPayload) {
   const year = filters.year ?? new Date().getFullYear();
-  const employee = filters.employeeId
-    ? await prisma.employee.findUnique({ where: { employeeCode: filters.employeeId }, select: { id: true } })
+  const requestedEmployeeCode = ["ADMIN", "HR"].includes(actor?.role ?? "")
+    ? filters.employeeId
+    : actor?.employeeCode;
+  const employee = requestedEmployeeCode
+    ? await prisma.employee.findUnique({ where: { employeeCode: requestedEmployeeCode }, select: { id: true } })
     : null;
+  if (requestedEmployeeCode && !employee) throw AppError.notFound("Employee not found");
 
   const balances = await prisma.leaveBalance.findMany({
     where: { year, ...(employee ? { employeeId: employee.id } : {}) },
@@ -68,9 +73,20 @@ export interface RequestFilters {
   status?: string;
 }
 
-export async function listLeaveRequests(filters: RequestFilters) {
+export async function listLeaveRequests(filters: RequestFilters, actor?: AccessTokenPayload) {
   const where: Prisma.LeaveRequestWhereInput = {};
-  if (filters.employeeId) where.employee = { employeeCode: filters.employeeId };
+  if (actor?.role === "EMPLOYEE") {
+    if (!actor.employeeId) throw AppError.forbidden("Employee account is not linked");
+    where.employeeId = actor.employeeId;
+  } else if (actor?.role === "MANAGER") {
+    if (!actor.employeeId) throw AppError.forbidden("Manager account is not linked");
+    where.OR = [
+      { employeeId: actor.employeeId },
+      { employee: { reportingManagerId: actor.employeeId } },
+    ];
+  } else if (filters.employeeId) {
+    where.employee = { employeeCode: filters.employeeId };
+  }
   if (filters.status) where.status = filters.status;
 
   const rows = await prisma.leaveRequest.findMany({
@@ -90,7 +106,7 @@ export interface ApplyLeaveInput {
   reason?: string;
 }
 
-export async function applyLeave(input: ApplyLeaveInput, actorEmployeeId?: string) {
+export async function applyLeave(input: ApplyLeaveInput, actor?: AccessTokenPayload) {
   const start = new Date(`${input.startDate}T00:00:00Z`);
   const end = new Date(`${input.endDate}T00:00:00Z`);
   if (end < start) throw AppError.badRequest("End date cannot be before start date");
@@ -99,12 +115,16 @@ export async function applyLeave(input: ApplyLeaveInput, actorEmployeeId?: strin
   if (days <= 0) throw AppError.badRequest("Leave period contains no working days");
 
   // Never trust client: employee is resolved from the authenticated user unless
-  // the caller has employees:write (HR/admin applying on behalf of someone).
-  let employee = actorEmployeeId
-    ? await prisma.employee.findUnique({ where: { id: actorEmployeeId }, select: { id: true } })
+  // the caller is HR/admin and explicitly applies on behalf of someone.
+  let employee = actor?.employeeId
+    ? await prisma.employee.findUnique({ where: { id: actor.employeeId }, select: { id: true } })
     : null;
 
   if (input.employeeId && input.employeeId !== "") {
+    const canApplyForOthers = ["ADMIN", "HR"].includes(actor?.role ?? "");
+    if (!canApplyForOthers && input.employeeId !== actor?.employeeCode) {
+      throw AppError.forbidden("You cannot apply for leave on behalf of another employee");
+    }
     const target = await prisma.employee.findUnique({ where: { employeeCode: input.employeeId }, select: { id: true } });
     if (!target) throw AppError.notFound("Employee not found");
     employee = target;
@@ -208,6 +228,8 @@ export async function approveLeave(requestId: string, approverEmployeeId: string
 }
 
 export async function rejectLeave(requestId: string, approverEmployeeId: string, comments?: string) {
+  const rejectionReason = comments?.trim();
+  if (!rejectionReason) throw AppError.badRequest("Rejection reason is required");
   const request = await getRequestForAction(requestId);
   if (request.status !== "Pending") throw AppError.conflict(`Only pending requests can be rejected (current: ${request.status})`);
 
@@ -217,7 +239,7 @@ export async function rejectLeave(requestId: string, approverEmployeeId: string,
 
   const updated = await prisma.leaveRequest.update({
     where: { id: request.id },
-    data: { status: "Rejected", approvedBy: approverEmployeeId, approvedOn: new Date(), comments: comments ?? null },
+    data: { status: "Rejected", approvedBy: approverEmployeeId, approvedOn: new Date(), comments: rejectionReason },
     include: REQUEST_INCLUDE,
   });
 
@@ -226,10 +248,10 @@ export async function rejectLeave(requestId: string, approverEmployeeId: string,
     entityType: "LeaveRequest",
     entityId: request.id,
     oldValue: { status: "Pending" },
-    newValue: { status: "Rejected", comments: comments ?? null },
+    newValue: { status: "Rejected", comments: rejectionReason },
   });
 
-  return { data: { id: updated.id, status: "Rejected", comments: comments ?? "" } };
+  return { data: { id: updated.id, status: "Rejected", comments: rejectionReason } };
 }
 
 export function normalizeDateRange(start: Date, end: Date): { start: Date; end: Date } {

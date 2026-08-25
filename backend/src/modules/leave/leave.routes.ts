@@ -25,8 +25,12 @@ const applyBodySchema = z.object({
   reason: z.string().max(1000).optional(),
 });
 
-const decisionBodySchema = z.object({
+const approvalBodySchema = z.object({
   comments: z.string().max(1000).optional(),
+});
+
+const rejectionBodySchema = z.object({
+  comments: z.string().trim().min(1, "Rejection reason is required").max(1000),
 });
 
 // GET /api/leave/types — leave:read
@@ -42,10 +46,10 @@ router.get("/requests", authenticate, requirePermission("leave:read"), validate(
 router.post("/apply", authenticate, requirePermission("leave:write"), validate({ body: applyBodySchema }), leaveController.apply);
 
 // PUT /api/leave/:id/approve — leave:approve
-router.put("/:id/approve", authenticate, requirePermission("leave:approve"), validate({ body: decisionBodySchema }), leaveController.approve);
+router.put("/:id/approve", authenticate, requirePermission("leave:approve"), validate({ body: approvalBodySchema }), leaveController.approve);
 
 // PUT /api/leave/:id/reject — leave:approve
-router.put("/:id/reject", authenticate, requirePermission("leave:approve"), validate({ body: decisionBodySchema }), leaveController.reject);
+router.put("/:id/reject", authenticate, requirePermission("leave:approve"), validate({ body: rejectionBodySchema }), leaveController.reject);
 
 // GET /api/leave/types/:code — leave:read
 router.get("/types/:code", authenticate, requirePermission("leave:read"), leaveController.getLeaveTypePublic);

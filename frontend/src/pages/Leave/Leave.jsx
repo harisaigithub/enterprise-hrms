@@ -2,19 +2,132 @@
  * Leave Management Page — Module 6
  */
 
-import { useState, useEffect } from "react";
-import { Plus, CalendarDays } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import {
+  Plus,
+  CalendarDays,
+  Umbrella,
+  HeartPulse,
+  Sparkles,
+  CircleDollarSign,
+  CheckCircle2,
+  Clock3,
+  XCircle,
+} from "lucide-react";
 import MainLayout from "../../components/layout/MainLayout";
 import PageHeader from "../../components/shared/PageHeader";
 import StatusBadge from "../../components/shared/StatusBadge";
 import Spinner from "../../components/shared/Spinner";
 import EmptyState from "../../components/shared/EmptyState";
 import Modal from "../../components/shared/Modal";
-import { getMyLeaveBalance, getLeaveRequests, getLeaveTypes, applyLeave } from "../../services/leaveService";
+import {
+  getMyLeaveBalance,
+  getLeaveRequests,
+  getLeaveTypes,
+  applyLeave,
+  approveLeave,
+  rejectLeave,
+} from "../../services/leaveService";
 import { useAuth } from "../../context/AuthContext";
 import { leaveStatusMeta } from "../../mock/leave";
+import "./Leave.css";
 
-function ApplyLeaveModal({ isOpen, onClose, leaveTypes, employeeId }) {
+const LEAVE_COLORS = ["#0f766e", "#7c3aed", "#0284c7", "#d97706", "#dc2626"];
+
+function leaveIcon(name = "") {
+  const normalized = name.toLowerCase();
+  if (normalized.includes("sick")) return HeartPulse;
+  if (normalized.includes("earned")) return Sparkles;
+  if (normalized.includes("unpaid")) return CircleDollarSign;
+  return Umbrella;
+}
+
+function LeaveBalanceOverview({ balances, selectedId, onSelect }) {
+  const availableTotal = balances.reduce((sum, item) => sum + Number(item.available || 0), 0);
+  const distributionTotal = availableTotal || balances.length || 1;
+  const segments = balances.map((item, index) => {
+    const value = availableTotal ? Number(item.available || 0) : 1;
+    const precedingValue = balances
+      .slice(0, index)
+      .reduce((sum, balance) => sum + (availableTotal ? Number(balance.available || 0) : 1), 0);
+    const start = (precedingValue / distributionTotal) * 100;
+    const end = start + (value / distributionTotal) * 100;
+    return { item, start, end, color: LEAVE_COLORS[index % LEAVE_COLORS.length] };
+  });
+  const gradientStops = segments.map((segment) => `${segment.color} ${segment.start}% ${segment.end}%`);
+  const selected = balances.find((item) => item.leaveTypeId === selectedId) || balances[0];
+
+  const handleDonutClick = (event) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - (bounds.left + bounds.width / 2);
+    const y = event.clientY - (bounds.top + bounds.height / 2);
+    const angle = (Math.atan2(y, x) * (180 / Math.PI) + 450) % 360;
+    const percentage = (angle / 360) * 100;
+    const segment = segments.find((entry) => percentage >= entry.start && percentage < entry.end);
+    if (segment) onSelect(segment.item.leaveTypeId);
+  };
+
+  return (
+    <section className="leave-overview" aria-label="Leave balance overview">
+      <div className="leave-donut-panel">
+        <div className="leave-donut-wrap">
+          <div
+            className="leave-donut"
+            style={{ background: `conic-gradient(${gradientStops.join(", ") || "#e2e8f0 0 100%"})` }}
+            onClick={handleDonutClick}
+            role="img"
+            aria-label={`${availableTotal} total leave days available. Select a coloured section for details.`}
+          >
+            <div className="leave-donut-center">
+              <strong>{availableTotal}</strong>
+              <span>days available</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="leave-donut-legend">
+          <p className="leave-eyebrow">Leave distribution</p>
+          <h2>My leave balance</h2>
+          <p className="leave-helper">Select a colour or card to view its complete balance.</p>
+          <div className="leave-legend-list">
+            {balances.map((item, index) => (
+              <button
+                type="button"
+                key={item.leaveTypeId}
+                className={selected?.leaveTypeId === item.leaveTypeId ? "leave-legend active" : "leave-legend"}
+                onClick={() => onSelect(item.leaveTypeId)}
+              >
+                <span className="leave-legend-dot" style={{ background: LEAVE_COLORS[index % LEAVE_COLORS.length] }} />
+                <span>{item.leaveTypeName}</span>
+                <strong>{item.available}</strong>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {selected && (
+        <div className="leave-detail-panel" aria-live="polite">
+          <div>
+            <p className="leave-eyebrow">Selected leave</p>
+            <h3>{selected.leaveTypeName}</h3>
+          </div>
+          <div className="leave-detail-grid">
+            <div><strong>{selected.total}</strong><span>Total</span></div>
+            <div><strong>{selected.used}</strong><span>Used</span></div>
+            <div><strong>{selected.available}</strong><span>Remaining</span></div>
+            <div><strong>{selected.pending || 0}</strong><span>Pending</span></div>
+          </div>
+          <div className="leave-progress" aria-label={`${selected.used} of ${selected.total} days used`}>
+            <span style={{ width: `${Math.min(100, (Number(selected.used || 0) / Math.max(1, Number(selected.total || 0))) * 100)}%` }} />
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ApplyLeaveModal({ isOpen, onClose, leaveTypes, employeeId, onSaved }) {
   const [form, setForm] = useState({ leaveTypeId: "", startDate: "", endDate: "", reason: "" });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -40,10 +153,14 @@ function ApplyLeaveModal({ isOpen, onClose, leaveTypes, employeeId }) {
     e.preventDefault();
     if (!validate()) return;
     setSaving(true);
-    await applyLeave({ ...form, employeeId, days: daysBetween() });
-    setSaving(false);
-    onClose();
-    setForm({ leaveTypeId: "", startDate: "", endDate: "", reason: "" });
+    try {
+      await applyLeave({ ...form, employeeId, days: daysBetween() });
+      setForm({ leaveTypeId: "", startDate: "", endDate: "", reason: "" });
+      onClose();
+      await onSaved?.();
+    } finally {
+      setSaving(false);
+    }
   };
 
   const inputStyle = (key) => ({
@@ -100,29 +217,107 @@ function ApplyLeaveModal({ isOpen, onClose, leaveTypes, employeeId }) {
   );
 }
 
+function LeaveDecisionModal({ request, action, onClose, onCompleted }) {
+  const [comments, setComments] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const rejecting = action === "reject";
+
+  const submit = async (event) => {
+    event.preventDefault();
+    const cleanComments = comments.trim();
+    if (rejecting && !cleanComments) {
+      setError("Please enter a rejection reason. The employee will see this message.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      if (rejecting) await rejectLeave(request.id, cleanComments);
+      else await approveLeave(request.id, cleanComments);
+      await onCompleted();
+      onClose();
+    } catch (err) {
+      setError(err?.response?.data?.message || err?.message || "Unable to update this leave request.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      isOpen={Boolean(request && action)}
+      title={rejecting ? "Reject Leave Request" : "Approve Leave Request"}
+      onClose={saving ? undefined : onClose}
+    >
+      <form onSubmit={submit} className="leave-decision-form">
+        <div className="leave-decision-summary">
+          <strong>{request?.employeeName}</strong>
+          <span>{request?.leaveTypeName} · {request?.days} day{request?.days === 1 ? "" : "s"}</span>
+          <small>{request?.reason || "No application reason provided"}</small>
+        </div>
+        <label htmlFor="leave-decision-comments">
+          {rejecting ? "Rejection reason *" : "Approval comment (optional)"}
+        </label>
+        <textarea
+          id="leave-decision-comments"
+          value={comments}
+          onChange={(event) => { setComments(event.target.value); setError(""); }}
+          maxLength={1000}
+          rows={4}
+          placeholder={rejecting ? "Explain clearly why this request is being rejected…" : "Add a note for the employee…"}
+          autoFocus
+        />
+        <div className="leave-character-count">{comments.length}/1000</div>
+        {error && <div className="leave-decision-error" role="alert">{error}</div>}
+        <div className="leave-decision-actions">
+          <button type="button" className="leave-secondary-button" onClick={onClose} disabled={saving}>Cancel</button>
+          <button type="submit" className={rejecting ? "leave-reject-confirm" : "leave-approve-confirm"} disabled={saving}>
+            {saving ? "Saving…" : rejecting ? "Reject with reason" : "Approve request"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 export default function Leave() {
-  const { user } = useAuth();
+  const { user, permissions } = useAuth();
   const [balances, setBalances] = useState([]);
   const [requests, setRequests] = useState([]);
   const [leaveTypes, setLeaveTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showApply, setShowApply] = useState(false);
   const [statusFilter, setStatusFilter] = useState("");
+  const [selectedBalanceId, setSelectedBalanceId] = useState(null);
+  const [decision, setDecision] = useState({ request: null, action: "" });
+  const canApprove = permissions.includes("leave:approve");
+  const canApply = permissions.includes("leave:write");
+
+  const loadData = useCallback(async () => {
+    const [balRes, reqRes, ltRes] = await Promise.all([
+      getMyLeaveBalance(user.id),
+      getLeaveRequests(canApprove ? {} : { employeeId: user.id }),
+      getLeaveTypes(),
+    ]);
+    setBalances(balRes.data);
+    setSelectedBalanceId((current) => current || balRes.data?.[0]?.leaveTypeId || null);
+    setRequests(reqRes.data);
+    setLeaveTypes(ltRes.data);
+  }, [canApprove, user.id]);
 
   useEffect(() => {
-    setLoading(true);
-    Promise.all([
-      getMyLeaveBalance(user.id),
-      getLeaveRequests({ employeeId: user.id }),
-      getLeaveTypes(),
-    ]).then(([balRes, reqRes, ltRes]) => {
-      setBalances(balRes.data);
-      setRequests(reqRes.data);
-      setLeaveTypes(ltRes.data);
-    }).catch(() => setLoading(false)).finally(() => setLoading(false));
-  }, [user.id]);
+    const timer = window.setTimeout(() => {
+      loadData().catch(() => undefined).finally(() => setLoading(false));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadData]);
 
   const filtered = statusFilter ? requests.filter((r) => r.status === statusFilter) : requests;
+  const statusCounts = requests.reduce((counts, request) => {
+    counts[request.status] = (counts[request.status] || 0) + 1;
+    return counts;
+  }, {});
 
   if (loading) return <MainLayout><Spinner /></MainLayout>;
 
@@ -130,38 +325,40 @@ export default function Leave() {
     <MainLayout>
       <div style={{ maxWidth: "1480px", margin: "0 auto" }}>
         <PageHeader title="Leave Management" subtitle="Balances, requests and approvals">
-          <button id="apply-leave-btn" onClick={() => setShowApply(true)}
+          {canApply && <button id="apply-leave-btn" onClick={() => setShowApply(true)}
             style={{ display: "flex", alignItems: "center", gap: "6px", padding: "9px 16px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>
             <Plus size={16} /> Apply Leave
-          </button>
+          </button>}
         </PageHeader>
 
-        {/* Balance cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "14px", marginBottom: "28px" }}>
-          {balances.map((b) => (
-            <div key={b.leaveTypeId} style={{ background: "var(--card)", borderRadius: "var(--radius-lg)", border: "1px solid var(--border)", boxShadow: "var(--shadow-sm)", padding: "18px 20px" }}>
-              <p style={{ fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "10px" }}>{b.leaveTypeName}</p>
-              <div style={{ display: "flex", gap: "12px", alignItems: "flex-end" }}>
-                <div>
-                  <p style={{ fontSize: "28px", fontWeight: 800, color: "var(--primary)", lineHeight: 1 }}>{b.available}</p>
-                  <p style={{ fontSize: "11px", color: "var(--subtext)", marginTop: "2px" }}>Available</p>
-                </div>
-                <div style={{ marginBottom: "4px", display: "flex", flexDirection: "column", gap: "2px" }}>
-                  <span style={{ fontSize: "11px", color: "var(--green)", fontWeight: 600 }}>Used: {b.used}</span>
-                  {b.pending > 0 && <span style={{ fontSize: "11px", color: "var(--amber)", fontWeight: 600 }}>Pending: {b.pending}</span>}
-                </div>
-              </div>
-              <div style={{ marginTop: "10px", height: "4px", background: "var(--border)", borderRadius: "99px", overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${Math.min(100, (b.used / b.total) * 100)}%`, background: "var(--primary)", borderRadius: "99px" }} />
-              </div>
-              <p style={{ fontSize: "10px", color: "var(--subtext)", marginTop: "4px" }}>of {b.total} total</p>
-            </div>
-          ))}
+        <LeaveBalanceOverview balances={balances} selectedId={selectedBalanceId} onSelect={setSelectedBalanceId} />
+
+        <div className="leave-balance-cards">
+          {balances.map((balance, index) => {
+            const Icon = leaveIcon(balance.leaveTypeName);
+            const active = balance.leaveTypeId === selectedBalanceId;
+            return (
+              <button
+                type="button"
+                key={balance.leaveTypeId}
+                className={active ? "leave-balance-card active" : "leave-balance-card"}
+                onClick={() => setSelectedBalanceId(balance.leaveTypeId)}
+                style={{ "--leave-color": LEAVE_COLORS[index % LEAVE_COLORS.length] }}
+              >
+                <span className="leave-card-icon"><Icon size={17} /></span>
+                <span><strong>{balance.available}</strong><small>{balance.leaveTypeName}</small></span>
+                <span className="leave-card-total">of {balance.total}</span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Requests table */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
-          <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Leave Requests</h2>
+        <div className="leave-request-header">
+          <div>
+            <h2>{canApprove ? "Leave Requests & Approvals" : "My Leave Requests"}</h2>
+            <p>{canApprove ? "Review team requests and record clear decisions." : "Track every request and the decision reason."}</p>
+          </div>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
             style={{ height: "34px", padding: "0 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontSize: "13px", background: "var(--card)", outline: "none", cursor: "pointer" }}>
             <option value="">All Statuses</option>
@@ -169,15 +366,44 @@ export default function Leave() {
           </select>
         </div>
 
+        <div className="leave-status-cards">
+          {[
+            { key: "", label: "All requests", icon: CalendarDays, color: "#475569" },
+            { key: "Pending", label: "Pending", icon: Clock3, color: "#d97706" },
+            { key: "Approved", label: "Approved", icon: CheckCircle2, color: "#059669" },
+            { key: "Rejected", label: "Rejected", icon: XCircle, color: "#dc2626" },
+          ].map((status) => {
+            const Icon = status.icon;
+            const count = status.key ? statusCounts[status.key] || 0 : requests.length;
+            return (
+              <button
+                type="button"
+                key={status.label}
+                className={statusFilter === status.key ? "leave-status-card active" : "leave-status-card"}
+                onClick={() => setStatusFilter(status.key)}
+                style={{ "--status-color": status.color }}
+              >
+                <Icon size={17} />
+                <span>{status.label}</span>
+                <strong>{count}</strong>
+              </button>
+            );
+          })}
+        </div>
+
         <div style={{ background: "var(--card)", borderRadius: "var(--radius-lg)", border: "1px solid var(--border)", boxShadow: "var(--shadow-sm)", overflow: "hidden" }}>
           {filtered.length === 0 ? (
-            <EmptyState icon={CalendarDays} title="No leave requests" subtitle="Apply for leave using the button above." />
+            <EmptyState
+              icon={CalendarDays}
+              title="No leave requests"
+              subtitle={canApply ? "Apply for leave using the button above." : "There are no requests requiring your attention."}
+            />
           ) : (
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ background: "var(--background)", borderBottom: "1px solid var(--border)" }}>
-                    {["Employee", "Leave Type", "Dates", "Days", "Reason", "Status", "Applied On"].map((h) => (
+                    {["Employee", "Leave Type", "Dates", "Days", "Reason", "Status", "Decision Details", "Applied On", ...(canApprove ? ["Actions"] : [])].map((h) => (
                       <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.5px", whiteSpace: "nowrap" }}>{h}</th>
                     ))}
                   </tr>
@@ -196,9 +422,30 @@ export default function Leave() {
                         <td style={{ padding: "13px 16px", fontSize: "13.5px", color: "var(--text)", textAlign: "center" }}>{req.days}</td>
                         <td style={{ padding: "13px 16px", fontSize: "13px", color: "var(--subtext)", maxWidth: "180px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{req.reason}</td>
                         <td style={{ padding: "13px 16px" }}><StatusBadge label={meta.label} color={meta.color} bg={meta.bg} /></td>
+                        <td className="leave-decision-cell">
+                          {req.status === "Pending" ? (
+                            <span className="leave-awaiting">Awaiting decision</span>
+                          ) : (
+                            <div>
+                              <strong>{req.approverName || "Approver"}</strong>
+                              <span>{req.approvedOn ? new Date(req.approvedOn + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : ""}</span>
+                              {req.comments && <p className={req.status === "Rejected" ? "leave-rejection-reason" : ""}>{req.comments}</p>}
+                            </div>
+                          )}
+                        </td>
                         <td style={{ padding: "13px 16px", fontSize: "12px", color: "var(--subtext)", whiteSpace: "nowrap" }}>
                           {new Date(req.appliedOn + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
                         </td>
+                        {canApprove && (
+                          <td style={{ padding: "13px 16px" }}>
+                            {req.status === "Pending" && req.employeeId !== user.id ? (
+                              <div className="leave-row-actions">
+                                <button type="button" className="leave-approve-button" onClick={() => setDecision({ request: req, action: "approve" })}>Approve</button>
+                                <button type="button" className="leave-reject-button" onClick={() => setDecision({ request: req, action: "reject" })}>Reject</button>
+                              </div>
+                            ) : req.status === "Pending" ? <span className="leave-self-note">Own request</span> : null}
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
@@ -214,6 +461,13 @@ export default function Leave() {
         onClose={() => setShowApply(false)}
         leaveTypes={leaveTypes}
         employeeId={user.id}
+        onSaved={loadData}
+      />
+      <LeaveDecisionModal
+        request={decision.request}
+        action={decision.action}
+        onClose={() => setDecision({ request: null, action: "" })}
+        onCompleted={loadData}
       />
     </MainLayout>
   );
