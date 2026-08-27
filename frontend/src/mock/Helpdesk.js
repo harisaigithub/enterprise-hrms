@@ -2,7 +2,7 @@
  * Mock data — Helpdesk
  */
 
-export const TICKET_CATEGORIES = ["IT Tickets", "HR Tickets", "Finance Tickets", "Asset Support", "HR — Grievance/Confidential"];
+export const TICKET_CATEGORIES = ["IT Tickets", "HR Tickets", "Finance Tickets", "Asset Support", "HR - Grievance/Confidential"];
 
 // 17.3 Preconditions — categories and SLA rules are pre-configured
 export const SLA_HOURS = {
@@ -10,7 +10,7 @@ export const SLA_HOURS = {
   "HR Tickets": 24,
   "Finance Tickets": 24,
   "Asset Support": 16,
-  "HR — Grievance/Confidential": 24,
+  "HR - Grievance/Confidential": 24,
 };
 
 // 17.5 step 2 — category-driven auto-assignment to queue/agent group
@@ -19,12 +19,12 @@ export const CATEGORY_QUEUE = {
   "HR Tickets": "HR",
   "Finance Tickets": "Finance",
   "Asset Support": "Asset Support Team",
-  "HR — Grievance/Confidential": "HR-Compliance (Restricted)",
+  "HR - Grievance/Confidential": "HR-Compliance (Restricted)",
 };
 
 // 17.5 step 6 — this category always routes to the restricted queue, and
 // general agents cannot reassign it (enforced in helpdeskService, not just UI)
-export const RESTRICTED_CATEGORY = "HR — Grievance/Confidential";
+export const RESTRICTED_CATEGORY = "HR - Grievance/Confidential";
 
 // 17.5 step 5 — window to reopen a resolved ticket before it auto-closes
 export const REOPEN_WINDOW_DAYS = 3;

@@ -242,6 +242,9 @@ model Employee {
   oneOnOnesAsEmp   PerformanceOneOnOne[]      @relation("OneOnOneEmployee")
   oneOnOnesAsMgr   PerformanceOneOnOne[]      @relation("OneOnOneManager")
   ratingsHistory   PerformanceRatingHistory[]
+  helpdeskTickets  HelpdeskTicket[]  @relation("HelpdeskRequester")
+  assignedTickets  HelpdeskTicket[]  @relation("HelpdeskAssignee")
+  helpdeskComments HelpdeskComment[]
 
   @@index([departmentId])
   @@index([designationId])
@@ -884,4 +887,54 @@ model PerformanceRatingHistory {
 
   @@index([employeeId])
   @@map("performance_ratings_history")
+}
+
+// ── Helpdesk ───────────────────────────────────────────────────────────────
+
+model HelpdeskTicket {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ticketNumber       String    @unique @map("ticket_number") @db.VarChar(20)
+  requesterId        String    @map("requester_id") @db.Uuid
+  assignedToId       String?   @map("assigned_to_id") @db.Uuid
+  category           String    @db.VarChar(50)
+  queue              String    @db.VarChar(80)
+  subject            String    @db.VarChar(160)
+  description        String    @db.Text
+  priority           String    @default("Medium") @db.VarChar(20)
+  status             String    @default("Open") @db.VarChar(30)
+  isConfidential     Boolean   @default(false) @map("is_confidential")
+  attachmentFileName String?   @map("attachment_file_name") @db.VarChar(255)
+  slaDeadline        DateTime  @map("sla_deadline") @db.Timestamp(6)
+  resolutionNotes    String?   @map("resolution_notes") @db.Text
+  resolvedAt         DateTime? @map("resolved_at") @db.Timestamp(6)
+  closedAt           DateTime? @map("closed_at") @db.Timestamp(6)
+  reopenedAt         DateTime? @map("reopened_at") @db.Timestamp(6)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  requester Employee          @relation("HelpdeskRequester", fields: [requesterId], references: [id], onDelete: Restrict)
+  assignedTo Employee?        @relation("HelpdeskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  comments   HelpdeskComment[]
+
+  @@index([requesterId, createdAt])
+  @@index([queue, status])
+  @@index([assignedToId])
+  @@index([slaDeadline])
+  @@map("helpdesk_tickets")
+}
+
+model HelpdeskComment {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ticketId   String   @map("ticket_id") @db.Uuid
+  authorId   String   @map("author_id") @db.Uuid
+  message    String   @db.Text
+  isInternal Boolean  @default(false) @map("is_internal")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  ticket HelpdeskTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author Employee       @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([ticketId, createdAt])
+  @@index([authorId])
+  @@map("helpdesk_comments")
 }
