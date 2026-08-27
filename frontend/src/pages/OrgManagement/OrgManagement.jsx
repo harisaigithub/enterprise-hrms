@@ -40,7 +40,7 @@ import {
   updateReportingManager,
   bulkReassignDepartment,
   getAuditLog,
-} from "../../services/orgManagementService";
+} from "../../services/Orgmanagementservice";
 import { statusMeta } from "../../mock/orgManagement";
 
 /* ---------------------------------- shared bits ---------------------------------- */

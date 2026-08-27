@@ -11,13 +11,41 @@ import { notFoundHandler, errorHandler } from "./middlewares/errorHandler";
 import { sendSuccess } from "./lib/response";
 import { prisma } from "./lib/prisma";
 import routes from "./routes";
+import fileRoutes from "./routes/file.routes";
 
 const app = express();
 
 app.set("trust proxy", 1);
 
 // Security headers
-app.use(helmet());
+// app.use(helmet());
+app.use(
+  helmet({
+    crossOriginResourcePolicy: {
+      policy: "cross-origin",
+    },
+
+    contentSecurityPolicy: {
+      directives: {
+        ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+
+        "img-src": [
+          "'self'",
+          "data:",
+          "blob:",
+          "http://localhost:4000",
+        ],
+
+        "media-src": [
+          "'self'",
+          "blob:",
+          "http://localhost:4000",
+        ],
+      },
+    },
+  })
+);
+
 
 // CORS
 app.use(
@@ -66,6 +94,8 @@ app.get("/api/health", async (_req: Request, res: Response) => {
   }
   sendSuccess(res, { status: "ok", uptime: process.uptime(), db, env: env.NODE_ENV, timestamp: new Date().toISOString() });
 });
+
+app.use("/uploads", fileRoutes);
 
 // API routes
 app.use("/api", routes);

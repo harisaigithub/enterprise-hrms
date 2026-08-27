@@ -246,6 +246,8 @@ model Employee {
   assignedTickets  HelpdeskTicket[]  @relation("HelpdeskAssignee")
   helpdeskComments HelpdeskComment[]
 
+  courseEnrollments CourseEnrollment[]
+
   @@index([departmentId])
   @@index([designationId])
   @@index([reportingManagerId])
@@ -938,3 +940,298 @@ model HelpdeskComment {
   @@index([authorId])
   @@map("helpdesk_comments")
 }
+
+enum OnboardingStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ChecklistItemStatus {
+  Pending
+  Complete
+  Blocked
+  Pending_Procurement
+}
+
+model Onboarding {
+  id String @id @default(uuid())
+
+  employeeId String  @unique
+  offerId    String? @unique
+
+  joinDate         DateTime
+  probationEndDate DateTime
+  buddy            String?
+
+  status OnboardingStatus @default(NOT_STARTED)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  checklistItems OnboardingChecklistItem[]
+
+  @@index([status])
+  @@index([joinDate])
+}
+
+model OnboardingChecklistItem {
+  id String @id @default(uuid())
+
+  onboardingId String
+
+  title    String
+  category String
+  owner    String
+
+  dueDate DateTime
+  status  ChecklistItemStatus @default(Pending)
+
+  dependsOn     String?
+  blockedReason String?
+
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  onboarding Onboarding @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+
+  @@index([onboardingId])
+  @@index([status])
+  @@index([dependsOn])
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum EnrollmentStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  PASSED
+  FAILED
+  LOCKED
+}
+
+enum CourseContentType {
+  TEXT
+  PDF
+  VIDEO
+  LINK
+}
+
+model Course {
+  id             String       @id @default(cuid())
+  title          String
+  description    String?
+  thumbnailUrl String?
+  contentModules Json
+  isCompliance   Boolean      @default(false)
+  expiryMonths   Int?
+  passThreshold  Int          @default(70)
+  status         CourseStatus @default(DRAFT)
+  version       Int     @default(1)
+  versionGroupId String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  enrollments CourseEnrollment[]
+  questions   CourseQuizQuestion[]
+
+  contents CourseContent[]
+
+  @@index([status])
+  @@index([isCompliance])
+  @@index([versionGroupId])
+  @@map("courses")
+}
+
+model CourseEnrollment {
+  id           String @id @default(cuid())
+  courseId     String
+  employeeId   String @db.Uuid
+  employeeName String
+
+  status   EnrollmentStatus @default(NOT_STARTED)
+  attempts Int              @default(0)
+  score    Int?
+
+  certifiedAt DateTime?
+  expiresAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  course   Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  quizAttempts CourseQuizAttempt[]
+
+  contentProgress CourseContentProgress[]
+
+  certificate CourseCertificate?
+
+  @@unique([courseId, employeeId])
+  @@index([employeeId])
+  @@index([courseId])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("course_enrollments")
+}
+
+model CourseContent {
+  id         String            @id @default(cuid())
+  courseId   String
+
+  moduleName String
+  title      String
+
+  type       CourseContentType
+  content    String?
+  fileUrl    String?
+  order      Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+  @@index([type])
+  @@unique([courseId, order])
+  @@map("course_contents")
+}
+
+model CourseQuizQuestion {
+  id       String @id @default(cuid())
+  courseId String
+  question String
+  order    Int
+
+  course  Course                    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  options CourseQuizOption[]
+  answers CourseQuizAttemptAnswer[]
+
+  @@unique([courseId, order])
+  @@index([courseId])
+  @@map("course_quiz_questions")
+}
+
+model CourseQuizOption {
+  id         String  @id @default(cuid())
+  questionId String
+  optionText String
+  isCorrect  Boolean @default(false)
+
+  question CourseQuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@map("course_quiz_options")
+}
+
+model CourseQuizAttempt {
+  id           String @id @default(cuid())
+  enrollmentId String
+
+  attemptNumber  Int
+  correctCount   Int
+  totalQuestions Int
+  score          Int
+  passed         Boolean
+
+  attemptedAt DateTime @default(now())
+
+  enrollment CourseEnrollment          @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  answers    CourseQuizAttemptAnswer[]
+
+  @@unique([enrollmentId, attemptNumber])
+  @@index([enrollmentId])
+  @@map("course_quiz_attempts")
+}
+
+model CourseQuizAttemptAnswer {
+  id         String  @id @default(cuid())
+  attemptId  String
+  questionId String
+  optionId   String
+  isCorrect  Boolean
+
+  attempt  CourseQuizAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question CourseQuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([attemptId])
+  @@index([questionId])
+  @@map("course_quiz_attempt_answers")
+}
+
+enum CourseContentProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+model CourseContentProgress {
+  id           String                     @id @default(cuid())
+  enrollmentId String
+  contentId    String
+
+  status       CourseContentProgressStatus @default(NOT_STARTED)
+  startedAt    DateTime?
+  completedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  enrollment CourseEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@unique([enrollmentId, contentId])
+  @@index([enrollmentId])
+  @@index([contentId])
+  @@map("course_content_progress")
+}
+
+enum CertificateStatus {
+  PENDING
+  GENERATED
+  ISSUED
+  EXPIRED
+  REVOKED
+}
+
+model CourseCertificate {
+  id                String            @id @default(cuid())
+  enrollmentId      String            @unique
+  certificateNumber String            @unique
+
+  status            CertificateStatus @default(PENDING)
+
+  issuedAt          DateTime?
+  expiresAt         DateTime?
+
+  certificateUrl    String?
+  storageKey        String?
+
+  verificationToken String            @unique
+  pdfSha256         String?
+
+  generatedAt       DateTime?
+  revokedAt         DateTime?
+  revokeReason      String?
+
+  downloadCount     Int               @default(0)
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  enrollment CourseEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@index([certificateNumber])
+  @@index([verificationToken])
+  @@index([status])
+  @@map("course_certificates")
+}
+
