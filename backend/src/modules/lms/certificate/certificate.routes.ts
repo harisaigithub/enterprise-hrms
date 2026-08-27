@@ -71,7 +71,6 @@ router.get(
 router.get(
   "/learning-certificates/:certificateId/download",
   requirePermission("lms:read"),
-  requireRole("ADMIN", "HR"),
   downloadCertificate
 );
 
