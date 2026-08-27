@@ -1,36 +1,39 @@
 ﻿/**
- * Helpdesk Page � Module 17
+ * Helpdesk Page - Module 17
  * Tabs: My Tickets (raise + track), Agent Queue (resolve).
  * SLA escalation and reopen-window auto-close are computed live by the
  * service , not stored/stale flags.
  */
 
 import { useState, useEffect } from "react";
-import { Plus, Paperclip, AlertTriangle, Lock, RotateCcw } from "lucide-react";
+import { Plus, Paperclip, AlertTriangle, Lock, RotateCcw, Eye, MessageSquare } from "lucide-react";
 import MainLayout from "../../components/layout/MainLayout";
 import PageHeader from "../../components/shared/PageHeader";
 import StatusBadge from "../../components/shared/StatusBadge";
 import Spinner from "../../components/shared/Spinner";
 import EmptyState from "../../components/shared/EmptyState";
 import Modal from "../../components/shared/Modal";
+import { useAuth } from "../../context/AuthContext";
 import {
   getMyTickets, getAgentQueue, getAllQueueNames, raiseTicket, resolveTicket, reopenTicket,
-} from "../../services/helpdeskService";
+  addTicketComment, assignTicket, updateTicketStatus,
+} from "../../services/Helpdeskservice";
 import { TICKET_CATEGORIES, ticketStatusMeta } from "../../mock/helpdesk";
 
-const CURRENT_EMPLOYEE = { id: "EMP014", name: "Ananya Verma" };
 const fmtDateTime = (d) => new Date(d).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+const cleanText = (value) => typeof value === "string" ? value.replaceAll("�", "-") : value;
 
 function RaiseTicketModal({ isOpen, onClose, onRaised }) {
-  const [form, setForm] = useState({ category: "", description: "", attachmentFileName: "" });
+  const [form, setForm] = useState({ category: "", subject: "", description: "", priority: "Medium", attachmentFileName: "" });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
-  const isConfidential = form.category === "HR � Grievance/Confidential";
+  const isConfidential = form.category === "HR - Grievance/Confidential";
 
   const validate = () => {
     const e = {};
     if (!form.category) e.category = "Select a category";
+    if (!form.subject.trim()) e.subject = "Enter a subject";
     if (!form.description.trim()) e.description = "Please describe the issue";
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -41,16 +44,16 @@ function RaiseTicketModal({ isOpen, onClose, onRaised }) {
     if (!validate()) return;
     setSaving(true);
     await raiseTicket({
-      employeeId: CURRENT_EMPLOYEE.id,
-      employeeName: CURRENT_EMPLOYEE.name,
       category: form.category,
+      subject: form.subject.trim(),
       description: form.description.trim(),
+      priority: form.priority,
       attachmentFileName: form.attachmentFileName || null,
     });
     setSaving(false);
     onRaised();
     onClose();
-    setForm({ category: "", description: "", attachmentFileName: "" });
+    setForm({ category: "", subject: "", description: "", priority: "Medium", attachmentFileName: "" });
   };
 
   const inputStyle = (key) => ({
@@ -80,9 +83,22 @@ function RaiseTicketModal({ isOpen, onClose, onRaised }) {
         )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+          <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Subject *</label>
+          <input value={form.subject} onChange={(e) => setForm((p) => ({ ...p, subject: e.target.value }))} maxLength={160} style={inputStyle("subject")} />
+          {errors.subject && <span style={{ fontSize: "11px", color: "var(--red)" }}>{errors.subject}</span>}
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+          <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Priority</label>
+          <select value={form.priority} onChange={(e) => setForm((p) => ({ ...p, priority: e.target.value }))} style={inputStyle("priority")}>
+            {["Low", "Medium", "High", "Critical"].map((p) => <option key={p}>{p}</option>)}
+          </select>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Description *</label>
           <textarea value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} rows={4}
-            placeholder="Describe the issue in as much detail as you can�"
+            placeholder="Describe the issue in as much detail as you can..."
             style={{ width: "100%", padding: "10px 12px", border: `1px solid ${errors.description ? "var(--red)" : "var(--border)"}`, borderRadius: "var(--radius-sm)", fontSize: "13.5px", color: "var(--text)", outline: "none", resize: "vertical", fontFamily: "inherit" }} />
           {errors.description && <span style={{ fontSize: "11px", color: "var(--red)" }}>{errors.description}</span>}
         </div>
@@ -100,7 +116,7 @@ function RaiseTicketModal({ isOpen, onClose, onRaised }) {
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <button type="button" onClick={onClose} style={{ padding: "9px 20px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "none", color: "var(--label)", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>Cancel</button>
           <button id="raise-ticket-btn" type="submit" disabled={saving} style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "#fff", fontWeight: 600, fontSize: "13px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
-            {saving ? "Raising�" : "Raise Ticket"}
+            {saving ? "Raising..." : "Raise Ticket"}
           </button>
         </div>
       </form>
@@ -137,14 +153,14 @@ function ResolveModal({ ticket, onClose, onResolved }) {
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Resolution Notes *</label>
           <textarea value={notes} onChange={(e) => { setNotes(e.target.value); setError(""); }} rows={4}
-            placeholder="What was done to resolve this? (required � a ticket cannot be closed without this)"
+            placeholder="What was done to resolve this? (required - a ticket cannot be closed without this)"
             style={{ width: "100%", padding: "10px 12px", border: `1px solid ${error ? "var(--red)" : "var(--border)"}`, borderRadius: "var(--radius-sm)", fontSize: "13.5px", color: "var(--text)", outline: "none", resize: "vertical", fontFamily: "inherit" }} />
           {error && <span style={{ fontSize: "11px", color: "var(--red)" }}>{error}</span>}
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <button onClick={onClose} style={{ padding: "9px 20px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "none", color: "var(--label)", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>Cancel</button>
           <button onClick={handleResolve} disabled={saving} style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--green)", color: "#fff", fontWeight: 600, fontSize: "13px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
-            {saving ? "Resolving�" : "Mark Resolved"}
+            {saving ? "Resolving..." : "Mark Resolved"}
           </button>
         </div>
       </div>
@@ -156,17 +172,88 @@ function SlaBadge({ ticket }) {
   if (ticket.escalated) {
     return (
       <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 600, color: "var(--red)" }}>
-        <AlertTriangle size={11} /> SLA breached � escalated to {ticket.escalatedTo}
+        <AlertTriangle size={11} /> SLA breached - escalated to {ticket.escalatedTo}
       </span>
     );
   }
   if (["Resolved", "Reopened"].includes(ticket.status) === false) {
-    return <span style={{ fontSize: "11px", color: "var(--subtext)" }}>SLA: {ticket.slaHours}h � due {fmtDateTime(ticket.slaDeadline)}</span>;
+    return <span style={{ fontSize: "11px", color: "var(--subtext)" }}>SLA: {ticket.slaHours}h - due {fmtDateTime(ticket.slaDeadline)}</span>;
   }
   return null;
 }
 
+function ReopenModal({ ticket, onClose, onReopened }) {
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const submit = async () => {
+    if (reason.trim().length < 3) return setError("Please explain why the issue is not resolved.");
+    setSaving(true);
+    try {
+      await reopenTicket(ticket.id, reason.trim());
+      await onReopened();
+      onClose();
+    } catch (err) { setError(err.message); } finally { setSaving(false); }
+  };
+  return (
+    <Modal isOpen={!!ticket} title={`Reopen ${ticket?.ticketNumber || "ticket"}`} onClose={onClose}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        <label style={{ fontSize: "12px", fontWeight: 700 }}>Reason for reopening *</label>
+        <textarea rows={4} value={reason} onChange={(e) => { setReason(e.target.value); setError(""); }} placeholder="Explain what is still not working..." style={{ width: "100%", padding: "10px 12px", border: `1px solid ${error ? "var(--red)" : "var(--border)"}`, borderRadius: "var(--radius-sm)", resize: "vertical", fontFamily: "inherit" }} />
+        {error && <span style={{ fontSize: "11px", color: "var(--red)" }}>{error}</span>}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+          <button onClick={onClose} style={{ padding: "8px 16px", border: "1px solid var(--border)", background: "var(--card)", borderRadius: "var(--radius-sm)" }}>Cancel</button>
+          <button onClick={submit} disabled={saving} style={{ padding: "8px 16px", border: 0, background: "var(--red)", color: "#fff", borderRadius: "var(--radius-sm)", fontWeight: 700 }}>{saving ? "Reopening..." : "Reopen Ticket"}</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function TicketDetailModal({ ticket, onClose, onChanged, canManageQueue }) {
+  const [message, setMessage] = useState("");
+  const [internal, setInternal] = useState(false);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  if (!ticket) return null;
+  const submitComment = async () => {
+    if (!message.trim()) return setError("Enter a reply before sending.");
+    setSaving(true);
+    try {
+      await addTicketComment(ticket.id, message.trim(), internal);
+      await onChanged();
+      onClose();
+    } catch (err) { setError(err.message); } finally { setSaving(false); }
+  };
+  return (
+    <Modal isOpen title={`${ticket.ticketNumber} - ${ticket.subject}`} onClose={onClose}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "14px", maxHeight: "70vh", overflowY: "auto" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "10px", padding: "12px", background: "var(--background)", borderRadius: "var(--radius-sm)" }}>
+          <div><small style={{ color: "var(--subtext)" }}>Status</small><div style={{ fontWeight: 700 }}>{ticket.status}</div></div>
+          <div><small style={{ color: "var(--subtext)" }}>Priority</small><div style={{ fontWeight: 700 }}>{ticket.priority}</div></div>
+          <div><small style={{ color: "var(--subtext)" }}>Category</small><div>{ticket.category}</div></div>
+          <div><small style={{ color: "var(--subtext)" }}>Assigned to</small><div>{ticket.assignedAgent}</div></div>
+        </div>
+        <div><strong style={{ fontSize: "12px" }}>Issue</strong><p style={{ marginTop: "5px", color: "var(--label)", lineHeight: 1.55 }}>{cleanText(ticket.description)}</p></div>
+        {ticket.resolutionNotes && <div style={{ padding: "12px", border: "1px solid #bbf7d0", background: "#f0fdf4", borderRadius: "var(--radius-sm)" }}><strong style={{ color: "#166534", fontSize: "12px" }}>Resolution</strong><p style={{ marginTop: "5px", color: "#166534", lineHeight: 1.5 }}>{ticket.resolutionNotes}</p>{ticket.resolvedOn && <small style={{ color: "#15803d" }}>Resolved on {fmtDateTime(ticket.resolvedOn)}</small>}</div>}
+        <div>
+          <strong style={{ fontSize: "12px", display: "flex", gap: "5px", alignItems: "center" }}><MessageSquare size={13} /> Conversation</strong>
+          {(ticket.comments || []).length === 0 ? <p style={{ color: "var(--subtext)", fontSize: "12px", marginTop: "8px" }}>No replies yet.</p> : ticket.comments.map((c) => <div key={c.id} style={{ marginTop: "8px", padding: "10px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: c.isInternal ? "#fffbeb" : "var(--card)" }}><div style={{ display: "flex", justifyContent: "space-between", gap: "10px" }}><strong style={{ fontSize: "12px" }}>{c.author}{c.isInternal ? " (internal)" : ""}</strong><small style={{ color: "var(--subtext)" }}>{fmtDateTime(c.timestamp)}</small></div><p style={{ marginTop: "5px", fontSize: "13px", color: "var(--label)" }}>{cleanText(c.message)}</p></div>)}
+        </div>
+        {ticket.status !== "Closed" && <div style={{ borderTop: "1px solid var(--border)", paddingTop: "12px" }}>
+          <textarea rows={3} value={message} onChange={(e) => { setMessage(e.target.value); setError(""); }} placeholder="Write a reply..." style={{ width: "100%", padding: "10px", border: `1px solid ${error ? "var(--red)" : "var(--border)"}`, borderRadius: "var(--radius-sm)", resize: "vertical", fontFamily: "inherit" }} />
+          {canManageQueue && <label style={{ display: "flex", gap: "7px", alignItems: "center", marginTop: "7px", fontSize: "12px" }}><input type="checkbox" checked={internal} onChange={(e) => setInternal(e.target.checked)} /> Internal note (hidden from employee)</label>}
+          {error && <div style={{ color: "var(--red)", fontSize: "11px", marginTop: "4px" }}>{error}</div>}
+          <button onClick={submitComment} disabled={saving} style={{ marginTop: "8px", padding: "8px 16px", border: 0, background: "var(--primary)", color: "#fff", borderRadius: "var(--radius-sm)", fontWeight: 700 }}>{saving ? "Sending..." : "Send Reply"}</button>
+        </div>}
+      </div>
+    </Modal>
+  );
+}
+
 export default function Helpdesk() {
+  const { role, user } = useAuth();
+  const canManageQueue = ["ADMIN", "HR"].includes(role);
   const [tab, setTab] = useState("mine");
   const [myTickets, setMyTickets] = useState([]);
   const [queueTickets, setQueueTickets] = useState([]);
@@ -175,17 +262,18 @@ export default function Helpdesk() {
   const [loading, setLoading] = useState(true);
   const [showRaise, setShowRaise] = useState(false);
   const [resolveTarget, setResolveTarget] = useState(null);
+  const [reopenTarget, setReopenTarget] = useState(null);
+  const [detailTarget, setDetailTarget] = useState(null);
 
-  const loadMine = () => getMyTickets(CURRENT_EMPLOYEE.id).then((res) => setMyTickets(res.data));
+  const loadMine = () => getMyTickets().then((res) => setMyTickets(res.data));
   const loadQueue = (queue) => getAgentQueue(queue).then((res) => setQueueTickets(res.data));
 
   useEffect(() => {
-    setLoading(true);
     Promise.all([loadMine(), getAllQueueNames()]).then(([, qRes]) => {
       setQueueNames(qRes.data);
       const first = qRes.data[0];
       setActiveQueue(first);
-      return loadQueue(first);
+      return first ? loadQueue(first) : undefined;
     }).finally(() => setLoading(false));
   }, []);
 
@@ -194,14 +282,19 @@ export default function Helpdesk() {
     loadQueue(queue);
   };
 
-  const handleReopen = async (ticket) => {
-    await reopenTicket(ticket.id, "Reopening � issue is not fully resolved.");
-    loadMine();
+  const refreshQueue = () => loadQueue(activeQueue);
+  const handleAssignToMe = async (ticket) => {
+    await assignTicket(ticket.id, user.id);
+    await refreshQueue();
+  };
+  const handleStartProgress = async (ticket) => {
+    await updateTicketStatus(ticket.id, "In Progress");
+    await refreshQueue();
   };
 
   const tabs = [
     { id: "mine", label: "My Tickets" },
-    { id: "queue", label: "Agent Queue" },
+    ...(canManageQueue ? [{ id: "queue", label: "Agent Queue" }] : []),
   ];
 
   if (loading) return <MainLayout><Spinner /></MainLayout>;
@@ -254,7 +347,7 @@ export default function Helpdesk() {
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ background: "var(--background)", borderBottom: "1px solid var(--border)" }}>
-                    {[tab === "queue" ? "Employee" : null, "ID", "Category", "Description", "SLA", "Status", tab === "queue" ? "Actions" : "Reopen"].filter(Boolean).map((h) => (
+                    {[tab === "queue" ? "Employee" : null, "ID", "Category", "Subject", "Priority", "Description", "SLA", "Status", "Actions"].filter(Boolean).map((h) => (
                       <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.5px", whiteSpace: "nowrap" }}>{h}</th>
                     ))}
                   </tr>
@@ -267,11 +360,13 @@ export default function Helpdesk() {
                         {tab === "queue" && (
                           <td style={{ padding: "13px 16px", fontSize: "13.5px", color: "var(--text)", fontWeight: 500, whiteSpace: "nowrap" }}>{t.employeeName}</td>
                         )}
-                        <td style={{ padding: "13px 16px", fontSize: "12.5px", color: "var(--subtext)", fontFamily: "monospace", whiteSpace: "nowrap" }}>{t.id}</td>
+                        <td style={{ padding: "13px 16px", fontSize: "12.5px", color: "var(--subtext)", fontFamily: "monospace", whiteSpace: "nowrap" }}>{t.ticketNumber}</td>
                         <td style={{ padding: "13px 16px", fontSize: "13px", color: "var(--text)", whiteSpace: "nowrap" }}>
                           {t.category}
                           {t.isConfidential && <Lock size={11} style={{ marginLeft: "5px", color: "var(--red)", display: "inline", verticalAlign: "middle" }} />}
                         </td>
+                        <td style={{ padding: "13px 16px", fontSize: "13px", color: "var(--text)", fontWeight: 600 }}>{t.subject}</td>
+                        <td style={{ padding: "13px 16px", fontSize: "12px", color: t.priority === "Critical" ? "var(--red)" : "var(--label)", fontWeight: 700 }}>{t.priority}</td>
                         <td style={{ padding: "13px 16px", fontSize: "13px", color: "var(--subtext)", maxWidth: "260px" }}>
                           {t.description}
                           {t.attachmentFileName && (
@@ -286,25 +381,29 @@ export default function Helpdesk() {
                         </td>
                         {tab === "queue" ? (
                           <td style={{ padding: "13px 16px", whiteSpace: "nowrap" }}>
+                            <button onClick={() => setDetailTarget(t)} style={{ padding: "6px 10px", marginRight: "6px", background: "var(--background)", color: "var(--primary)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", cursor: "pointer" }} title="View details"><Eye size={13} /></button>
+                            {t.assignedAgent === "Unassigned" && <button onClick={() => handleAssignToMe(t)} style={{ padding: "6px 10px", marginRight: "6px", background: "#eff6ff", color: "#1d4ed8", border: 0, borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: "12px", cursor: "pointer" }}>Assign to me</button>}
+                            {["Open", "Assigned", "Reopened"].includes(t.status) && t.assignedEmployeeCode && (role === "ADMIN" || t.assignedEmployeeCode === user.id) && <button onClick={() => handleStartProgress(t)} style={{ padding: "6px 10px", marginRight: "6px", background: "#fffbeb", color: "#b45309", border: 0, borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: "12px", cursor: "pointer" }}>Start Progress</button>}
                             <button
                               id={`resolve-${t.id}-btn`}
                               onClick={() => setResolveTarget(t)}
-                              disabled={["Resolved", "Closed"].includes(t.status)}
-                              style={{ padding: "6px 14px", background: "var(--green-light)", color: "var(--green)", border: "none", borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: "12px", cursor: ["Resolved", "Closed"].includes(t.status) ? "not-allowed" : "pointer" }}>
+                              disabled={["Resolved", "Closed"].includes(t.status) || !t.assignedEmployeeCode || (role === "HR" && t.assignedEmployeeCode !== user.id)}
+                              style={{ padding: "6px 14px", background: "var(--green-light)", color: "var(--green)", border: "none", borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: "12px", cursor: ["Resolved", "Closed"].includes(t.status) || !t.assignedEmployeeCode ? "not-allowed" : "pointer" }}>
                               Resolve
                             </button>
                           </td>
                         ) : (
                           <td style={{ padding: "13px 16px" }}>
+                            <button onClick={() => setDetailTarget(t)} style={{ padding: "6px 10px", marginRight: "6px", background: "var(--background)", color: "var(--primary)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", cursor: "pointer" }} title="View details"><Eye size={13} /></button>
                             {t.canReopen ? (
                               <button
                                 id={`reopen-${t.id}-btn`}
-                                onClick={() => handleReopen(t)}
+                                onClick={() => setReopenTarget(t)}
                                 style={{ display: "flex", alignItems: "center", gap: "4px", padding: "6px 12px", background: "var(--red-light)", color: "var(--red)", border: "none", borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: "12px", cursor: "pointer" }}>
                                 <RotateCcw size={12} /> Reopen
                               </button>
                             ) : (
-                              <span style={{ fontSize: "12px", color: "var(--subtext)" }}>�</span>
+                              <span style={{ fontSize: "12px", color: "var(--subtext)" }}>-</span>
                             )}
                           </td>
                         )}
@@ -320,6 +419,8 @@ export default function Helpdesk() {
 
       <RaiseTicketModal isOpen={showRaise} onClose={() => setShowRaise(false)} onRaised={loadMine} />
       <ResolveModal ticket={resolveTarget} onClose={() => setResolveTarget(null)} onResolved={() => loadQueue(activeQueue)} />
+      <ReopenModal ticket={reopenTarget} onClose={() => setReopenTarget(null)} onReopened={loadMine} />
+      <TicketDetailModal ticket={detailTarget} onClose={() => setDetailTarget(null)} canManageQueue={canManageQueue} onChanged={() => tab === "queue" ? loadQueue(activeQueue) : loadMine()} />
     </MainLayout>
   );
 }

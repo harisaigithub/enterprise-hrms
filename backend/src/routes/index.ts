@@ -10,6 +10,7 @@ import searchRoutes from "../modules/search/search.routes";
 import workflowRoutes from "../modules/workflow/workflow.routes";
 import performanceRoutes from "../modules/performance/performance.routes";
 import candidateLifecycleRoutes from "../modules/candidateLifecycle/candidateLifecycle.routes";
+import helpdeskRoutes from "../modules/helpdesk/helpdesk.routes";
 
 const router = Router();
 
@@ -26,5 +27,6 @@ if (!serviceName || serviceName === "payroll") router.use("/payroll", payrollRou
 if (!serviceName || serviceName === "search") router.use("/search", searchRoutes);
 if (!serviceName || serviceName === "workflow") router.use("/workflow", workflowRoutes);
 if (!serviceName || serviceName === "performance") router.use("/performance", performanceRoutes);
+if (!serviceName || serviceName === "helpdesk") router.use("/helpdesk", helpdeskRoutes);
 
 export default router;
