@@ -1,6 +1,50 @@
+# version: "3.9"
+
+# services:
+#   db:
+#     image: postgres:16-alpine
+#     container_name: hrms-postgres
+#     restart: unless-stopped
+#     environment:
+#       POSTGRES_USER: hrms_admin
+#       POSTGRES_PASSWORD: hrms_password
+#       POSTGRES_DB: hrms_db
+#     ports:
+#       - "5433:5432"
+#     volumes:
+#       - hrms_pgdata:/var/lib/postgresql/data
+#     healthcheck:
+#       test: ["CMD-SHELL", "pg_isready -U hrms_admin -d hrms_db"]
+#       interval: 5s
+#       timeout: 5s
+#       retries: 10
+
+#   api:
+#     build:
+#       context: ./backend
+#       dockerfile: Dockerfile
+#     container_name: hrms-api
+#     restart: unless-stopped
+#     env_file:
+#       - ./backend/.env
+#     environment:
+#       DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
+#     ports:
+#       - "4000:4000"
+#     depends_on:
+#       db:
+#         condition: service_healthy
+#     command: sh -c "npx prisma migrate deploy && npm run prisma:seed && node dist/index.js"
+
+# volumes:
+#   hrms_pgdata:
+
+
+
 version: "3.9"
 
 services:
+
   db:
     image: postgres:16-alpine
     container_name: hrms-postgres
@@ -36,5 +80,20 @@ services:
         condition: service_healthy
     command: sh -c "npx prisma migrate deploy && npm run prisma:seed && node dist/index.js"
 
+  minio:
+    image: minio/minio:latest
+    container_name: hrms-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: hrmsadmin
+      MINIO_ROOT_PASSWORD: hrmsminio123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - hrms_minio_data:/data
+    command: server /data --console-address ":9001"
+
 volumes:
   hrms_pgdata:
+  hrms_minio_data:

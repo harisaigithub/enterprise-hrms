@@ -11,6 +11,8 @@ import workflowRoutes from "../modules/workflow/workflow.routes";
 import performanceRoutes from "../modules/performance/performance.routes";
 import candidateLifecycleRoutes from "../modules/candidateLifecycle/candidateLifecycle.routes";
 import helpdeskRoutes from "../modules/helpdesk/helpdesk.routes";
+import onboardingRoutes from "../modules/onboarding/onboarding.routes";
+import lmsRoutes from "../modules/lms/lms.routes";
 
 const router = Router();
 
@@ -28,5 +30,7 @@ if (!serviceName || serviceName === "search") router.use("/search", searchRoutes
 if (!serviceName || serviceName === "workflow") router.use("/workflow", workflowRoutes);
 if (!serviceName || serviceName === "performance") router.use("/performance", performanceRoutes);
 if (!serviceName || serviceName === "helpdesk") router.use("/helpdesk", helpdeskRoutes);
+if (!serviceName || serviceName === "onboarding") { router.use("/onboarding", onboardingRoutes);}
+if (!serviceName || serviceName === "lms") { router.use("/lms", lmsRoutes);}
 
 export default router;
