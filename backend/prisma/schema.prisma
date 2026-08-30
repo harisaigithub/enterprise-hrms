@@ -247,6 +247,7 @@ model Employee {
   helpdeskComments HelpdeskComment[]
 
   courseEnrollments CourseEnrollment[]
+  policyAcknowledgements PolicyAcknowledgement[]
 
   @@index([departmentId])
   @@index([designationId])
@@ -271,6 +272,65 @@ model AuditLog {
   @@index([entityType])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ── Policy Management ─────────────────────────────────────────────────────
+
+model Policy {
+  id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title                    String    @db.VarChar(180)
+  category                 String    @db.VarChar(50)
+  scope                    String    @default("Company-wide") @db.VarChar(150)
+  mandatoryAcknowledgement Boolean   @default(true) @map("mandatory_acknowledgement")
+  reviewCycleMonths        Int?      @map("review_cycle_months")
+  status                   String    @default("Draft") @db.VarChar(20)
+  nextReviewDate           DateTime? @map("next_review_date") @db.Date
+  createdByUserId          String?   @map("created_by_user_id") @db.Uuid
+  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt                DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  versions PolicyVersion[]
+
+  @@index([status])
+  @@index([category])
+  @@map("policies")
+}
+
+model PolicyVersion {
+  id                          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  policyId                    String    @map("policy_id") @db.Uuid
+  versionNumber               Int       @map("version_number")
+  effectiveDate               DateTime? @map("effective_date") @db.Date
+  acknowledgementDeadlineDays Int?      @map("acknowledgement_deadline_days")
+  requiresReacknowledgement   Boolean   @default(true) @map("requires_reacknowledgement")
+  summary                     String    @db.Text
+  createdByUserId             String?   @map("created_by_user_id") @db.Uuid
+  createdByName               String    @map("created_by_name") @db.VarChar(160)
+  publishedAt                 DateTime? @map("published_at") @db.Timestamp(6)
+  createdAt                   DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+
+  policy           Policy                  @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  acknowledgements PolicyAcknowledgement[]
+
+  @@unique([policyId, versionNumber])
+  @@index([policyId])
+  @@map("policy_versions")
+}
+
+model PolicyAcknowledgement {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  versionId      String   @map("version_id") @db.Uuid
+  employeeId     String   @map("employee_id") @db.Uuid
+  acknowledgedAt DateTime @default(now()) @map("acknowledged_at") @db.Timestamp(6)
+  device         String?  @db.VarChar(255)
+
+  version  PolicyVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  employee Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([versionId, employeeId])
+  @@index([employeeId])
+  @@index([acknowledgedAt])
+  @@map("policy_acknowledgements")
 }
 
 // ── Leave Management ───────────────────────────────────────────────────────

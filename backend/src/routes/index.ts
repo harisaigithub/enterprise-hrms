@@ -13,6 +13,7 @@ import candidateLifecycleRoutes from "../modules/candidateLifecycle/candidateLif
 import helpdeskRoutes from "../modules/helpdesk/helpdesk.routes";
 import onboardingRoutes from "../modules/onboarding/onboarding.routes";
 import lmsRoutes from "../modules/lms/lms.routes";
+import policiesRoutes from "../modules/policies/policies.routes";
 
 const router = Router();
 
@@ -32,5 +33,6 @@ if (!serviceName || serviceName === "performance") router.use("/performance", pe
 if (!serviceName || serviceName === "helpdesk") router.use("/helpdesk", helpdeskRoutes);
 if (!serviceName || serviceName === "onboarding") { router.use("/onboarding", onboardingRoutes);}
 if (!serviceName || serviceName === "lms") { router.use("/lms", lmsRoutes);}
+if (!serviceName || serviceName === "policies") router.use("/policies", policiesRoutes);
 
 export default router;
