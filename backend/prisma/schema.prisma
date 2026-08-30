@@ -274,6 +274,80 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+// ── Compliance Management ────────────────────────────────────────────────
+
+model ComplianceObligation {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title          String    @db.VarChar(180)
+  category       String    @db.VarChar(80)
+  dueDate        DateTime  @map("due_date") @db.Date
+  owner          String    @db.VarChar(160)
+  recurrence     String    @default("One-off") @db.VarChar(30)
+  status         String    @default("Pending") @db.VarChar(30)
+  filedAt        DateTime? @map("filed_at") @db.Timestamp(6)
+  filedByUserId  String?   @map("filed_by_user_id") @db.Uuid
+  createdByUserId String?  @map("created_by_user_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@index([status, dueDate])
+  @@map("compliance_obligations")
+}
+
+model ComplianceCase {
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  caseNumber              String    @unique @map("case_number") @db.VarChar(40)
+  category                String    @db.VarChar(100)
+  status                  String    @default("Under Investigation") @db.VarChar(40)
+  summary                 String    @db.Text
+  investigatorEmployeeIds Json      @default("[]") @map("investigator_employee_ids") @db.JsonB
+  openedAt                DateTime  @default(now()) @map("opened_at") @db.Date
+  closedAt                DateTime? @map("closed_at") @db.Date
+  retentionUntil          DateTime  @map("retention_until") @db.Date
+  legalHold               Boolean   @default(false) @map("legal_hold")
+  legalHoldReason         String?   @map("legal_hold_reason") @db.Text
+  legalHoldBy             String?   @map("legal_hold_by") @db.VarChar(160)
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt               DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@index([status])
+  @@index([legalHold])
+  @@map("compliance_cases")
+}
+
+model ComplianceRetentionRecord {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sourceModule       String    @map("source_module") @db.VarChar(120)
+  recordType         String    @map("record_type") @db.VarChar(160)
+  label              String    @db.VarChar(220)
+  retentionExpiresAt DateTime  @map("retention_expires_at") @db.Date
+  classification     String    @default("Recognized") @db.VarChar(40)
+  legalHold          Boolean   @default(false) @map("legal_hold")
+  legalHoldReason    String?   @map("legal_hold_reason") @db.Text
+  legalHoldBy        String?   @map("legal_hold_by") @db.VarChar(160)
+  jobStatus          String?   @map("job_status") @db.VarChar(80)
+  purgedAt           DateTime? @map("purged_at") @db.Date
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@index([retentionExpiresAt])
+  @@index([legalHold])
+  @@map("compliance_retention_records")
+}
+
+model ComplianceActivity {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorName String   @map("actor_name") @db.VarChar(160)
+  action    String   @db.VarChar(100)
+  category  String   @db.VarChar(80)
+  details   String   @db.Text
+  severity  String   @default("info") @db.VarChar(20)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  @@index([createdAt])
+  @@map("compliance_activities")
+}
+
 // ── Policy Management ─────────────────────────────────────────────────────
 
 model Policy {
