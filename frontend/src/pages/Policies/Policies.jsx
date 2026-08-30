@@ -1,6 +1,6 @@
 ﻿/**
- * Policy Management Page � Module 18
- * Tabs: Policy Library � My Acknowledgements � Compliance Dashboard
+ * Policy Management Page - Module 18
+ * Tabs: Policy Library - My Acknowledgements - Compliance Dashboard
  */
 
 import { useState, useEffect, useRef } from "react";
@@ -18,6 +18,7 @@ import StatusBadge from "../../components/shared/StatusBadge";
 import Spinner from "../../components/shared/Spinner";
 import EmptyState from "../../components/shared/EmptyState";
 import Modal from "../../components/shared/Modal";
+import { useAuth } from "../../context/AuthContext";
 import {
   getPolicies,
   createPolicy,
@@ -26,12 +27,15 @@ import {
   getAcknowledgements,
   getAllAcknowledgements,
   acknowledgePolicy,
-} from "../../services/policyService";
-import { policyStatusMeta, ackStatusMeta } from "../../mock/policies";
-import { colleagues } from "../../mock/recruitment";
+} from "../../services/Policyservice";
+import { policyStatusMeta, ackStatusMeta } from "../../mock/Policies";
+const fmtDate = (d) => (d ? new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "-");
 
-const ME = { id: "EMP001", name: "Matsya Singh" };
-const fmtDate = (d) => (d ? new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "�");
+const formatDevice = (userAgent = "") => {
+  const browser = userAgent.includes("Edg/") ? "Edge" : userAgent.includes("Chrome/") ? "Chrome" : userAgent.includes("Firefox/") ? "Firefox" : userAgent.includes("Safari/") ? "Safari" : "Browser";
+  const platform = userAgent.includes("Windows") ? "Windows" : userAgent.includes("Android") ? "Android" : /iPhone|iPad/.test(userAgent) ? "iOS" : userAgent.includes("Mac OS") ? "macOS" : "device";
+  return `${browser} on ${platform}`;
+};
 
 /* ---------------------------------- shared bits ---------------------------------- */
 
@@ -116,38 +120,36 @@ function CreatePolicyModal({ isOpen, onClose, onSaved }) {
   const [effectiveDate, setEffectiveDate] = useState("");
   const [ackDeadlineDays, setAckDeadlineDays] = useState(14);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim() || !effectiveDate || !summary.trim()) {
+      setError("Title, summary and effective date are required.");
+      return;
+    }
     setSaving(true);
-    const versionId = `v-${Date.now()}`;
+    setError("");
     const policy = {
-      id: `pol-${Date.now()}`,
       title: title.trim(),
       category,
       scope,
       mandatoryAcknowledgement: mandatory,
       reviewCycleMonths: Number(reviewCycleMonths) || null,
-      status: "Draft",
-      currentVersionId: versionId,
-      nextReviewDate: null,
-      versions: [{
-        id: versionId,
-        versionNumber: 1,
-        effectiveDate: effectiveDate || null,
-        ackDeadlineDays: mandatory ? Number(ackDeadlineDays) || null : null,
-        requiresReacknowledgement: true,
-        summary: summary.trim(),
-        createdAt: new Date().toISOString().slice(0, 10),
-        createdBy: ME.name,
-      }],
+      effectiveDate,
+      ackDeadlineDays: mandatory ? Number(ackDeadlineDays) || null : null,
+      summary: summary.trim(),
     };
-    const res = await createPolicy(policy);
-    setSaving(false);
-    onSaved(res.data);
-    onClose();
-    setTitle(""); setSummary(""); setEffectiveDate(""); setAckDeadlineDays(14);
+    try {
+      const res = await createPolicy(policy);
+      onSaved(res.data);
+      onClose();
+      setTitle(""); setSummary(""); setEffectiveDate(""); setAckDeadlineDays(14);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -157,6 +159,7 @@ function CreatePolicyModal({ isOpen, onClose, onSaved }) {
           {fieldLabel("Title *")}
           <input value={title} onChange={(e) => setTitle(e.target.value)} style={inputStyle(false)} />
         </div>
+        {error && <p style={{ margin: 0, color: "var(--red)", fontSize: "12px" }}>{error}</p>}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
             {fieldLabel("Category")}
@@ -196,7 +199,7 @@ function CreatePolicyModal({ isOpen, onClose, onSaved }) {
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving�" : "Save as Draft"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving..." : "Save as Draft"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -209,32 +212,39 @@ function AddVersionModal({ isOpen, onClose, policy, onSaved }) {
   const [ackDeadlineDays, setAckDeadlineDays] = useState(14);
   const [requiresReacknowledgement, setRequiresReacknowledgement] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   if (!policy) return null;
   const latest = currentVersion(policy);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!summary.trim() || !effectiveDate) {
+      setError("Change summary and effective date are required.");
+      return;
+    }
     setSaving(true);
+    setError("");
     const version = {
-      id: `v-${Date.now()}`,
-      versionNumber: latest.versionNumber + 1,
-      effectiveDate: effectiveDate || null,
+      effectiveDate,
       ackDeadlineDays: policy.mandatoryAcknowledgement ? Number(ackDeadlineDays) || null : null,
       requiresReacknowledgement,
       summary: summary.trim(),
-      createdAt: new Date().toISOString().slice(0, 10),
-      createdBy: ME.name,
     };
-    const res = await addVersion(policy.id, version);
-    setSaving(false);
-    onSaved(res.data);
-    onClose();
-    setSummary(""); setEffectiveDate(""); setAckDeadlineDays(14);
+    try {
+      const res = await addVersion(policy.id, version);
+      onSaved(res.data);
+      onClose();
+      setSummary(""); setEffectiveDate(""); setAckDeadlineDays(14);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <Modal isOpen={isOpen} title={`New Version � ${policy.title}`} onClose={onClose}>
+    <Modal isOpen={isOpen} title={`New Version - ${policy.title}`} onClose={onClose}>
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         <p style={{ fontSize: "12px", color: "var(--subtext)", margin: 0 }}>
           Version {latest.versionNumber} stays in history unchanged. This creates version {latest.versionNumber + 1} and moves the policy back to Draft until republished.
@@ -259,9 +269,10 @@ function AddVersionModal({ isOpen, onClose, policy, onSaved }) {
           <input type="checkbox" checked={requiresReacknowledgement} onChange={(e) => setRequiresReacknowledgement(e.target.checked)} />
           Require everyone to re-acknowledge (prior acknowledgements won't carry forward)
         </label>
+        {error && <p style={{ margin: 0, color: "var(--red)", fontSize: "12px" }}>{error}</p>}
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving�" : "Create Version"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving..." : "Create Version"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -279,7 +290,7 @@ function VersionHistory({ policy }) {
         <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "6px" }}>
           {[...policy.versions].reverse().map((v) => (
             <div key={v.id} style={{ fontSize: "11.5px", color: "var(--text)", background: "var(--background)", borderRadius: "var(--radius-sm)", padding: "8px 10px" }}>
-              <strong>v{v.versionNumber}</strong> � effective {fmtDate(v.effectiveDate)} � by {v.createdBy} on {fmtDate(v.createdAt)}
+              <strong>v{v.versionNumber}</strong> | effective {fmtDate(v.effectiveDate)} | by {v.createdBy} on {fmtDate(v.createdAt)}
               {v.id === policy.currentVersionId && <span style={{ marginLeft: "6px", color: "var(--primary)", fontWeight: 700 }}>(current)</span>}
               {v.summary && <p style={{ margin: "4px 0 0", color: "var(--subtext)" }}>{v.summary}</p>}
             </div>
@@ -290,26 +301,26 @@ function VersionHistory({ policy }) {
   );
 }
 
-function PolicyLibraryTab({ policies, onPolicyAdded, onPolicyUpdated }) {
+function PolicyLibraryTab({ policies, canManage, onPolicyAdded, onPolicyUpdated }) {
   const [showCreate, setShowCreate] = useState(false);
   const [versionTarget, setVersionTarget] = useState(null);
   const [publishError, setPublishError] = useState({});
 
   const handlePublish = async (id) => {
-    const res = await publishPolicy(id);
-    if (res.data?.error) {
-      setPublishError((p) => ({ ...p, [id]: res.data.error }));
-      return;
+    try {
+      const res = await publishPolicy(id);
+      setPublishError((p) => ({ ...p, [id]: null }));
+      onPolicyUpdated(res.data.policy);
+    } catch (e) {
+      setPublishError((p) => ({ ...p, [id]: e.message }));
     }
-    setPublishError((p) => ({ ...p, [id]: null }));
-    onPolicyUpdated(res.data.policy);
   };
 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
         <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Policy Library</h2>
-        <PrimaryButton onClick={() => setShowCreate(true)}><Plus size={16} /> Author Policy</PrimaryButton>
+        {canManage && <PrimaryButton onClick={() => setShowCreate(true)}><Plus size={16} /> Author Policy</PrimaryButton>}
       </div>
 
       {policies.length === 0 ? (
@@ -327,7 +338,7 @@ function PolicyLibraryTab({ policies, onPolicyAdded, onPolicyUpdated }) {
                       <h3 style={{ fontSize: "14.5px", fontWeight: 700, color: "var(--text)" }}>{p.title}</h3>
                       <span style={{ fontSize: "11px", color: "var(--subtext)" }}>v{v.versionNumber}</span>
                     </div>
-                    <p style={{ fontSize: "11.5px", color: "var(--subtext)", marginTop: "2px" }}>{p.category} � {p.scope}</p>
+                    <p style={{ fontSize: "11.5px", color: "var(--subtext)", marginTop: "2px" }}>{p.category} | {p.scope}</p>
                   </div>
                   <StatusBadge label={p.status} color={meta.color} bg={meta.bg} />
                 </div>
@@ -342,12 +353,12 @@ function PolicyLibraryTab({ policies, onPolicyAdded, onPolicyUpdated }) {
 
                 {publishError[p.id] && <p style={{ fontSize: "11px", color: "var(--red)", marginTop: "8px" }}>{publishError[p.id]}</p>}
 
-                <div style={{ display: "flex", gap: "14px", marginTop: "12px" }}>
+                {canManage && <div style={{ display: "flex", gap: "14px", marginTop: "12px" }}>
                   {p.status === "Draft" && (
                     <button onClick={() => handlePublish(p.id)} style={{ fontSize: "12px", fontWeight: 700, color: "var(--primary)", border: "none", background: "none", cursor: "pointer" }}>Publish</button>
                   )}
                   <button onClick={() => setVersionTarget(p)} style={{ fontSize: "12px", fontWeight: 700, color: "var(--primary)", border: "none", background: "none", cursor: "pointer" }}>New version</button>
-                </div>
+                </div>}
 
                 <VersionHistory policy={p} />
               </div>
@@ -367,7 +378,17 @@ function PolicyLibraryTab({ policies, onPolicyAdded, onPolicyUpdated }) {
 function AcknowledgeModal({ isOpen, onClose, policy, onSaved }) {
   const [scrolledToBottom, setScrolledToBottom] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const contentRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const frame = requestAnimationFrame(() => {
+      const el = contentRef.current;
+      if (el && el.scrollHeight <= el.clientHeight + 8) setScrolledToBottom(true);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [isOpen, policy]);
 
   const handleScroll = () => {
     const el = contentRef.current;
@@ -377,12 +398,18 @@ function AcknowledgeModal({ isOpen, onClose, policy, onSaved }) {
 
   const handleAcknowledge = async () => {
     setSaving(true);
+    setError("");
     const v = currentVersion(policy);
-    const res = await acknowledgePolicy(policy.id, v.id, ME.id, ME.name);
-    setSaving(false);
-    onSaved(res.data);
-    onClose();
-    setScrolledToBottom(false);
+    try {
+      const res = await acknowledgePolicy(policy.id, v.id);
+      onSaved(res.data);
+      onClose();
+      setScrolledToBottom(false);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (!policy) return null;
@@ -391,7 +418,7 @@ function AcknowledgeModal({ isOpen, onClose, policy, onSaved }) {
   return (
     <Modal isOpen={isOpen} title={policy.title} onClose={onClose}>
       <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-        <p style={{ fontSize: "11.5px", color: "var(--subtext)", margin: 0 }}>Version {v.versionNumber} � effective {fmtDate(v.effectiveDate)}</p>
+        <p style={{ fontSize: "11.5px", color: "var(--subtext)", margin: 0 }}>Version {v.versionNumber} | effective {fmtDate(v.effectiveDate)}</p>
         <div
           ref={contentRef}
           onScroll={handleScroll}
@@ -399,13 +426,14 @@ function AcknowledgeModal({ isOpen, onClose, policy, onSaved }) {
         >
           <p>{v.summary || "Policy content goes here."}</p>
           <p style={{ marginTop: "12px" }}>By acknowledging, you confirm you have read and understood this policy and agree to comply with it for the duration it remains in effect.</p>
-          <p style={{ marginTop: "12px", color: "var(--subtext)" }}>� End of document �</p>
+          <p style={{ marginTop: "12px", color: "var(--subtext)" }}>- End of document -</p>
         </div>
         {!scrolledToBottom && <p style={{ fontSize: "11px", color: "var(--subtext)", margin: 0 }}>Scroll to the end to enable acknowledgement.</p>}
+        {error && <p style={{ fontSize: "11px", color: "var(--red)", margin: 0 }}>{error}</p>}
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Close</SecondaryButton>
           <PrimaryButton type="button" disabled={!scrolledToBottom || saving} onClick={handleAcknowledge}>
-            {saving ? "Recording�" : "I have read and acknowledge"}
+            {saving ? "Recording..." : "I have read and acknowledge"}
           </PrimaryButton>
         </div>
       </div>
@@ -441,7 +469,7 @@ function MyAcknowledgementsTab({ policies, myAcks, onAcknowledged }) {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
                 <div>
                   <h3 style={{ fontSize: "14.5px", fontWeight: 700, color: "var(--text)" }}>{p.title}</h3>
-                  <p style={{ fontSize: "11.5px", color: "var(--subtext)" }}>Version {v.versionNumber} � {p.category}</p>
+                  <p style={{ fontSize: "11.5px", color: "var(--subtext)" }}>Version {v.versionNumber} | {p.category}</p>
                 </div>
                 {done ? (
                   <StatusBadge label="Acknowledged" color={ackStatusMeta.Acknowledged.color} bg={ackStatusMeta.Acknowledged.bg} />
@@ -454,7 +482,7 @@ function MyAcknowledgementsTab({ policies, myAcks, onAcknowledged }) {
 
               {done ? (
                 <p style={{ fontSize: "12px", color: "var(--green)", fontWeight: 600, marginTop: "10px", display: "flex", alignItems: "center", gap: "5px" }}>
-                  <CheckCircle2 size={13} /> Signed {fmtDate(ack.acknowledgedAt)} � {ack.device}
+                  <CheckCircle2 size={13} /> Signed on {fmtDate(ack.acknowledgedAt)} | Device: {formatDevice(ack.device)}
                 </p>
               ) : (
                 <>
@@ -474,9 +502,8 @@ function MyAcknowledgementsTab({ policies, myAcks, onAcknowledged }) {
 
 /* ---------------------------------- Compliance Dashboard tab ---------------------------------- */
 
-function ComplianceTab({ policies, allAcks }) {
+function ComplianceTab({ policies, allAcks, roster }) {
   const mandatoryPolicies = policies.filter((p) => p.mandatoryAcknowledgement && p.status === "Published");
-  const roster = [{ id: ME.id, name: ME.name }, ...colleagues];
 
   if (mandatoryPolicies.length === 0) return <EmptyState icon={ShieldAlert} title="No mandatory policies published" />;
 
@@ -485,7 +512,8 @@ function ComplianceTab({ policies, allAcks }) {
       <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)", marginBottom: "14px" }}>Compliance Dashboard</h2>
       {mandatoryPolicies.map((p) => {
         const v = currentVersion(p);
-        const relevant = roster.map((emp) => {
+        const scopedRoster = roster.filter((employee) => p.scope === "Company-wide" || p.scope === `Department: ${employee.department}` || p.scope === `Location: ${employee.location}`);
+        const relevant = scopedRoster.map((emp) => {
           const ack = allAcks.find((a) => a.policyId === p.id && a.versionId === v.id && a.employeeId === emp.id);
           return { ...emp, acknowledged: !!ack?.acknowledgedAt };
         });
@@ -502,12 +530,12 @@ function ComplianceTab({ policies, allAcks }) {
               <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--primary)" }}>{completed}/{relevant.length} acknowledged</span>
             </div>
             <div style={{ height: "6px", background: "var(--border)", borderRadius: "99px", overflow: "hidden", marginBottom: "12px" }}>
-              <div style={{ height: "100%", width: `${(completed / relevant.length) * 100}%`, background: "var(--green)", borderRadius: "99px" }} />
+              <div style={{ height: "100%", width: `${relevant.length ? (completed / relevant.length) * 100 : 0}%`, background: "var(--green)", borderRadius: "99px" }} />
             </div>
             {outstanding.length > 0 && (
               <>
                 <p style={{ fontSize: "11px", fontWeight: 700, color: "var(--red)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "6px" }}>
-                  Outstanding � escalates to employee then manager after the configured overdue period
+                  Outstanding | escalates to employee, then manager after the configured overdue period
                 </p>
                 <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                   {outstanding.map((e) => (
@@ -525,29 +553,34 @@ function ComplianceTab({ policies, allAcks }) {
 
 /* ---------------------------------- Page ---------------------------------- */
 
-const TABS = [
-  { key: "library", label: "Policy Library", icon: FileText },
-  { key: "myAcks", label: "My Acknowledgements", icon: BadgeCheck },
-  { key: "compliance", label: "Compliance Dashboard", icon: ShieldAlert },
-];
-
 export default function Policies() {
+  const { role } = useAuth();
+  const canManage = ["HR", "ADMIN"].includes(role);
+  const tabs = [
+    { key: "library", label: "Policy Library", icon: FileText },
+    { key: "myAcks", label: "My Acknowledgements", icon: BadgeCheck },
+    ...(canManage ? [{ key: "compliance", label: "Compliance Dashboard", icon: ShieldAlert }] : []),
+  ];
   const [activeTab, setActiveTab] = useState("library");
   const [loading, setLoading] = useState(true);
   const [policies, setPolicies] = useState([]);
   const [myAcks, setMyAcks] = useState([]);
   const [allAcks, setAllAcks] = useState([]);
+  const [roster, setRoster] = useState([]);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    setLoading(true);
-    Promise.all([getPolicies(), getAcknowledgements(ME.id), getAllAcknowledgements()])
+    const complianceRequest = canManage ? getAllAcknowledgements() : Promise.resolve({ data: { acknowledgements: [], employees: [] } });
+    Promise.all([getPolicies(), getAcknowledgements(), complianceRequest])
       .then(([p, mine, all]) => {
         setPolicies(p.data);
         setMyAcks(mine.data);
-        setAllAcks(all.data);
+        setAllAcks(all.data.acknowledgements);
+        setRoster(all.data.employees);
       })
+      .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [canManage]);
 
   const handleAcknowledged = (ack) => {
     setMyAcks((prev) => {
@@ -572,11 +605,13 @@ export default function Policies() {
     <MainLayout>
       <div style={{ maxWidth: "1480px", margin: "0 auto" }}>
         <PageHeader title="Policy Management" subtitle="Policy authoring, versioning and employee acknowledgement" />
-        <TabNav tabs={TABS} active={activeTab} onChange={setActiveTab} />
+        <TabNav tabs={tabs} active={activeTab} onChange={setActiveTab} />
+        {error && <p style={{ padding: 12, background: "#fef2f2", color: "var(--red)", borderRadius: 8 }}>{error}</p>}
 
         {activeTab === "library" && (
           <PolicyLibraryTab
             policies={policies}
+            canManage={canManage}
             onPolicyAdded={(p) => setPolicies((prev) => [p, ...prev])}
             onPolicyUpdated={(p) => setPolicies((prev) => prev.map((x) => (x.id === p.id ? p : x)))}
           />
@@ -586,7 +621,7 @@ export default function Policies() {
           <MyAcknowledgementsTab policies={policies} myAcks={myAcks} onAcknowledged={handleAcknowledged} />
         )}
 
-        {activeTab === "compliance" && <ComplianceTab policies={policies} allAcks={allAcks} />}
+        {activeTab === "compliance" && canManage && <ComplianceTab policies={policies} allAcks={allAcks} roster={roster} />}
       </div>
     </MainLayout>
   );
