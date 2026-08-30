@@ -15,6 +15,14 @@ const envSchema = z.object({
   RATE_LIMIT_WINDOW_MS: z.coerce.number().default(60_000),
   RATE_LIMIT_MAX: z.coerce.number().default(100),
   LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal"]).default("info"),
+  CANDIDATE_PORTAL_URL: z.string().url().default("http://localhost:5173/candidate/offer"),
+  SMTP_HOST: z.string().trim().default(""),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_SECURE: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
+  SMTP_USER: z.string().trim().default(""),
+  SMTP_PASS: z.string().default(""),
+  SMTP_FROM_NAME: z.string().trim().default("Proteccio HRMS"),
+  SMTP_FROM_EMAIL: z.string().trim().default(""),
 });
 
 const parsed = envSchema.safeParse(process.env);
