@@ -15,6 +15,7 @@ import onboardingRoutes from "../modules/onboarding/onboarding.routes";
 import lmsRoutes from "../modules/lms/lms.routes";
 import policiesRoutes from "../modules/policies/policies.routes";
 import complianceRoutes from "../modules/compliance/compliance.routes";
+import reportsRoutes from "../modules/reports/reports.routes";
 
 const router = Router();
 
@@ -36,5 +37,6 @@ if (!serviceName || serviceName === "onboarding") { router.use("/onboarding", on
 if (!serviceName || serviceName === "lms") { router.use("/lms", lmsRoutes);}
 if (!serviceName || serviceName === "policies") router.use("/policies", policiesRoutes);
 if (!serviceName || serviceName === "compliance") router.use("/compliance", complianceRoutes);
+if (!serviceName || serviceName === "reports") router.use("/reports", reportsRoutes);
 
 export default router;

@@ -59,7 +59,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     "recruitment:read", "recruitment:write",
     "onboarding:read", "onboarding:write",
     "performance:read",
-    "reports:read",
+    "reports:read", "reports:export",
     "compliance:read", "compliance:write",
     "policies:read", "policies:write",
     "helpdesk:read", "helpdesk:write",
