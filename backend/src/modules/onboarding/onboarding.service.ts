@@ -1,6 +1,9 @@
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
 
+/**
+ * List all onboarding records with checklist items.
+ */
 export async function listOnboardingRecords() {
     const records = await prisma.onboarding.findMany({
         include: {
@@ -16,15 +19,16 @@ export async function listOnboardingRecords() {
     });
 
     const data = await Promise.all(
-        records.map(serializeOnboarding)
+        records.map((record) => serializeOnboarding(record))
     );
 
     return { data };
 }
 
-export async function getOnboardingRecord(
-    employeeId: string
-) {
+/**
+ * Get onboarding record for a specific employee.
+ */
+export async function getOnboardingRecord(employeeId: string) {
     const record = await prisma.onboarding.findUnique({
         where: {
             employeeId,
@@ -49,6 +53,9 @@ export async function getOnboardingRecord(
     };
 }
 
+/**
+ * Get onboarding dashboard summary.
+ */
 export async function getOnboardingSummary() {
     const records = await prisma.onboarding.findMany({
         include: {
@@ -74,10 +81,10 @@ export async function getOnboardingSummary() {
             return false;
         }
 
-        const due = new Date(item.dueDate);
-        due.setHours(0, 0, 0, 0);
+        const dueDate = new Date(item.dueDate);
+        dueDate.setHours(0, 0, 0, 0);
 
-        return due < today;
+        return dueDate < today;
     }).length;
 
     const pendingProcurement = items.filter(
@@ -88,34 +95,48 @@ export async function getOnboardingSummary() {
     return {
         data: {
             newJoiners: records.length,
-            avgCompletion: totalItems
-                ? Math.round(
-                    (completeItems / totalItems) * 100
-                )
-                : 0,
+
+            avgCompletion:
+                totalItems > 0
+                    ? Math.round(
+                        (completeItems / totalItems) * 100
+                    )
+                    : 0,
+
             overdueItems,
+
             pendingProcurement,
         },
     };
 }
 
+/**
+ * Update checklist item status.
+ */
 export async function updateChecklistItemStatus(
     employeeId: string,
     itemId: string,
     status: string
 ) {
+    /**
+     * Statuses supported by the onboarding workflow.
+     */
     const validStatuses = [
         "Pending",
         "Complete",
         "Pending_Procurement",
+        "Blocked",
     ];
 
     if (!validStatuses.includes(status)) {
         throw AppError.badRequest(
-            "Invalid checklist status"
+            `Invalid checklist status: ${status}`
         );
     }
 
+    /**
+     * Find onboarding record first.
+     */
     const onboarding =
         await prisma.onboarding.findUnique({
             where: {
@@ -132,9 +153,13 @@ export async function updateChecklistItemStatus(
         );
     }
 
+    /**
+     * Find requested checklist item.
+     */
     const item =
         onboarding.checklistItems.find(
-            (i) => i.id === itemId
+            (checklistItem) =>
+                checklistItem.id === itemId
         );
 
     if (!item) {
@@ -143,13 +168,18 @@ export async function updateChecklistItemStatus(
         );
     }
 
+    /**
+     * A checklist item cannot be completed
+     * until its dependency is completed.
+     */
     if (
         status === "Complete" &&
         item.dependsOn
     ) {
         const dependency =
             onboarding.checklistItems.find(
-                (i) => i.id === item.dependsOn
+                (checklistItem) =>
+                    checklistItem.id === item.dependsOn
             );
 
         if (
@@ -162,25 +192,44 @@ export async function updateChecklistItemStatus(
         }
     }
 
+    /**
+     * Update selected checklist item.
+     */
     await prisma.onboardingChecklistItem.update({
         where: {
             id: itemId,
         },
         data: {
             status: status as any,
+
             completedAt:
                 status === "Complete"
                     ? new Date()
                     : null,
-            blockedReason: null,
+
+            blockedReason:
+                status === "Blocked"
+                    ? item.blockedReason
+                    : null,
         },
     });
 
+    /**
+     * Find all items depending on the updated item.
+     */
     const dependents =
         onboarding.checklistItems.filter(
-            (i) => i.dependsOn === itemId
+            (checklistItem) =>
+                checklistItem.dependsOn === itemId
         );
 
+    /**
+     * If current item is not complete,
+     * dependent items become blocked.
+     *
+     * If current item becomes complete,
+     * previously blocked dependents become pending.
+     */
     for (const dependent of dependents) {
         if (status !== "Complete") {
             await prisma.onboardingChecklistItem.update({
@@ -188,7 +237,8 @@ export async function updateChecklistItemStatus(
                     id: dependent.id,
                 },
                 data: {
-                    status: "Blocked",
+                    status: "Blocked" as any,
+
                     blockedReason:
                         `Waiting on "${item.title}"`,
                 },
@@ -202,12 +252,19 @@ export async function updateChecklistItemStatus(
                 },
                 data: {
                     status: "Pending",
+
                     blockedReason: null,
+
+                    completedAt: null,
                 },
             });
         }
     }
 
+    /**
+     * Recalculate onboarding status
+     * after checklist changes.
+     */
     const items =
         await prisma.onboardingChecklistItem.findMany({
             where: {
@@ -218,28 +275,41 @@ export async function updateChecklistItemStatus(
     const completed =
         items.length > 0 &&
         items.every(
-            (i) => i.status === "Complete"
+            (checklistItem) =>
+                checklistItem.status === "Complete"
         );
 
     const started = items.some(
-        (i) =>
-            i.status !== "Pending" &&
-            i.status !== "Blocked"
+        (checklistItem) =>
+            checklistItem.status !== "Pending" &&
+            checklistItem.status !== "Blocked"
     );
+
+    let onboardingStatus:
+        | "COMPLETED"
+        | "IN_PROGRESS"
+        | "NOT_STARTED";
+
+    if (completed) {
+        onboardingStatus = "COMPLETED";
+    } else if (started) {
+        onboardingStatus = "IN_PROGRESS";
+    } else {
+        onboardingStatus = "NOT_STARTED";
+    }
 
     await prisma.onboarding.update({
         where: {
             id: onboarding.id,
         },
         data: {
-            status: completed
-                ? "COMPLETED"
-                : started
-                    ? "IN_PROGRESS"
-                    : "NOT_STARTED",
+            status: onboardingStatus,
         },
     });
 
+    /**
+     * Return latest database state.
+     */
     const updated =
         await prisma.onboarding.findUnique({
             where: {
@@ -254,14 +324,31 @@ export async function updateChecklistItemStatus(
             },
         });
 
+    if (!updated) {
+        throw AppError.notFound(
+            "Onboarding record not found after update"
+        );
+    }
+
     return {
         data: await serializeOnboarding(updated),
     };
 }
 
-async function serializeOnboarding(
-    record: any
-) {
+/**
+ * Convert database onboarding record
+ * into frontend-friendly response.
+ */
+async function serializeOnboarding(record: any) {
+    if (!record) {
+        throw AppError.notFound(
+            "Onboarding record not found"
+        );
+    }
+
+    /**
+     * Find employee information.
+     */
     const employee =
         await prisma.employee.findUnique({
             where: {
@@ -274,16 +361,75 @@ async function serializeOnboarding(
             },
         });
 
+    /**
+     * Safely format employee name.
+     */
+    const employeeName = employee
+        ? `${employee.firstName} ${
+            employee.lastName ?? ""
+        }`.trim()
+        : "Unknown Employee";
+
+    /**
+     * Safely serialize checklist items.
+     */
+    const checklistItems =
+        Array.isArray(record.checklistItems)
+            ? record.checklistItems
+            : [];
+
+    const items = checklistItems.map(
+        (item: any) => {
+            const dueDate =
+                item.dueDate
+                    ? new Date(item.dueDate)
+                        .toISOString()
+                        .slice(0, 10)
+                    : null;
+
+            const today =
+                new Date()
+                    .toISOString()
+                    .slice(0, 10);
+
+            return {
+                id: item.id,
+
+                title: item.title,
+
+                category: item.category,
+
+                owner: item.owner,
+
+                dueDate,
+
+                status:
+                    item.status ===
+                    "Pending_Procurement"
+                        ? "Pending Procurement"
+                        : item.status,
+
+                dependsOn: item.dependsOn,
+
+                blockedReason:
+                    item.blockedReason,
+
+                isOverdue:
+                    item.status !== "Complete" &&
+                    dueDate !== null &&
+                    dueDate < today,
+            };
+        }
+    );
+
     return {
         employeeId: record.employeeId,
 
-        employeeName: employee
-            ? `${employee.firstName} ${employee.lastName ?? ""}`.trim()
-            : "Unknown Employee",
+        employeeName,
 
         avatar: employee
             ? `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                `${employee.firstName} ${employee.lastName ?? ""}`.trim()
+                employeeName
             )}`
             : null,
 
@@ -291,54 +437,25 @@ async function serializeOnboarding(
 
         department: null,
 
-        joinDate: new Date(record.joinDate)
-            .toISOString()
-            .slice(0, 10),
+        joinDate: record.joinDate
+            ? new Date(record.joinDate)
+                .toISOString()
+                .slice(0, 10)
+            : null,
 
         buddy: record.buddy,
 
         probationEndDate:
-            new Date(record.probationEndDate)
-                .toISOString()
-                .slice(0, 10),
+            record.probationEndDate
+                ? new Date(
+                    record.probationEndDate
+                )
+                    .toISOString()
+                    .slice(0, 10)
+                : null,
 
         status: record.status,
 
-        items: record.checklistItems.map(
-            (item: any) => {
-                const dueDate =
-                    new Date(item.dueDate)
-                        .toISOString()
-                        .slice(0, 10);
-
-                const today =
-                    new Date()
-                        .toISOString()
-                        .slice(0, 10);
-
-                return {
-                    id: item.id,
-                    title: item.title,
-                    category: item.category,
-                    owner: item.owner,
-                    dueDate,
-
-                    status:
-                        item.status ===
-                        "Pending_Procurement"
-                            ? "Pending Procurement"
-                            : item.status,
-
-                    dependsOn: item.dependsOn,
-
-                    blockedReason:
-                        item.blockedReason,
-
-                    isOverdue:
-                        item.status !== "Complete" &&
-                        dueDate < today,
-                };
-            }
-        ),
+        items,
     };
 }

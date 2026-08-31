@@ -1,68 +1,129 @@
 /**
  * Asset service — Module 12
- * Mirrors lmsService/leaveService: async functions resolving to { data }.
+ * Connected to real Asset Management backend APIs.
  */
 
-import {
-  _getInventory,
-  _addInventoryItem,
-  _getAssetHistory,
-  _getLicenseAlerts,
-  _getRequests,
-  _raiseRequest,
-  _approveRequest,
-  _rejectRequest,
-  _fulfillRequest,
-  _acknowledgeReceipt,
-  _returnAsset,
-  _getPendingReturnsForEmployee,
-} from "../mock/assets";
+import api from "./api";
 
-const resolve = (data, ms = 350) => new Promise((res) => setTimeout(() => res({ data }), ms));
+/* =========================================================
+   INVENTORY
+========================================================= */
 
 export function getInventory() {
-  return resolve(_getInventory());
+  return api.get("/assets/inventory");
 }
+
 export function addInventoryItem(item) {
-  return resolve(_addInventoryItem(item));
+  return api.post("/assets/inventory", item);
 }
+
+/* =========================================================
+   ASSET HISTORY
+========================================================= */
+
 export function getAssetHistory(assetId) {
-  return resolve(_getAssetHistory(assetId));
+  return api.get(`/assets/inventory/${assetId}/history`);
 }
+
+/* =========================================================
+   LICENSE ALERTS
+========================================================= */
+
 export function getLicenseAlerts() {
-  return resolve(_getLicenseAlerts());
+  return api.get("/assets/license-alerts");
 }
+
+/* =========================================================
+   REQUESTS
+========================================================= */
 
 export function getRequests(employeeId) {
-  return resolve(_getRequests(employeeId));
+  return api.get("/assets/requests", {
+    params: {
+      employeeId,
+    },
+  });
 }
+
 export function getAllRequests() {
-  return resolve(_getRequests(null));
+  return api.get("/assets/requests");
 }
+
+/* =========================================================
+   RAISE REQUEST
+========================================================= */
+
 export function raiseRequest(request) {
-  return resolve(_raiseRequest(request));
+  return api.post("/assets/requests", request);
 }
+
+/* =========================================================
+   APPROVE REQUEST
+========================================================= */
+
 export function approveRequest(id, approverName) {
-  return resolve(_approveRequest(id, approverName));
+  return api.patch(`/assets/requests/${id}/approve`, {
+    approverName,
+  });
 }
+
+/* =========================================================
+   REJECT REQUEST
+========================================================= */
+
 export function rejectRequest(id) {
-  return resolve(_rejectRequest(id));
+  return api.patch(`/assets/requests/${id}/reject`);
 }
-// Returns { procurementNeeded } if nothing was in stock, { error } if the
-// chosen unit was invalid, or { request, asset } on success.
+
+/* =========================================================
+   FULFILL REQUEST
+========================================================= */
+
 export function fulfillRequest(requestId, assetId) {
-  return resolve(_fulfillRequest(requestId, assetId));
+  return api.patch(
+    `/assets/requests/${requestId}/fulfill`,
+    {
+      assetId: assetId || null,
+    }
+  );
 }
 
-export function acknowledgeReceipt(assetId, employeeId) {
-  return resolve(_acknowledgeReceipt(assetId, employeeId));
-}
-// Validation rule 12.7: returns { error } instead of throwing so the UI can
-// show the wipe-checklist requirement inline.
-export function returnAsset(assetId, condition, wipeCompleted) {
-  return resolve(_returnAsset(assetId, condition, wipeCompleted));
+export function getMyAssets() {
+  return api.get("/assets/my-assets");
 }
 
-export function getPendingReturnsForEmployee(employeeId) {
-  return resolve(_getPendingReturnsForEmployee(employeeId));
+/* =========================================================
+   ACKNOWLEDGE RECEIPT
+========================================================= */
+
+export function acknowledgeReceipt(assetId) {
+  return api.patch(
+    `/assets/${assetId}/acknowledge`
+  );
+}
+
+/* =========================================================
+   RETURN ASSET
+========================================================= */
+
+export function returnAsset(
+  assetId,
+  condition,
+  wipeCompleted
+) {
+  return api.patch(
+    `/assets/${assetId}/return`,
+    {
+      condition,
+      wipeCompleted,
+    }
+  );
+}
+
+/* =========================================================
+   PENDING RETURNS
+========================================================= */
+
+export function getPendingReturnsForEmployee() {
+  return api.get("/assets/pending-returns");
 }

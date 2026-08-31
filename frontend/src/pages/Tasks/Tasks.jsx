@@ -32,10 +32,10 @@ import {
   getOrphanedTasks,
   getTimeEntries,
   logTimeEntry,
+  getTaskMeta,
+  getTaskTotalHours
 } from "../../services/taskService";
-import { TASK_STATUSES, TASK_PRIORITIES, taskStatusMeta, priorityMeta, employeeDirectory } from "../../mock/tasks";
 
-const ME = { id: "EMP001", name: "Matsya Singh" };
 const fmtDate = (d) => new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
 /* ---------------------------------- shared bits ---------------------------------- */
@@ -107,17 +107,31 @@ function TabNav({ tabs, active, onChange }) {
 
 /* ---------------------------------- Create Task modal ---------------------------------- */
 
-function CreateTaskModal({ isOpen, onClose, projects, onSaved }) {
+function CreateTaskModal({
+  isOpen,
+  onClose,
+  projects,
+  employees,
+  priorities,
+  currentEmployee,
+  onSaved,
+}) {
   const [projectId, setProjectId] = useState(projects[0]?.id || "");
   const [milestoneId, setMilestoneId] = useState("");
   const [title, setTitle] = useState("");
-  const [assigneeId, setAssigneeId] = useState(ME.id);
+  const [assigneeId, setAssigneeId] = useState(
+    currentEmployee?.id || ""
+  );
   const [priority, setPriority] = useState("Medium");
   const [dueDate, setDueDate] = useState("");
   const [saving, setSaving] = useState(false);
 
   const project = projects.find((p) => p.id === projectId);
-  const assignableEmployees = employeeDirectory.filter((e) => e.isActive && (project ? project.members.includes(e.id) : true));
+  const assignableEmployees = employees.filter(
+    (e) =>
+      e.isActive &&
+      (project ? project.members.includes(e.id) : true)
+  );
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -162,7 +176,11 @@ function CreateTaskModal({ isOpen, onClose, projects, onSaved }) {
           <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
             {fieldLabel("Priority *")}
             <select value={priority} onChange={(e) => setPriority(e.target.value)} style={{ ...inputStyle(), height: "38px", cursor: "pointer" }}>
-              {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+              {priorities.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -221,7 +239,12 @@ function ForceCloseModal({ isOpen, onClose, task, openBlockers, onResolved }) {
 
 /* ---------------------------------- Task detail / time log modal ---------------------------------- */
 
-function TaskDetailModal({ isOpen, onClose, task, onSaved }) {
+function TaskDetailModal({
+  isOpen,
+  onClose,
+  task,
+  statusMeta,
+}) {
   const [entries, setEntries] = useState([]);
   const [taskHistory, setTaskHistory] = useState([]);
   const [hours, setHours] = useState("");
@@ -251,7 +274,7 @@ function TaskDetailModal({ isOpen, onClose, task, onSaved }) {
   };
 
   if (!task) return null;
-  const meta = taskStatusMeta[task.status];
+  const meta = statusMeta[task.status] || {};
 
   return (
     <Modal isOpen={isOpen} title={task.title} onClose={onClose}>
@@ -298,7 +321,11 @@ function TaskDetailModal({ isOpen, onClose, task, onSaved }) {
 
 /* ---------------------------------- Orphaned tasks banner ---------------------------------- */
 
-function OrphanedTasksBanner({ orphaned, onReassigned }) {
+function OrphanedTasksBanner({
+  orphaned,
+  employees,
+  onReassigned,
+}) {
   const [reassignTarget, setReassignTarget] = useState(null);
   const [newAssigneeId, setNewAssigneeId] = useState("");
   const [saving, setSaving] = useState(false);
@@ -340,7 +367,9 @@ function OrphanedTasksBanner({ orphaned, onReassigned }) {
             {fieldLabel("New assignee *")}
             <select value={newAssigneeId} onChange={(e) => setNewAssigneeId(e.target.value)} style={{ ...inputStyle(), height: "38px", cursor: "pointer" }}>
               <option value="">Select employee</option>
-              {employeeDirectory.filter((e) => e.isActive).map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+              {employees
+                .filter((e) => e.isActive)
+                .map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
             </select>
           </div>
           <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
@@ -355,12 +384,19 @@ function OrphanedTasksBanner({ orphaned, onReassigned }) {
 
 /* ---------------------------------- Kanban view ---------------------------------- */
 
-function TaskCard({ task, onOpen, onMove, onBlockedAttempt }) {
-  const meta = priorityMeta[task.priority];
-  const currentIndex = TASK_STATUSES.indexOf(task.status);
+function TaskCard({
+  task,
+  statuses,
+  priorityMeta,
+  onOpen,
+  onMove,
+  onBlockedAttempt,
+}) {
+  const meta = priorityMeta[task.priority] || {};
+  const currentIndex = statuses.indexOf(task.status);
 
   const handleMove = async (direction) => {
-    const nextStatus = TASK_STATUSES[currentIndex + direction];
+    const nextStatus = statuses[currentIndex + direction];
     if (!nextStatus) return;
     const res = await updateTaskStatus(task.id, nextStatus);
     if (res.data?.error === "blocked") {
@@ -385,22 +421,29 @@ function TaskCard({ task, onOpen, onMove, onBlockedAttempt }) {
       )}
       <div style={{ display: "flex", gap: "8px" }} onClick={(e) => e.stopPropagation()}>
         {currentIndex > 0 && (
-          <button onClick={() => handleMove(-1)} style={{ fontSize: "11px", fontWeight: 600, color: "var(--subtext)", border: "none", background: "none", cursor: "pointer" }}>? {TASK_STATUSES[currentIndex - 1]}</button>
+          <button onClick={() => handleMove(-1)} style={{ fontSize: "11px", fontWeight: 600, color: "var(--subtext)", border: "none", background: "none", cursor: "pointer" }}>? {statuses[currentIndex - 1]}</button>
         )}
-        {currentIndex < TASK_STATUSES.length - 1 && (
-          <button onClick={() => handleMove(1)} style={{ fontSize: "11px", fontWeight: 600, color: "var(--primary)", border: "none", background: "none", cursor: "pointer" }}>{TASK_STATUSES[currentIndex + 1]} ?</button>
+        {currentIndex < statuses.length - 1 && (
+          <button onClick={() => handleMove(1)} style={{ fontSize: "11px", fontWeight: 600, color: "var(--primary)", border: "none", background: "none", cursor: "pointer" }}>{statuses[currentIndex + 1]} ?</button>
         )}
       </div>
     </div>
   );
 }
 
-function KanbanTab({ tasks, onOpen, onMove, onBlockedAttempt }) {
+function KanbanTab({
+  tasks,
+  statuses,
+  priorityMeta,
+  onOpen,
+  onMove,
+  onBlockedAttempt,
+}) {
   if (tasks.length === 0) return <EmptyState icon={KanbanSquare} title="No tasks yet" />;
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(220px, 1fr))", gap: "14px", overflowX: "auto" }}>
-      {TASK_STATUSES.map((status) => {
+      {statuses.map((status) => {
         const columnTasks = tasks.filter((t) => t.status === status);
         return (
           <div key={status}>
@@ -409,7 +452,15 @@ function KanbanTab({ tasks, onOpen, onMove, onBlockedAttempt }) {
             </h3>
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               {columnTasks.map((t) => (
-                <TaskCard key={t.id} task={t} onOpen={onOpen} onMove={onMove} onBlockedAttempt={onBlockedAttempt} />
+                <TaskCard
+                  key={t.id}
+                  task={t}
+                  statuses={statuses}
+                  priorityMeta={priorityMeta}
+                  onOpen={onOpen}
+                  onMove={onMove}
+                  onBlockedAttempt={onBlockedAttempt}
+                />
               ))}
             </div>
           </div>
@@ -421,7 +472,11 @@ function KanbanTab({ tasks, onOpen, onMove, onBlockedAttempt }) {
 
 /* ---------------------------------- Calendar (deadline) view ---------------------------------- */
 
-function CalendarTab({ tasks, onOpen }) {
+function CalendarTab({
+  tasks,
+  statusMeta,
+  onOpen,
+}) {
   const grouped = useMemo(() => {
     const sorted = [...tasks].sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
     const map = new Map();
@@ -447,7 +502,7 @@ function CalendarTab({ tasks, onOpen }) {
             </h3>
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               {dayTasks.map((t) => {
-                const meta = taskStatusMeta[t.status];
+                const meta = statusMeta[t.status] || {};
                 return (
                   <div key={t.id} onClick={() => onOpen(t)} style={{ ...cardStyle, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
                     <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>{t.title} <span style={{ fontWeight: 400, color: "var(--subtext)" }}>� {t.assigneeName}</span></span>
@@ -465,9 +520,17 @@ function CalendarTab({ tasks, onOpen }) {
 
 /* ---------------------------------- Projects tab ---------------------------------- */
 
-function CreateProjectModal({ isOpen, onClose, onSaved }) {
+function CreateProjectModal({
+  isOpen,
+  onClose,
+  onSaved,
+  employees,
+  currentEmployee,
+}) {
   const [name, setName] = useState("");
-  const [memberIds, setMemberIds] = useState([ME.id]);
+  const [memberIds, setMemberIds] = useState(
+    currentEmployee?.id ? [currentEmployee.id] : []
+  );
   const [saving, setSaving] = useState(false);
 
   const toggleMember = (id) => {
@@ -482,7 +545,9 @@ function CreateProjectModal({ isOpen, onClose, onSaved }) {
     setSaving(false);
     onSaved(res.data);
     onClose();
-    setName(""); setMemberIds([ME.id]);
+    setName(""); setMemberIds(
+      currentEmployee?.id ? [currentEmployee.id] : []
+    );
   };
 
   return (
@@ -492,15 +557,54 @@ function CreateProjectModal({ isOpen, onClose, onSaved }) {
           {fieldLabel("Project Name *")}
           <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle()} />
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "5px",
+          }}
+        >
           {fieldLabel("Team Members")}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-            {employeeDirectory.filter((e) => e.isActive).map((e) => (
-              <label key={e.id} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "var(--label)", border: "1px solid var(--border)", padding: "5px 10px", borderRadius: "99px", cursor: "pointer" }}>
-                <input type="checkbox" checked={memberIds.includes(e.id)} onChange={() => toggleMember(e.id)} />
-                {e.name}
-              </label>
-            ))}
+
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "6px",
+              border: "1px solid var(--border)",
+              borderRadius: "8px",
+              padding: "8px",
+              maxHeight: "180px",
+              overflowY: "auto",
+            }}
+          >
+            {employees
+              .filter((employee) => employee.isActive)
+              .map((employee) => (
+                <label
+                  key={employee.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "7px 8px",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={memberIds.includes(employee.id)}
+                    onChange={() =>
+                      toggleMember(employee.id)
+                    }
+                  />
+
+                  <span>
+                    {employee.name}
+                  </span>
+                </label>
+              ))}
           </div>
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
@@ -550,11 +654,16 @@ function AddMilestoneModal({ isOpen, onClose, project, onSaved }) {
   );
 }
 
-function ProjectsTab({ projects, tasks, onProjectAdded, onMilestoneAdded }) {
+function ProjectsTab({
+  projects,
+  tasks,
+  employees,
+  currentEmployee,
+  onProjectAdded,
+  onMilestoneAdded,
+}) {
   const [showCreate, setShowCreate] = useState(false);
   const [milestoneTarget, setMilestoneTarget] = useState(null);
-
-  if (projects.length === 0) return <EmptyState icon={FolderKanban} title="No projects yet" />;
 
   return (
     <div>
@@ -562,31 +671,41 @@ function ProjectsTab({ projects, tasks, onProjectAdded, onMilestoneAdded }) {
         <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Projects</h2>
         <PrimaryButton onClick={() => setShowCreate(true)}><Plus size={16} /> Create Project</PrimaryButton>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "14px" }}>
-        {projects.map((p) => {
-          const projectTasks = tasks.filter((t) => t.projectId === p.id);
-          const doneCount = projectTasks.filter((t) => t.status === "Done").length;
-          return (
-            <div key={p.id} style={{ ...cardStyle, padding: "18px 20px" }}>
-              <h3 style={{ fontSize: "14.5px", fontWeight: 700, color: "var(--text)", marginBottom: "6px" }}>{p.name}</h3>
-              <p style={{ fontSize: "12px", color: "var(--subtext)", marginBottom: "10px" }}>
-                {p.members.length} member(s) � {doneCount}/{projectTasks.length} tasks done
-              </p>
-              {p.milestones.length > 0 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginBottom: "10px" }}>
-                  {p.milestones.map((m) => (
-                    <span key={m.id} style={{ fontSize: "11.5px", color: "var(--subtext)" }}>? {m.title} � due {fmtDate(m.dueDate)}</span>
-                  ))}
-                </div>
-              )}
-              <button onClick={() => setMilestoneTarget(p)} style={{ fontSize: "12px", fontWeight: 700, color: "var(--primary)", border: "none", background: "none", cursor: "pointer" }}>
-                + Add milestone
-              </button>
-            </div>
-          );
-        })}
-      </div>
-      <CreateProjectModal isOpen={showCreate} onClose={() => setShowCreate(false)} onSaved={onProjectAdded} />
+      {projects.length === 0 ? (
+        <EmptyState icon={FolderKanban} title="No projects yet" />
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "14px" }}>
+          {projects.map((p) => {
+            const projectTasks = tasks.filter((t) => t.projectId === p.id);
+            const doneCount = projectTasks.filter((t) => t.status === "Done").length;
+            return (
+              <div key={p.id} style={{ ...cardStyle, padding: "18px 20px" }}>
+                <h3 style={{ fontSize: "14.5px", fontWeight: 700, color: "var(--text)", marginBottom: "6px" }}>{p.name}</h3>
+                <p style={{ fontSize: "12px", color: "var(--subtext)", marginBottom: "10px" }}>
+                  {p.members.length} member(s) � {doneCount}/{projectTasks.length} tasks done
+                </p>
+                {p.milestones.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginBottom: "10px" }}>
+                    {p.milestones.map((m) => (
+                      <span key={m.id} style={{ fontSize: "11.5px", color: "var(--subtext)" }}>? {m.title} � due {fmtDate(m.dueDate)}</span>
+                    ))}
+                  </div>
+                )}
+                <button onClick={() => setMilestoneTarget(p)} style={{ fontSize: "12px", fontWeight: 700, color: "var(--primary)", border: "none", background: "none", cursor: "pointer" }}>
+                  + Add milestone
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <CreateProjectModal
+        isOpen={showCreate}
+        onClose={() => setShowCreate(false)}
+        onSaved={onProjectAdded}
+        employees={employees}
+        currentEmployee={currentEmployee}
+      />
       <AddMilestoneModal isOpen={!!milestoneTarget} onClose={() => setMilestoneTarget(null)} project={milestoneTarget} onSaved={onMilestoneAdded} />
     </div>
   );
@@ -606,17 +725,32 @@ export default function Tasks() {
   const [projects, setProjects] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [orphaned, setOrphaned] = useState([]);
+
+  const [taskMeta, setTaskMeta] = useState({
+    statuses: [],
+    priorities: [],
+    statusMeta: {},
+    priorityMeta: {},
+    employees: [],
+    currentEmployee: null,
+  });
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [detailTask, setDetailTask] = useState(null);
   const [blockedState, setBlockedState] = useState(null); // { task, openBlockers }
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([getProjects(), getTasks(), getOrphanedTasks()])
-      .then(([p, t, o]) => {
+    Promise.all([
+      getProjects(),
+      getTasks(),
+      getOrphanedTasks(),
+      getTaskMeta(),
+    ])
+      .then(([p, t, o, m]) => {
         setProjects(p.data);
         setTasks(t.data);
         setOrphaned(o.data);
+        setTaskMeta(m.data);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -667,19 +801,42 @@ export default function Tasks() {
         {activeTab === "kanban" && (
           <KanbanTab
             tasks={tasks}
+            statuses={taskMeta.statuses}
+            priorityMeta={taskMeta.priorities}
             onOpen={setDetailTask}
             onMove={handleTaskMoved}
-            onBlockedAttempt={(task, openBlockers) => setBlockedState({ task, openBlockers })}
+            onBlockedAttempt={(task, openBlockers) =>
+              setBlockedState({ task, openBlockers })
+            }
           />
         )}
 
-        {activeTab === "calendar" && <CalendarTab tasks={tasks} onOpen={setDetailTask} />}
+        {activeTab === "calendar" && <CalendarTab
+          tasks={tasks}
+          statusMeta={taskMeta.statusMeta}
+          onOpen={setDetailTask}
+        />}
 
         {activeTab === "projects" && (
-          <ProjectsTab projects={projects} tasks={tasks} onProjectAdded={handleProjectAdded} onMilestoneAdded={handleMilestoneAdded} />
+          <ProjectsTab
+            projects={projects}
+            tasks={tasks}
+            employees={taskMeta.employees}
+            currentEmployee={taskMeta.currentEmployee}
+            onProjectAdded={handleProjectAdded}
+            onMilestoneAdded={handleMilestoneAdded}
+          />
         )}
 
-        <CreateTaskModal isOpen={showCreateTask} onClose={() => setShowCreateTask(false)} projects={projects} onSaved={handleTaskAdded} />
+        <CreateTaskModal
+          isOpen={showCreateTask}
+          onClose={() => setShowCreateTask(false)}
+          projects={projects}
+          employees={taskMeta.employees}
+          priorities={taskMeta.priorities}
+          currentEmployee={taskMeta.currentEmployee}
+          onSaved={handleTaskAdded}
+        />
         <TaskDetailModal isOpen={!!detailTask} onClose={() => setDetailTask(null)} task={detailTask ? tasks.find((t) => t.id === detailTask.id) : null} />
         <ForceCloseModal
           isOpen={!!blockedState}

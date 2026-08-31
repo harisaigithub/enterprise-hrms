@@ -242,11 +242,22 @@ model Employee {
   oneOnOnesAsEmp   PerformanceOneOnOne[]      @relation("OneOnOneEmployee")
   oneOnOnesAsMgr   PerformanceOneOnOne[]      @relation("OneOnOneManager")
   ratingsHistory   PerformanceRatingHistory[]
-  helpdeskTickets  HelpdeskTicket[]  @relation("HelpdeskRequester")
-  assignedTickets  HelpdeskTicket[]  @relation("HelpdeskAssignee")
+  helpdeskTickets  HelpdeskTicket[]           @relation("HelpdeskRequester")
+  assignedTickets  HelpdeskTicket[]           @relation("HelpdeskAssignee")
   helpdeskComments HelpdeskComment[]
 
   courseEnrollments CourseEnrollment[]
+
+  taskAssignments    Task[]              @relation("TaskAssignee")
+  taskProjectMembers TaskProjectMember[]
+  taskHistoryActions TaskHistory[]       @relation("TaskHistoryActor")
+  taskTimeEntries    TaskTimeEntry[]     @relation("TaskTimeEntryEmployee")
+
+  assetsHeld    Asset[]        @relation("AssetCurrentHolder")
+  assetRequests AssetRequest[]
+  assetHistory  AssetHistory[]
+  separations   Separation[]
+  alumni        Alumni[]
 
   @@index([departmentId])
   @@index([designationId])
@@ -590,25 +601,25 @@ model Candidate {
 }
 
 model Application {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  candidateId   String   @map("candidate_id") @db.Uuid
-  requisitionId String   @map("requisition_id") @db.Uuid
-  stage         String   @default("Applied") @db.VarChar(30)
-  rating        Int      @default(0)
-  notes         String?  @db.Text
-  approvalStatus String   @default("HR Review") @map("approval_status") @db.VarChar(40)
-  firstApprovedBy String? @map("first_approved_by") @db.Uuid
-  firstApprovedAt DateTime? @map("first_approved_at") @db.Timestamp(6)
-  secondApprovedBy String? @map("second_approved_by") @db.Uuid
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidateId      String    @map("candidate_id") @db.Uuid
+  requisitionId    String    @map("requisition_id") @db.Uuid
+  stage            String    @default("Applied") @db.VarChar(30)
+  rating           Int       @default(0)
+  notes            String?   @db.Text
+  approvalStatus   String    @default("HR Review") @map("approval_status") @db.VarChar(40)
+  firstApprovedBy  String?   @map("first_approved_by") @db.Uuid
+  firstApprovedAt  DateTime? @map("first_approved_at") @db.Timestamp(6)
+  secondApprovedBy String?   @map("second_approved_by") @db.Uuid
   secondApprovedAt DateTime? @map("second_approved_at") @db.Timestamp(6)
-  approvalNotes String? @map("approval_notes") @db.Text
-  employeeId String? @unique @map("employee_id") @db.Uuid
-  appliedOn     DateTime @default(now()) @map("applied_on") @db.Date
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  approvalNotes    String?   @map("approval_notes") @db.Text
+  employeeId       String?   @unique @map("employee_id") @db.Uuid
+  appliedOn        DateTime  @default(now()) @map("applied_on") @db.Date
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
 
-  candidate   Candidate      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  requisition JobRequisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+  candidate   Candidate           @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  requisition JobRequisition      @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
   interviews  Interview[]
   offer       Offer?
   documents   CandidateDocument[]
@@ -671,20 +682,20 @@ model InterviewScorecard {
 }
 
 model Offer {
-  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  applicationId   String    @unique @map("application_id") @db.Uuid
-  proposedSalary  Decimal   @map("proposed_salary") @db.Decimal(12, 2)
-  status          String    @default("Draft") @db.VarChar(40)
-  consentOnFile   Boolean   @default(false) @map("consent_on_file")
-  financeOverride Boolean   @default(false) @map("finance_override")
-  overrideReason  String?   @map("override_reason") @db.Text
-  sentAt          DateTime? @map("sent_at") @db.Date
-  invitationTokenHash String? @unique @map("invitation_token_hash") @db.VarChar(64)
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  applicationId       String    @unique @map("application_id") @db.Uuid
+  proposedSalary      Decimal   @map("proposed_salary") @db.Decimal(12, 2)
+  status              String    @default("Draft") @db.VarChar(40)
+  consentOnFile       Boolean   @default(false) @map("consent_on_file")
+  financeOverride     Boolean   @default(false) @map("finance_override")
+  overrideReason      String?   @map("override_reason") @db.Text
+  sentAt              DateTime? @map("sent_at") @db.Date
+  invitationTokenHash String?   @unique @map("invitation_token_hash") @db.VarChar(64)
   invitationExpiresAt DateTime? @map("invitation_expires_at") @db.Timestamp(6)
-  decisionAt DateTime? @map("decision_at") @db.Timestamp(6)
-  joiningDate DateTime? @map("joining_date") @db.Date
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+  decisionAt          DateTime? @map("decision_at") @db.Timestamp(6)
+  joiningDate         DateTime? @map("joining_date") @db.Date
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
 
   application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
 
@@ -914,8 +925,8 @@ model HelpdeskTicket {
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
 
-  requester Employee          @relation("HelpdeskRequester", fields: [requesterId], references: [id], onDelete: Restrict)
-  assignedTo Employee?        @relation("HelpdeskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  requester  Employee          @relation("HelpdeskRequester", fields: [requesterId], references: [id], onDelete: Restrict)
+  assignedTo Employee?         @relation("HelpdeskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
   comments   HelpdeskComment[]
 
   @@index([requesterId, createdAt])
@@ -1028,13 +1039,13 @@ model Course {
   id             String       @id @default(cuid())
   title          String
   description    String?
-  thumbnailUrl String?
+  thumbnailUrl   String?
   contentModules Json
   isCompliance   Boolean      @default(false)
   expiryMonths   Int?
   passThreshold  Int          @default(70)
   status         CourseStatus @default(DRAFT)
-  version       Int     @default(1)
+  version        Int          @default(1)
   versionGroupId String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
@@ -1084,25 +1095,25 @@ model CourseEnrollment {
 }
 
 model CourseContent {
-  id         String            @id @default(cuid())
-  courseId   String
+  id       String @id @default(cuid())
+  courseId String
 
   moduleName String
   title      String
 
-  type       CourseContentType
-  content    String?
-  fileUrl    String?
-  order      Int
+  type    CourseContentType
+  content String?
+  fileUrl String?
+  order   Int
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
+  @@unique([courseId, order])
   @@index([courseId])
   @@index([type])
-  @@unique([courseId, order])
   @@map("course_contents")
 }
 
@@ -1175,13 +1186,13 @@ enum CourseContentProgressStatus {
 }
 
 model CourseContentProgress {
-  id           String                     @id @default(cuid())
+  id           String @id @default(cuid())
   enrollmentId String
   contentId    String
 
-  status       CourseContentProgressStatus @default(NOT_STARTED)
-  startedAt    DateTime?
-  completedAt  DateTime?
+  status      CourseContentProgressStatus @default(NOT_STARTED)
+  startedAt   DateTime?
+  completedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1203,29 +1214,29 @@ enum CertificateStatus {
 }
 
 model CourseCertificate {
-  id                String            @id @default(cuid())
-  enrollmentId      String            @unique
-  certificateNumber String            @unique
+  id                String @id @default(cuid())
+  enrollmentId      String @unique
+  certificateNumber String @unique
 
-  status            CertificateStatus @default(PENDING)
+  status CertificateStatus @default(PENDING)
 
-  issuedAt          DateTime?
-  expiresAt         DateTime?
+  issuedAt  DateTime?
+  expiresAt DateTime?
 
-  certificateUrl    String?
-  storageKey        String?
+  certificateUrl String?
+  storageKey     String?
 
-  verificationToken String            @unique
+  verificationToken String  @unique
   pdfSha256         String?
 
-  generatedAt       DateTime?
-  revokedAt         DateTime?
-  revokeReason      String?
+  generatedAt  DateTime?
+  revokedAt    DateTime?
+  revokeReason String?
 
-  downloadCount     Int               @default(0)
+  downloadCount Int @default(0)
 
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   enrollment CourseEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
 
@@ -1235,3 +1246,319 @@ model CourseCertificate {
   @@map("course_certificates")
 }
 
+// ── Task Management (Module 13) ───────────────────────────────────────────
+
+model TaskProject {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String   @db.VarChar(150)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  members    TaskProjectMember[]
+  milestones TaskMilestone[]
+  tasks      Task[]
+
+  @@index([createdAt])
+  @@map("task_projects")
+}
+
+model TaskProjectMember {
+  projectId  String @map("project_id") @db.Uuid
+  employeeId String @map("employee_id") @db.Uuid
+
+  project  TaskProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  employee Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, employeeId])
+  @@index([employeeId])
+  @@map("task_project_members")
+}
+
+model TaskMilestone {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId String   @map("project_id") @db.Uuid
+  title     String   @db.VarChar(150)
+  dueDate   DateTime @map("due_date") @db.Date
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  project TaskProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   Task[]
+
+  @@index([projectId])
+  @@index([dueDate])
+  @@map("task_milestones")
+}
+
+model Task {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId   String  @map("project_id") @db.Uuid
+  milestoneId String? @map("milestone_id") @db.Uuid
+
+  title      String @db.VarChar(255)
+  assigneeId String @map("assignee_id") @db.Uuid
+
+  status   String @default("Todo") @db.VarChar(30)
+  priority String @default("Medium") @db.VarChar(20)
+
+  dueDate DateTime @map("due_date") @db.Date
+
+  forceClosed      Boolean @default(false) @map("force_closed")
+  forceCloseReason String? @map("force_close_reason") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  project   TaskProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  milestone TaskMilestone? @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  assignee  Employee       @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
+
+  dependencies TaskDependency[] @relation("TaskDependencies")
+  blockedTasks TaskDependency[] @relation("TaskBlockedBy")
+
+  history     TaskHistory[]
+  timeEntries TaskTimeEntry[]
+
+  @@index([projectId])
+  @@index([milestoneId])
+  @@index([assigneeId])
+  @@index([status])
+  @@index([priority])
+  @@index([dueDate])
+  @@map("tasks")
+}
+
+model TaskDependency {
+  taskId    String @map("task_id") @db.Uuid
+  blockerId String @map("blocker_id") @db.Uuid
+
+  task    Task @relation("TaskDependencies", fields: [taskId], references: [id], onDelete: Cascade)
+  blocker Task @relation("TaskBlockedBy", fields: [blockerId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, blockerId])
+  @@index([blockerId])
+  @@map("task_dependencies")
+}
+
+model TaskHistory {
+  id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  taskId String @map("task_id") @db.Uuid
+
+  action String  @db.VarChar(80)
+  detail String? @db.Text
+
+  actorId   String? @map("actor_id") @db.Uuid
+  actorName String? @map("actor_name") @db.VarChar(120)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  task  Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  actor Employee? @relation("TaskHistoryActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([taskId, createdAt])
+  @@index([actorId])
+  @@map("task_history")
+}
+
+model TaskTimeEntry {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  taskId     String @map("task_id") @db.Uuid
+  employeeId String @map("employee_id") @db.Uuid
+
+  date  DateTime @db.Date
+  hours Decimal  @db.Decimal(6, 2)
+  note  String?  @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  task     Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  employee Employee @relation("TaskTimeEntryEmployee", fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@index([taskId])
+  @@index([employeeId])
+  @@index([date])
+  @@map("task_time_entries")
+}
+
+enum AssetStatus {
+  IN_STOCK
+  ASSIGNED
+  MAINTENANCE
+  RETIRED
+  LOST
+  DAMAGED
+}
+
+enum AssetRequestStatus {
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  FULFILLED
+  PENDING_PROCUREMENT
+}
+
+enum AssetReturnCondition {
+  GOOD
+  DAMAGED
+}
+
+model Asset {
+  id       String      @id @default(uuid()) @db.Uuid
+  serial   String      @unique
+  category String
+  make     String?
+  model    String?
+  status   AssetStatus @default(IN_STOCK)
+
+  currentHolderId String? @db.Uuid
+  acknowledged    Boolean @default(false)
+
+  seats         Int?
+  seatsUsed     Int       @default(0)
+  licenseExpiry DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  currentHolder Employee?      @relation("AssetCurrentHolder", fields: [currentHolderId], references: [id])
+  requests      AssetRequest[]
+  history       AssetHistory[]
+
+  @@index([currentHolderId])
+  @@index([status])
+  @@index([category])
+}
+
+model AssetRequest {
+  id            String @id @default(uuid()) @db.Uuid
+  employeeId    String @db.Uuid
+  category      String
+  justification String
+
+  status   AssetRequestStatus @default(PENDING_APPROVAL)
+  raisedAt DateTime           @default(now())
+
+  approvedBy String?
+  approvedAt DateTime?
+
+  fulfilledAt DateTime?
+  assetId     String?   @db.Uuid
+
+  employee Employee @relation(fields: [employeeId], references: [id])
+  asset    Asset?   @relation(fields: [assetId], references: [id])
+
+  @@index([employeeId])
+  @@index([status])
+  @@index([assetId])
+}
+
+model AssetHistory {
+  id         String  @id @default(uuid()) @db.Uuid
+  assetId    String  @db.Uuid
+  employeeId String? @db.Uuid
+
+  action String
+  detail String?
+
+  condition     AssetReturnCondition?
+  wipeCompleted Boolean?
+
+  createdAt DateTime @default(now())
+
+  asset    Asset     @relation(fields: [assetId], references: [id])
+  employee Employee? @relation(fields: [employeeId], references: [id])
+
+  @@index([assetId])
+  @@index([employeeId])
+  @@index([createdAt])
+}
+
+model Separation {
+  id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId             String   @map("employee_id") @db.Uuid
+  type                   String   @db.VarChar(30)
+  reason                 String
+  submittedOn            DateTime @map("submitted_on") @db.Date
+  lastWorkingDay         DateTime @map("last_working_day") @db.Date
+  noticePeriodDays       Int      @map("notice_period_days")
+  status                 String   @default("Notice Period") @db.VarChar(40)
+  exitInterviewCompleted Boolean  @default(false) @map("exit_interview_completed")
+  accessRevoked          Boolean  @default(false) @map("access_revoked")
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt              DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  employee       Employee              @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  clearanceItems SeparationClearance[]
+  exitInterview  ExitInterview?
+  settlement     SeparationSettlement?
+  alumni         Alumni?
+
+  @@index([employeeId])
+  @@index([status])
+  @@map("separations")
+}
+
+model SeparationClearance {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  separationId String    @map("separation_id") @db.Uuid
+  item         String    @db.VarChar(150)
+  owner        String    @db.VarChar(100)
+  status       String    @default("Pending") @db.VarChar(30)
+  notes        String?
+  completedAt  DateTime? @map("completed_at") @db.Timestamp(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  separation Separation @relation(fields: [separationId], references: [id], onDelete: Cascade)
+
+  @@index([separationId])
+  @@index([status])
+  @@map("separation_clearance_items")
+}
+
+model ExitInterview {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  separationId String   @unique @map("separation_id") @db.Uuid
+  responses    Json
+  conductedBy  String   @map("conducted_by") @db.VarChar(100)
+  conductedAt  DateTime @default(now()) @map("conducted_at") @db.Timestamp(6)
+
+  separation Separation @relation(fields: [separationId], references: [id], onDelete: Cascade)
+
+  @@map("exit_interviews")
+}
+
+model SeparationSettlement {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  separationId    String   @unique @map("separation_id") @db.Uuid
+  pendingSalary   Decimal  @default(0) @map("pending_salary") @db.Decimal(15, 2)
+  leaveEncashment Decimal  @default(0) @map("leave_encashment") @db.Decimal(15, 2)
+  reimbursements  Decimal  @default(0) @db.Decimal(15, 2)
+  recoveries      Decimal  @default(0) @db.Decimal(15, 2)
+  netSettlement   Decimal  @map("net_settlement") @db.Decimal(15, 2)
+  override        Boolean  @default(false)
+  overrideReason  String?  @map("override_reason")
+  approvedAt      DateTime @default(now()) @map("approved_at") @db.Timestamp(6)
+
+  separation Separation @relation(fields: [separationId], references: [id], onDelete: Cascade)
+
+  @@map("separation_settlements")
+}
+
+model Alumni {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  separationId      String   @unique @map("separation_id") @db.Uuid
+  employeeId        String   @map("employee_id") @db.Uuid
+  name              String   @db.VarChar(160)
+  role              String   @db.VarChar(100)
+  tenure            String   @db.VarChar(100)
+  eligibleForRehire Boolean  @default(true) @map("eligible_for_rehire")
+  exitedOn          DateTime @map("exited_on") @db.Date
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  separation Separation @relation(fields: [separationId], references: [id], onDelete: Cascade)
+  employee   Employee   @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@index([employeeId])
+  @@map("alumni")
+}

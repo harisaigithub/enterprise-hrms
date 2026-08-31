@@ -1,61 +1,124 @@
 /**
  * Separation Management service — Module 19
- * Mirrors leaveService/attendanceService: async functions resolving to { data }.
+ * Connected to real Separation Management backend APIs.
  */
 
-import {
-  _getSeparations,
-  _initiateSeparation,
-  _getClearanceItems,
-  _updateClearanceItem,
-  _getExitInterview,
-  _recordExitInterview,
-  _computeSettlement,
-  _revokeAccess,
-  _convertToAlumni,
-  _getAlumni,
-} from "../mock/separation";
+import api from "./api";
 
-const resolve = (data, ms = 350) => new Promise((res) => setTimeout(() => res({ data }), ms));
+/* =========================================================
+   SEPARATIONS
+========================================================= */
 
 export function getSeparations() {
-  return resolve(_getSeparations());
+  return api.get("/separations");
 }
-export function initiateSeparation(sep) {
-  return resolve(_initiateSeparation(sep));
+
+export function initiateSeparation(separation) {
+  return api.post("/separations", separation);
 }
+
+/* =========================================================
+   CLEARANCE
+========================================================= */
 
 export function getClearanceItems(separationId) {
-  return resolve(_getClearanceItems(separationId));
-}
-export function updateClearanceItem(id, status, notes) {
-  return resolve(_updateClearanceItem(id, status, notes));
+  return api.get(
+    `/separations/${separationId}/clearance`
+  );
 }
 
-// HR-only by design (19.7) — callers outside an HR-role view should not wire
-// this up at all, not merely hide the result in the UI.
+export function updateClearanceItem(
+  id,
+  status,
+  notes
+) {
+  return api.patch(
+    `/separations/clearance/${id}`,
+    {
+      status,
+      notes,
+    }
+  );
+}
+
+/* =========================================================
+   EXIT INTERVIEW
+========================================================= */
+
 export function getExitInterview(separationId) {
-  return resolve(_getExitInterview(separationId));
-}
-export function recordExitInterview(separationId, responses, conductedBy) {
-  return resolve(_recordExitInterview(separationId, responses, conductedBy));
-}
-
-// Hard gate (19.6): returns { error } instead of a result if clearance is
-// incomplete and no override was supplied.
-export function computeSettlement(separationId, breakdown, override, overrideReason) {
-  return resolve(_computeSettlement(separationId, breakdown, override, overrideReason));
+  return api.get(
+    `/separations/${separationId}/exit-interview`
+  );
 }
 
-// Atomic revocation across SSO/email/VPN/HRMS — modeled as a single call,
-// not a per-system toggle list.
+/**
+ * conductedBy is intentionally NOT sent from frontend.
+ *
+ * Backend should identify the authenticated HR user
+ * from req.auth.sub.
+ */
+export function recordExitInterview(
+  separationId,
+  responses
+) {
+  return api.post(
+    `/separations/${separationId}/exit-interview`,
+    {
+      responses,
+    }
+  );
+}
+
+/* =========================================================
+   SETTLEMENT
+========================================================= */
+
+export function computeSettlement(
+  separationId,
+  breakdown,
+  override,
+  overrideReason
+) {
+  return api.post(
+    `/separations/${separationId}/settlement`,
+    {
+      breakdown,
+      override,
+      overrideReason,
+    }
+  );
+}
+
+/* =========================================================
+   ACCESS REVOCATION
+========================================================= */
+
 export function revokeAccess(separationId) {
-  return resolve(_revokeAccess(separationId));
+  return api.post(
+    `/separations/${separationId}/revoke-access`
+  );
 }
 
-export function convertToAlumni(separationId, tenure, role, eligibleForRehire) {
-  return resolve(_convertToAlumni(separationId, tenure, role, eligibleForRehire));
+/* =========================================================
+   ALUMNI
+========================================================= */
+
+export function convertToAlumni(
+  separationId,
+  tenure,
+  role,
+  eligibleForRehire
+) {
+  return api.post(
+    `/separations/${separationId}/alumni`,
+    {
+      tenure,
+      role,
+      eligibleForRehire,
+    }
+  );
 }
+
 export function getAlumni() {
-  return resolve(_getAlumni());
+  return api.get("/separations/alumni");
 }

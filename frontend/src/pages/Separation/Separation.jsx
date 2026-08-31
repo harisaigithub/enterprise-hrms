@@ -33,14 +33,88 @@ import {
   convertToAlumni,
   getAlumni,
 } from "../../services/separationService";
-import { separationStatusMeta, clearanceStatusMeta } from "../../mock/Separation";
-import { colleagues } from "../../mock/recruitment";
 
-const HR_USER = "lewis hamilton";
+import { getEmployees } from "../../services/employeeService";
+
 const currency = (n) => `?${Number(n).toLocaleString("en-IN")}`;
-const fmtDate = (d) => (d ? new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "�");
+const fmtDate = (value) => {
+  if (!value) return "—";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    console.error("Invalid date received:", value);
+    return "—";
+  }
+
+  return date.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
 
 /* ---------------------------------- shared bits ---------------------------------- */
+
+const separationStatusMeta = {
+  "Notice Period": {
+    color: "#d97706",
+    bg: "#fffbeb",
+  },
+  "Clearance In Progress": {
+    color: "#2563eb",
+    bg: "#eff6ff",
+  },
+  Cleared: {
+    color: "#16a34a",
+    bg: "#f0fdf4",
+  },
+  "Settlement Pending": {
+    color: "#9333ea",
+    bg: "#faf5ff",
+  },
+  Completed: {
+    color: "#16a34a",
+    bg: "#f0fdf4",
+  },
+  Alumni: {
+    color: "#7c3aed",
+    bg: "#f5f3ff",
+  },
+  "Settlement Approved": {
+    color: "var(--primary)",
+    bg: "var(--primary-light)",
+  },
+};
+
+const normalizeSeparationStatus = (status) => {
+  if (!status) {
+    return null;
+  }
+
+  const normalized = String(status).trim();
+
+  if (separationStatusMeta[normalized]) {
+    return normalized;
+  }
+
+  return null;
+};
+
+const clearanceStatusMeta = {
+  Pending: {
+    color: "#d97706",
+    bg: "#fffbeb",
+  },
+  Complete: {
+    color: "#16a34a",
+    bg: "#f0fdf4",
+  },
+  Flagged: {
+    color: "#dc2626",
+    bg: "#fef2f2",
+  },
+};
 
 const cardStyle = {
   background: "var(--card)",
@@ -109,87 +183,524 @@ function TabNav({ tabs, active, onChange }) {
 
 /* ---------------------------------- Separations tab ---------------------------------- */
 
-function InitiateSeparationModal({ isOpen, onClose, onSaved }) {
+function InitiateSeparationModal({
+  isOpen,
+  onClose,
+  onSaved,
+}) {
   const [employeeId, setEmployeeId] = useState("");
   const [type, setType] = useState("Resignation");
   const [reason, setReason] = useState("");
-  const [submittedOn, setSubmittedOn] = useState(new Date().toISOString().slice(0, 10));
-  const [noticePeriodDays, setNoticePeriodDays] = useState(30);
+
+  const [submittedOn, setSubmittedOn] = useState(
+    new Date().toISOString().slice(0, 10)
+  );
+
+  const [noticePeriodDays, setNoticePeriodDays] =
+    useState(30);
+
+  const [employees, setEmployees] = useState([]);
+  const [loadingEmployees, setLoadingEmployees] =
+    useState(false);
+
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  /* =========================================================
+     LOAD EMPLOYEES
+  ========================================================= */
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let mounted = true;
+
+    const loadEmployees = async () => {
+      try {
+        setLoadingEmployees(true);
+        setError("");
+
+        const response = await getEmployees({
+          status: "Active",
+        });
+
+        console.log(
+          "EMPLOYEE API RESPONSE:",
+          response
+        );
+
+        if (mounted) {
+          setEmployees(response?.data || []);
+        }
+      } catch (err) {
+        console.error(
+          "Failed to load employees:",
+          err
+        );
+
+        if (mounted) {
+          setEmployees([]);
+
+          setError(
+            err?.response?.data?.message ||
+            "Failed to load employees"
+          );
+        }
+      } finally {
+        if (mounted) {
+          setLoadingEmployees(false);
+        }
+      }
+    };
+
+    loadEmployees();
+
+    return () => {
+      mounted = false;
+    };
+  }, [isOpen]);
+
+  /* =========================================================
+     LAST WORKING DAY
+  ========================================================= */
 
   const lastWorkingDay = () => {
     const d = new Date(submittedOn);
-    d.setDate(d.getDate() + Number(noticePeriodDays));
+
+    d.setDate(
+      d.getDate() +
+      Number(noticePeriodDays || 0)
+    );
+
     return d.toISOString().slice(0, 10);
   };
 
+  /* =========================================================
+     SUBMIT
+  ========================================================= */
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!employeeId || !reason.trim()) return;
-    setSaving(true);
-    const emp = colleagues.find((c) => c.id === employeeId);
-    const sep = {
-      id: `sep-${Date.now()}`,
-      employeeId,
-      employeeName: emp?.name || employeeId,
-      type,
-      reason: reason.trim(),
-      submittedOn,
-      lastWorkingDay: lastWorkingDay(),
-      noticePeriodDays: Number(noticePeriodDays),
-      status: "Notice Period",
-      exitInterviewCompleted: false,
-      accessRevoked: false,
-      settlement: null,
-    };
-    const res = await initiateSeparation(sep);
-    setSaving(false);
-    onSaved(res.data);
-    onClose();
-    setEmployeeId(""); setReason("");
+
+    setError("");
+
+    /* Employee required */
+    if (!employeeId) {
+      setError("Please select an employee.");
+      return;
+    }
+
+    /* Reason required */
+    if (!reason.trim()) {
+      setError("Please enter a reason.");
+      return;
+    }
+
+    /*
+     * IMPORTANT:
+     * employeeId must be the real Employee UUID.
+     *
+     * We find the selected employee from the loaded
+     * backend employee list and use employee.id.
+     */
+    const selectedEmployee = employees.find(
+      (employee) => employee.id === employeeId
+    );
+
+    if (!selectedEmployee) {
+      setError("Invalid employee selected.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      /*
+       * Production payload.
+       *
+       * employeeId = Employee.id (UUID)
+       * NOT employee name
+       * NOT employee code
+       */
+      const separation = {
+        employeeId: selectedEmployee.id,
+        type,
+        reason: reason.trim(),
+        submittedOn,
+        lastWorkingDay: lastWorkingDay(),
+        noticePeriodDays: Number(
+          noticePeriodDays || 0
+        ),
+      };
+
+      console.log(
+        "SEPARATION PAYLOAD:",
+        separation
+      );
+
+      const response =
+        await initiateSeparation(
+          separation
+        );
+
+      onSaved(response.data);
+
+      /* Reset form */
+      setEmployeeId("");
+      setType("Resignation");
+      setReason("");
+      setNoticePeriodDays(30);
+      setError("");
+
+      onClose();
+    } catch (err) {
+      console.error(
+        "Initiate separation error:",
+        err
+      );
+
+      setError(
+        err?.response?.data?.message ||
+        "Failed to initiate separation"
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
+  /* =========================================================
+     UI
+  ========================================================= */
+
   return (
-    <Modal isOpen={isOpen} title="Initiate Separation" onClose={onClose}>
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+    <Modal
+      isOpen={isOpen}
+      title="Initiate Separation"
+      onClose={onClose}
+    >
+      <form
+        onSubmit={handleSubmit}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "16px",
+        }}
+      >
+
+        {/* =================================================
+            TYPE
+        ================================================= */}
+
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "5px",
+          }}
+        >
           {fieldLabel("Type")}
-          <select value={type} onChange={(e) => setType(e.target.value)} style={{ ...inputStyle(false), height: "38px", cursor: "pointer" }}>
-            <option value="Resignation">Resignation (employee-initiated)</option>
-            <option value="Termination">Termination (involuntary � HR + senior approver only)</option>
+
+          <select
+            value={type}
+            onChange={(e) =>
+              setType(e.target.value)
+            }
+            disabled={saving}
+            style={{
+              ...inputStyle(false),
+              height: "38px",
+              cursor: saving
+                ? "not-allowed"
+                : "pointer",
+            }}
+          >
+            <option value="Resignation">
+              Resignation (employee-initiated)
+            </option>
+
+            <option value="Termination">
+              Termination (involuntary — HR +
+              senior approver only)
+            </option>
           </select>
         </div>
+
+        {/* =================================================
+            TERMINATION WARNING
+        ================================================= */}
+
         {type === "Termination" && (
-          <div style={{ display: "flex", gap: "8px", alignItems: "flex-start", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "var(--radius-sm)", padding: "10px 12px" }}>
-            <AlertTriangle size={16} style={{ color: "var(--red)", flexShrink: 0, marginTop: "1px" }} />
-            <p style={{ fontSize: "12px", color: "#991b1b", margin: 0 }}>This path has stricter access in a real deployment � restricted to HR plus a senior approver, given its legal sensitivity.</p>
+          <div
+            style={{
+              display: "flex",
+              gap: "8px",
+              alignItems: "flex-start",
+              background: "#fef2f2",
+              border: "1px solid #fecaca",
+              borderRadius:
+                "var(--radius-sm)",
+              padding: "10px 12px",
+            }}
+          >
+            <AlertTriangle
+              size={16}
+              style={{
+                color: "var(--red)",
+                flexShrink: 0,
+                marginTop: "1px",
+              }}
+            />
+
+            <p
+              style={{
+                fontSize: "12px",
+                color: "#991b1b",
+                margin: 0,
+              }}
+            >
+              This path has stricter access in a
+              real deployment — restricted to HR
+              plus a senior approver, given its
+              legal sensitivity.
+            </p>
           </div>
         )}
-        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+
+        {/* =================================================
+            EMPLOYEE
+        ================================================= */}
+
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "5px",
+          }}
+        >
           {fieldLabel("Employee *")}
-          <select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} style={{ ...inputStyle(false), height: "38px", cursor: "pointer" }}>
-            <option value="">Select employee</option>
-            {colleagues.map((c) => <option key={c.id} value={c.id}>{c.name} � {c.role}</option>)}
+
+          <select
+            value={employeeId}
+            onChange={(e) => {
+              setEmployeeId(e.target.value);
+              setError("");
+            }}
+            disabled={
+              loadingEmployees || saving
+            }
+            style={{
+              ...inputStyle(false),
+              height: "38px",
+              cursor:
+                loadingEmployees || saving
+                  ? "not-allowed"
+                  : "pointer",
+            }}
+          >
+            <option value="">
+              {loadingEmployees
+                ? "Loading employees..."
+                : employees.length === 0
+                  ? "No active employees found"
+                  : "Select employee"}
+            </option>
+
+            {employees.map((employee) => {
+              /*
+               * Display name only.
+               *
+               * IMPORTANT:
+               * value is employee.id.
+               */
+              const name =
+                `${employee.firstName || ""} ${employee.lastName || ""
+                  }`.trim();
+
+              return (
+                <option
+                  key={employee.id}
+                  value={employee.id}
+                >
+                  {name ||
+                    employee.employeeCode ||
+                    employee.id}
+
+                  {employee.employeeCode
+                    ? ` — ${employee.employeeCode}`
+                    : ""}
+                </option>
+              );
+            })}
           </select>
+
+          {/* Optional debugging information */}
+          {employeeId && (
+            <span
+              style={{
+                fontSize: "10px",
+                color: "var(--subtext)",
+              }}
+            >
+              Selected Employee ID: {employeeId}
+            </span>
+          )}
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+
+        {/* =================================================
+            REASON
+        ================================================= */}
+
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "5px",
+          }}
+        >
           {fieldLabel("Reason *")}
-          <textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} style={{ ...inputStyle(false), resize: "vertical" }} />
+
+          <textarea
+            rows={2}
+            value={reason}
+            onChange={(e) =>
+              setReason(e.target.value)
+            }
+            disabled={saving}
+            style={{
+              ...inputStyle(false),
+              resize: "vertical",
+            }}
+          />
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+
+        {/* =================================================
+            DATES
+        ================================================= */}
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              "1fr 1fr",
+            gap: "12px",
+          }}
+        >
+          {/* Submitted On */}
+
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "5px",
+            }}
+          >
             {fieldLabel("Submitted On")}
-            <input type="date" value={submittedOn} onChange={(e) => setSubmittedOn(e.target.value)} style={inputStyle(false)} />
+
+            <input
+              type="date"
+              value={submittedOn}
+              onChange={(e) =>
+                setSubmittedOn(
+                  e.target.value
+                )
+              }
+              disabled={saving}
+              style={inputStyle(false)}
+            />
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-            {fieldLabel("Notice Period (days)")}
-            <input type="number" min={0} value={noticePeriodDays} onChange={(e) => setNoticePeriodDays(e.target.value)} style={inputStyle(false)} />
+
+          {/* Notice Period */}
+
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "5px",
+            }}
+          >
+            {fieldLabel(
+              "Notice Period (days)"
+            )}
+
+            <input
+              type="number"
+              min={0}
+              value={noticePeriodDays}
+              onChange={(e) =>
+                setNoticePeriodDays(
+                  e.target.value
+                )
+              }
+              disabled={saving}
+              style={inputStyle(false)}
+            />
           </div>
         </div>
-        <p style={{ fontSize: "12px", color: "var(--subtext)", margin: 0 }}>Computed last working day: <strong>{fmtDate(lastWorkingDay())}</strong></p>
-        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-          <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Submitting�" : "Initiate Separation"}</PrimaryButton>
+
+        {/* =================================================
+            LAST WORKING DAY
+        ================================================= */}
+
+        <p
+          style={{
+            fontSize: "12px",
+            color: "var(--subtext)",
+            margin: 0,
+          }}
+        >
+          Computed last working day:{" "}
+          <strong>
+            {fmtDate(lastWorkingDay())}
+          </strong>
+        </p>
+
+        {/* =================================================
+            ERROR
+        ================================================= */}
+
+        {error && (
+          <p
+            style={{
+              fontSize: "12px",
+              color: "var(--red)",
+              margin: 0,
+            }}
+          >
+            {error}
+          </p>
+        )}
+
+        {/* =================================================
+            ACTIONS
+        ================================================= */}
+
+        <div
+          style={{
+            display: "flex",
+            gap: "10px",
+            justifyContent: "flex-end",
+          }}
+        >
+          <SecondaryButton
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+          >
+            Cancel
+          </SecondaryButton>
+
+          <PrimaryButton
+            type="submit"
+            disabled={
+              saving ||
+              loadingEmployees ||
+              employees.length === 0
+            }
+          >
+            {saving
+              ? "Submitting..."
+              : "Initiate Separation"}
+          </PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -221,7 +732,25 @@ function SeparationsTab({ separations, selectedId, onSelect, onAdded }) {
               </thead>
               <tbody>
                 {separations.map((s, i) => {
-                  const meta = separationStatusMeta[s.status];
+                  const normalizedStatus = normalizeSeparationStatus(
+                    s.status
+                  );
+
+                  if (!normalizedStatus) {
+                    console.error(
+                      "Unknown separation status received from backend:",
+                      {
+                        separationId: s.id,
+                        employeeId: s.employeeId,
+                        status: s.status,
+                      }
+                    );
+                  }
+
+                  const meta = normalizedStatus
+                    ? separationStatusMeta[normalizedStatus]
+                    : null;
+
                   return (
                     <tr
                       key={s.id}
@@ -232,7 +761,11 @@ function SeparationsTab({ separations, selectedId, onSelect, onAdded }) {
                       <td style={{ padding: "13px 16px", fontSize: "13px", color: "var(--text)" }}>{s.type}</td>
                       <td style={{ padding: "13px 16px", fontSize: "12.5px", color: "var(--subtext)", whiteSpace: "nowrap" }}>{fmtDate(s.submittedOn)}</td>
                       <td style={{ padding: "13px 16px", fontSize: "12.5px", color: "var(--subtext)", whiteSpace: "nowrap" }}>{fmtDate(s.lastWorkingDay)}</td>
-                      <td style={{ padding: "13px 16px" }}><StatusBadge label={s.status} color={meta.color} bg={meta.bg} /></td>
+                      <td style={{ padding: "13px 16px" }}><StatusBadge
+                        label={normalizedStatus || "Unknown"}
+                        color={meta?.color || "var(--subtext)"}
+                        bg={meta?.bg || "var(--background)"}
+                      /></td>
                       <td style={{ padding: "13px 16px" }}>
                         {s.accessRevoked ? (
                           <span style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "12px", color: "var(--red)", fontWeight: 600 }}><ShieldOff size={13} /> Revoked</span>
@@ -325,7 +858,10 @@ function ExitInterviewTab({ separation, interview, onSaved }) {
     e.preventDefault();
     setSaving(true);
     const responses = DEFAULT_QUESTIONS.map((q, i) => ({ q, a: answers[i] }));
-    const res = await recordExitInterview(separation.id, responses, HR_USER);
+    const res = await recordExitInterview(
+      separation.id,
+      responses
+    );
     setSaving(false);
     onSaved(res.data);
   };
