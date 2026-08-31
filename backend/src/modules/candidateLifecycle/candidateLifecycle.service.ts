@@ -178,39 +178,303 @@ export async function verifyDocument(documentId: string, actorUserId: string, in
 }
 
 export async function createEmployeeAccount(applicationId: string) {
-  const application = await getApplication(applicationId);
-  if (application.offer?.status !== "Accepted") throw AppError.badRequest("Candidate must accept the offer first");
-  if (!application.documents.length || application.documents.some((doc: any) => doc.status !== "Verified")) {
-    throw AppError.badRequest("All onboarding documents must be verified first");
-  }
-  if (application.employeeId) throw AppError.conflict("Employee account has already been created");
+    const application = await getApplication(applicationId);
 
-  const employeeRole = await prisma.role.findUnique({ where: { name: "EMPLOYEE" } });
-  if (!employeeRole) throw AppError.badRequest("EMPLOYEE role is not configured");
-  const email = application.candidate.email.toLowerCase();
-  if (await prisma.user.findUnique({ where: { email } })) throw AppError.conflict("A user account already exists for this email");
+    if (application.offer?.status !== "Accepted") {
+        throw AppError.badRequest(
+            "Candidate must accept the offer first"
+        );
+    }
 
-  const latestEmployee = await prisma.employee.findFirst({ orderBy: { employeeCode: "desc" }, select: { employeeCode: true } });
-  const nextNumber = Number(latestEmployee?.employeeCode.match(/\d+$/)?.[0] || 0) + 1;
-  const employeeCode = `EMP${String(nextNumber).padStart(3, "0")}`;
-  const temporaryPassword = `Welcome@${crypto.randomInt(1000, 9999)}`;
-  const passwordHash = await hashPassword(temporaryPassword);
-  const joiningDate = application.offer.joiningDate || new Date();
+    if (
+        !application.documents.length ||
+        application.documents.some(
+            (doc: any) => doc.status !== "Verified"
+        )
+    ) {
+        throw AppError.badRequest(
+            "All onboarding documents must be verified first"
+        );
+    }
 
-  const result = await prisma.$transaction(async (tx) => {
-    const user = await tx.user.create({ data: { email, passwordHash, roleId: employeeRole.id } });
-    const employee = await tx.employee.create({ data: {
-      userId: user.id, employeeCode,
-      firstName: application.candidate.firstName, lastName: application.candidate.lastName || "",
-      personalEmail: email, personalMobile: application.candidate.phone,
-      departmentId: application.requisition.departmentId, designationId: application.requisition.designationId,
-      locationId: application.requisition.locationId, dateOfJoining: joiningDate,
-    } });
-    await tx.application.update({ where: { id: applicationId }, data: { employeeId: employee.id, stage: "Hired", approvalStatus: "Employee Created" } });
-    await tx.offer.update({ where: { id: application.offer!.id }, data: { invitationExpiresAt: new Date() } });
-    return employee;
-  });
-  return { employee: result, loginEmail: email, temporaryPassword };
+    if (application.employeeId) {
+        throw AppError.conflict(
+            "Employee account has already been created"
+        );
+    }
+
+    const employeeRole = await prisma.role.findUnique({
+        where: {
+            name: "EMPLOYEE",
+        },
+    });
+
+    if (!employeeRole) {
+        throw AppError.badRequest(
+            "EMPLOYEE role is not configured"
+        );
+    }
+
+    const email =
+        application.candidate.email.toLowerCase();
+
+    const existingUser = await prisma.user.findUnique({
+        where: {
+            email,
+        },
+    });
+
+    if (existingUser) {
+        throw AppError.conflict(
+            "A user account already exists for this email"
+        );
+    }
+
+    const latestEmployee =
+        await prisma.employee.findFirst({
+            orderBy: {
+                employeeCode: "desc",
+            },
+            select: {
+                employeeCode: true,
+            },
+        });
+
+    const nextNumber =
+        Number(
+            latestEmployee?.employeeCode.match(/\d+$/)?.[0] || 0
+        ) + 1;
+
+    const employeeCode = `EMP${String(
+        nextNumber
+    ).padStart(3, "0")}`;
+
+    const temporaryPassword = `Welcome@${crypto.randomInt(
+        1000,
+        9999
+    )}`;
+
+    const passwordHash =
+        await hashPassword(temporaryPassword);
+
+    const joiningDate =
+        application.offer.joiningDate || new Date();
+
+    // 90 days probation
+    const probationEndDate = new Date(joiningDate);
+    probationEndDate.setDate(
+        probationEndDate.getDate() + 90
+    );
+
+    const result = await prisma.$transaction(
+        async (tx) => {
+
+            // =====================================================
+            // 1. CREATE USER
+            // =====================================================
+
+            const user = await tx.user.create({
+                data: {
+                    email,
+                    passwordHash,
+                    roleId: employeeRole.id,
+                },
+            });
+
+            // =====================================================
+            // 2. CREATE EMPLOYEE
+            // =====================================================
+
+            const employee =
+                await tx.employee.create({
+                    data: {
+                        userId: user.id,
+
+                        employeeCode,
+
+                        firstName:
+                            application.candidate.firstName,
+
+                        lastName:
+                            application.candidate.lastName || "",
+
+                        personalEmail:
+                            email,
+
+                        personalMobile:
+                            application.candidate.phone,
+
+                        departmentId:
+                            application.requisition.departmentId,
+
+                        designationId:
+                            application.requisition.designationId,
+
+                        locationId:
+                            application.requisition.locationId,
+
+                        dateOfJoining:
+                            joiningDate,
+                    },
+                });
+
+            // =====================================================
+            // 3. CREATE ONBOARDING
+            // =====================================================
+
+            const onboarding =
+                await tx.onboarding.create({
+                    data: {
+                        employeeId: employee.id,
+
+                        offerId:
+                            application.offer?.id ?? null,
+
+                        joinDate: joiningDate,
+
+                        probationEndDate,
+
+                        buddy: null,
+
+                        status: "NOT_STARTED",
+                    },
+                });
+
+            // =====================================================
+            // 4. CREATE CHECKLIST ITEMS
+            // =====================================================
+
+            const checklistItems = [
+                {
+                    title: "Document Verification",
+                    category: "Documentation",
+                    owner: "HR",
+                    dueDays: 1,
+                },
+                {
+                    title: "Create Employee Account",
+                    category: "IT",
+                    owner: "IT",
+                    dueDays: 1,
+                },
+                {
+                    title: "Laptop / Equipment Allocation",
+                    category: "Procurement",
+                    owner: "IT",
+                    dueDays: 2,
+                },
+                {
+                    title: "Email Account Setup",
+                    category: "IT",
+                    owner: "IT",
+                    dueDays: 2,
+                },
+                {
+                    title: "HR Orientation",
+                    category: "Orientation",
+                    owner: "HR",
+                    dueDays: 3,
+                },
+                {
+                    title: "Department Introduction",
+                    category: "Orientation",
+                    owner: "Manager",
+                    dueDays: 5,
+                },
+                {
+                    title: "Assign Buddy",
+                    category: "People",
+                    owner: "HR",
+                    dueDays: 5,
+                },
+                {
+                    title: "First Week Check-in",
+                    category: "Check-in",
+                    owner: "Manager",
+                    dueDays: 7,
+                },
+            ];
+
+            for (const item of checklistItems) {
+
+                const dueDate = new Date(joiningDate);
+
+                dueDate.setDate(
+                    dueDate.getDate() + item.dueDays
+                );
+
+                await tx.onboardingChecklistItem.create({
+                    data: {
+                        onboardingId:
+                            onboarding.id,
+
+                        title: item.title,
+
+                        category:
+                            item.category,
+
+                        owner:
+                            item.owner,
+
+                        dueDate,
+
+                        status: "Pending",
+                    },
+                });
+            }
+
+            // =====================================================
+            // 5. UPDATE APPLICATION
+            // =====================================================
+
+            await tx.application.update({
+                where: {
+                    id: applicationId,
+                },
+
+                data: {
+                    employeeId: employee.id,
+
+                    stage: "Hired",
+
+                    approvalStatus:
+                        "Employee Created",
+                },
+            });
+
+            // =====================================================
+            // 6. EXPIRE OFFER INVITATION
+            // =====================================================
+
+            if (application.offer) {
+                await tx.offer.update({
+                    where: {
+                        id: application.offer.id,
+                    },
+
+                    data: {
+                        invitationExpiresAt:
+                            new Date(),
+                    },
+                });
+            }
+
+            return {
+                employee,
+                onboarding,
+            };
+        }
+    );
+
+    return {
+        employee: result.employee,
+
+        onboarding: result.onboarding,
+
+        loginEmail: email,
+
+        temporaryPassword,
+    };
 }
 
 async function getApplication(id: string) {

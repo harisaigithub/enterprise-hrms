@@ -13,6 +13,9 @@ import candidateLifecycleRoutes from "../modules/candidateLifecycle/candidateLif
 import helpdeskRoutes from "../modules/helpdesk/helpdesk.routes";
 import onboardingRoutes from "../modules/onboarding/onboarding.routes";
 import lmsRoutes from "../modules/lms/lms.routes";
+import taskRoutes from "../modules/task/task.routes";
+import assetRoutes from "../modules/asset/asset.routes";
+import separationRoutes from "../modules/separation/separation.routes";
 
 const router = Router();
 
@@ -30,7 +33,16 @@ if (!serviceName || serviceName === "search") router.use("/search", searchRoutes
 if (!serviceName || serviceName === "workflow") router.use("/workflow", workflowRoutes);
 if (!serviceName || serviceName === "performance") router.use("/performance", performanceRoutes);
 if (!serviceName || serviceName === "helpdesk") router.use("/helpdesk", helpdeskRoutes);
-if (!serviceName || serviceName === "onboarding") { router.use("/onboarding", onboardingRoutes);}
-if (!serviceName || serviceName === "lms") { router.use("/lms", lmsRoutes);}
+if (!serviceName || serviceName === "onboarding") { router.use("/onboarding", onboardingRoutes); }
+if (!serviceName || serviceName === "lms") { router.use("/lms", lmsRoutes); }
+if (!serviceName || serviceName === "task") {
+    router.use("/tasks", taskRoutes);
+}
+if (!serviceName || serviceName === "asset") {
+    router.use("/assets", assetRoutes);
+}
+if (!serviceName || serviceName === "separation") {
+  router.use("/separations", separationRoutes);
+}
 
 export default router;

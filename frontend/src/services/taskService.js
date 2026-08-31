@@ -1,62 +1,123 @@
-/**
- * Task service — Module 13
- * Mirrors assetService/lmsService: async functions resolving to { data }.
- */
+import api from "./api";
 
-import {
-  _getProjects,
-  _addProject,
-  _addMilestone,
-  _getTasks,
-  _addTask,
-  _updateTaskStatus,
-  _reassignTask,
-  _getTaskHistory,
-  _getOrphanedTasks,
-  _getTimeEntries,
-  _logTimeEntry,
-  _getTaskTotalHours,
-} from "../mock/tasks";
+/* =========================================================
+   PROJECTS
+   ========================================================= */
 
-const resolve = (data, ms = 350) => new Promise((res) => setTimeout(() => res({ data }), ms));
-
-export function getProjects() {
-  return resolve(_getProjects());
-}
-export function addProject(project) {
-  return resolve(_addProject(project));
-}
-export function addMilestone(projectId, title, dueDate) {
-  return resolve(_addMilestone(projectId, title, dueDate));
+export async function getProjects() {
+  const res = await api.get("/tasks/projects");
+  return res.data;
 }
 
-export function getTasks() {
-  return resolve(_getTasks());
-}
-export function addTask(task) {
-  return resolve(_addTask(task));
-}
-// Returns { task } on success, or { error: "blocked", openBlockers } if Done
-// is attempted while blockers are still open and force wasn't set.
-export function updateTaskStatus(taskId, newStatus, options) {
-  return resolve(_updateTaskStatus(taskId, newStatus, options));
-}
-export function reassignTask(taskId, newAssigneeId) {
-  return resolve(_reassignTask(taskId, newAssigneeId));
-}
-export function getTaskHistory(taskId) {
-  return resolve(_getTaskHistory(taskId));
-}
-export function getOrphanedTasks() {
-  return resolve(_getOrphanedTasks());
+export async function addProject(project) {
+  const res = await api.post("/tasks/projects", project);
+  return res.data;
 }
 
-export function getTimeEntries(taskId) {
-  return resolve(_getTimeEntries(taskId));
+export async function addMilestone(projectId, title, dueDate) {
+  const res = await api.post(
+    `/tasks/projects/${projectId}/milestones`,
+    {
+      title,
+      dueDate,
+    }
+  );
+
+  return res.data;
 }
-export function logTimeEntry(entry) {
-  return resolve(_logTimeEntry(entry));
+
+/* =========================================================
+   TASKS
+   ========================================================= */
+
+export async function getTasks() {
+  const res = await api.get("/tasks");
+  return res.data;
 }
-export function getTaskTotalHours(taskId) {
-  return resolve(_getTaskTotalHours(taskId));
+
+export async function addTask(task) {
+  const res = await api.post("/tasks", task);
+  return res.data;
+}
+
+export async function updateTaskStatus(
+  taskId,
+  newStatus,
+  options = {}
+) {
+  const res = await api.patch(
+    `/tasks/${taskId}/status`,
+    {
+      status: newStatus,
+      ...options,
+    }
+  );
+
+  return res.data;
+}
+
+export async function reassignTask(taskId, newAssigneeId) {
+  const res = await api.patch(
+    `/tasks/${taskId}/reassign`,
+    {
+      assigneeId: newAssigneeId,
+    }
+  );
+
+  return res.data;
+}
+
+/* =========================================================
+   ORPHANED TASKS
+   ========================================================= */
+
+export async function getOrphanedTasks() {
+  const res = await api.get("/tasks/orphaned");
+  return res.data;
+}
+
+/* =========================================================
+   TASK HISTORY
+   ========================================================= */
+
+export async function getTaskHistory(taskId) {
+  const res = await api.get(`/tasks/${taskId}/history`);
+  return res.data;
+}
+
+/* =========================================================
+   TIME ENTRIES
+   ========================================================= */
+
+export async function getTimeEntries(taskId) {
+  const res = await api.get(`/tasks/${taskId}/time-entries`);
+  return res.data;
+}
+
+export async function logTimeEntry(entry) {
+  const res = await api.post(
+    `/tasks/${entry.taskId}/time-entries`,
+    {
+      employeeId: entry.employeeId,
+      date: entry.date,
+      hours: entry.hours,
+      note: entry.note,
+    }
+  );
+
+  return res.data;
+}
+
+export async function getTaskTotalHours(taskId) {
+  const res = await api.get(`/tasks/${taskId}/total-hours`);
+  return res.data;
+}
+
+/* =========================================================
+   META
+   ========================================================= */
+
+export async function getTaskMeta() {
+  const res = await api.get("/tasks/meta");
+  return res.data;
 }
