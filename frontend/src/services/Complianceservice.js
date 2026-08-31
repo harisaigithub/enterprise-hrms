@@ -1,83 +1,18 @@
-/**
- * Compliance service — Module 24
- * Mirrors securityService/travelService: async functions resolving to { data }.
- */
+import api from "./api";
 
-import {
-  _getObligations,
-  _addObligation,
-  _markObligationFiled,
-  _getCaseSummaries,
-  _getCaseDetail,
-  _applyCaseLegalHold,
-  _clearCaseLegalHold,
-  _runCaseAccessSelfTest,
-  _getRetentionRecords,
-  _applyRecordLegalHold,
-  _clearRecordLegalHold,
-  _runRetentionJob,
-  _queryAuditFeed,
-  _getComplianceAuditLog,
-  _getDashboardSummary,
-} from "../mock/compliance";
+const data = (response) => ({ data: response.data.data });
 
-const resolve = (data, ms = 350) => new Promise((res) => setTimeout(() => res({ data }), ms));
-
-/* Calendar / Filings */
-export function getObligations() {
-  return resolve(_getObligations());
-}
-export function addObligation(obligation, by) {
-  return resolve(_addObligation(obligation, by));
-}
-export function markObligationFiled(id, by) {
-  return resolve(_markObligationFiled(id, by));
-}
-
-/* Compliance Cases (POSH) */
-export function getCaseSummaries() {
-  return resolve(_getCaseSummaries());
-}
-// 24.6/24.10: returns { error } if the actor is not on the case's named
-// investigator list — enforced here, not just in the UI.
-export function getCaseDetail(caseId, actorId) {
-  return resolve(_getCaseDetail(caseId, actorId));
-}
-export function applyCaseLegalHold(caseId, reason, actorId) {
-  return resolve(_applyCaseLegalHold(caseId, reason, actorId));
-}
-export function clearCaseLegalHold(caseId, actorId) {
-  return resolve(_clearCaseLegalHold(caseId, actorId));
-}
-export function runCaseAccessSelfTest() {
-  return resolve(_runCaseAccessSelfTest());
-}
-
-/* Retention & Legal Hold */
-export function getRetentionRecords() {
-  return resolve(_getRetentionRecords());
-}
-export function applyRecordLegalHold(recordId, reason, by) {
-  return resolve(_applyRecordLegalHold(recordId, reason, by));
-}
-export function clearRecordLegalHold(recordId, by) {
-  return resolve(_clearRecordLegalHold(recordId, by));
-}
-// 24.6/24.8: legal hold always blocks purge; unclassified fields are always
-// skipped and flagged rather than acted on unsafely.
-export function runRetentionJob(by) {
-  return resolve(_runRetentionJob(by));
-}
-
-/* Audit feed */
-export function queryAuditFeed(filters) {
-  return resolve(_queryAuditFeed(filters));
-}
-export function getComplianceAuditLog() {
-  return resolve(_getComplianceAuditLog());
-}
-
-/* Dashboard */
-export function getDashboardSummary() {
-  return resolve(_getDashboardSummary());
-}
+export const getDashboardSummary = async () => data(await api.get("/compliance/dashboard"));
+export const getObligations = async () => data(await api.get("/compliance/obligations"));
+export const addObligation = async (payload) => data(await api.post("/compliance/obligations", payload));
+export const markObligationFiled = async (id) => data(await api.patch(`/compliance/obligations/${id}/filed`));
+export const getCaseSummaries = async () => data(await api.get("/compliance/cases"));
+export const getCaseDetail = async (id) => data(await api.get(`/compliance/cases/${id}`));
+export const applyCaseLegalHold = async (id, reason) => data(await api.patch(`/compliance/cases/${id}/legal-hold`, { reason }));
+export const clearCaseLegalHold = async (id) => data(await api.delete(`/compliance/cases/${id}/legal-hold`));
+export const getRetentionRecords = async () => data(await api.get("/compliance/retention"));
+export const applyRecordLegalHold = async (id, reason) => data(await api.patch(`/compliance/retention/${id}/legal-hold`, { reason }));
+export const clearRecordLegalHold = async (id) => data(await api.delete(`/compliance/retention/${id}/legal-hold`));
+export const runRetentionJob = async () => data(await api.post("/compliance/retention/run"));
+export const queryAuditFeed = async (filters) => data(await api.get("/compliance/audit", { params: filters }));
+export const getComplianceAuditLog = async () => data(await api.get("/compliance/activities"));

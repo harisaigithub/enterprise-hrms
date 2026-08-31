@@ -2,6 +2,8 @@ import crypto from "node:crypto";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
 import { hashPassword } from "../../lib/password";
+import { env } from "../../config/env";
+import { sendOfferInvitationEmail } from "./offerInvitationEmail.service";
 
 const sha256 = (value: string) => crypto.createHash("sha256").update(value).digest("hex");
 
@@ -154,7 +156,25 @@ export async function secondApprove(applicationId: string, actorUserId: string, 
     },
     include: lifecycleInclude,
   });
-  return { application: updated, invitationToken: token, invitationExpiresAt: expiresAt };
+  const invitationUrl = `${env.CANDIDATE_PORTAL_URL.replace(/\/$/, "")}/${token}`;
+  const candidateName = [updated.candidate.firstName, updated.candidate.lastName].filter(Boolean).join(" ");
+  const emailDelivery = await sendOfferInvitationEmail({
+    candidateEmail: updated.candidate.email,
+    candidateName,
+    jobTitle: updated.requisition.title,
+    proposedSalary: salary,
+    joiningDate: updated.offer?.joiningDate ?? null,
+    invitationUrl,
+    expiresAt,
+  });
+
+  return {
+    application: updated,
+    invitationToken: token,
+    invitationUrl,
+    invitationExpiresAt: expiresAt,
+    emailDelivery,
+  };
 }
 
 export async function rejectApplication(applicationId: string, actorUserId: string, reason: string) {

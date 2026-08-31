@@ -16,6 +16,10 @@ import lmsRoutes from "../modules/lms/lms.routes";
 import taskRoutes from "../modules/task/task.routes";
 import assetRoutes from "../modules/asset/asset.routes";
 import separationRoutes from "../modules/separation/separation.routes";
+import policiesRoutes from "../modules/policies/policies.routes";
+import complianceRoutes from "../modules/compliance/compliance.routes";
+import reportsRoutes from "../modules/reports/reports.routes";
+
 
 const router = Router();
 
@@ -44,5 +48,8 @@ if (!serviceName || serviceName === "asset") {
 if (!serviceName || serviceName === "separation") {
   router.use("/separations", separationRoutes);
 }
+if (!serviceName || serviceName === "policies") router.use("/policies", policiesRoutes);
+if (!serviceName || serviceName === "compliance") router.use("/compliance", complianceRoutes);
+if (!serviceName || serviceName === "reports") router.use("/reports", reportsRoutes);
 
 export default router;
