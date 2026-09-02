@@ -14,7 +14,7 @@ export default function SelfAssessmentWidget() {
       loading={loading} error={error} onRetry={retry} onClick={() => navigate("/performance")}
       isEmpty={!loading && !error && !data?.pending} emptyLabel="No self-assessment pending">
       {data?.pending && (
-        <p style={{ fontSize: "13.5px", color: "var(--text)" }}><strong>{data.cycleName}</strong> due {fmtDate(data.dueDate)}</p>
+        <><div className="dashboard-metric"><strong>{data.cycleName}</strong></div><div className="dashboard-track"><span style={{ width: "65%", background: "linear-gradient(90deg,#7c3aed,#c084fc)" }} /></div><span className="dashboard-status warning">Due {fmtDate(data.dueDate)}</span></>
       )}
     </DashboardWidgetCard>
   );

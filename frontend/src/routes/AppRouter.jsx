@@ -99,7 +99,7 @@ export default function AppRouter() {
           <Route path="/org-management" element={<RequireAuth><OrgManagement /></RequireAuth>} />
           <Route path="/workflows" element={<RequireAuth><WorkflowEngine /></RequireAuth>} />
           <Route path="/reports" element={<RequireAuth><Reports /></RequireAuth>} />
-          <Route path="/notifications" element={<RequireAuth><Notifications /></RequireAuth>} />
+          <Route path="/notifications" element={<RequireAuth permission="notifications:read"><Notifications /></RequireAuth>} />
           <Route path="/compliance" element={<RequireAuth><Compliance /></RequireAuth>} />
           <Route path="/security" element={<RequireAuth><SecurityAdmin /></RequireAuth>} />
 
