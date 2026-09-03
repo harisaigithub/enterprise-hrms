@@ -19,6 +19,8 @@ import separationRoutes from "../modules/separation/separation.routes";
 import policiesRoutes from "../modules/policies/policies.routes";
 import complianceRoutes from "../modules/compliance/compliance.routes";
 import reportsRoutes from "../modules/reports/reports.routes";
+import dashboardRoutes from "../modules/dashboard/dashboard.routes";
+import notificationRoutes from "../modules/notifications/notifications.routes";
 
 
 const router = Router();
@@ -51,5 +53,7 @@ if (!serviceName || serviceName === "separation") {
 if (!serviceName || serviceName === "policies") router.use("/policies", policiesRoutes);
 if (!serviceName || serviceName === "compliance") router.use("/compliance", complianceRoutes);
 if (!serviceName || serviceName === "reports") router.use("/reports", reportsRoutes);
+if (!serviceName || serviceName === "dashboard") router.use("/dashboard", dashboardRoutes);
+if (!serviceName || serviceName === "notifications") router.use("/notifications", notificationRoutes);
 
 export default router;

@@ -49,26 +49,36 @@ if errorlevel 1 (
 
 echo.
 echo [3/4] Applying migrations + demo data (first run only)...
+rem Free ports 4000 and 5173 to release file locks from any previous runs
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr :4000 ^| findstr LISTENING 2^>nul') do taskkill /F /PID %%a >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr :5173 ^| findstr LISTENING 2^>nul') do taskkill /F /PID %%a >nul 2>&1
+
 pushd "%ROOT%backend"
 if not exist "%ROOT%.hrms-seeded" (
   call npx prisma migrate deploy
   if errorlevel 1 goto :fail
+  call npx prisma generate >nul 2>&1 || echo   Prisma client already current or locked.
   call npm run prisma:seed
   if errorlevel 1 goto :fail
   echo seeded > "%ROOT%.hrms-seeded"
 ) else (
   call npx prisma migrate deploy
   if errorlevel 1 goto :fail
+  call npx prisma generate >nul 2>&1 || echo   Prisma client already current or locked.
   echo   Demo data already seeded - keeping existing data.
 )
 popd
 
 echo.
-echo [4/4] Starting backend  -> http://localhost:4000/api/health
-start "HRMS Backend" cmd /k "cd /d ""%ROOT%backend"" && npm run dev"
+echo [4/4] Starting backend  : http://localhost:4000/api/health
+pushd "%ROOT%backend"
+start "HRMS Backend" cmd /k "npm run dev"
+popd
 
-echo [4/4] Starting frontend -> http://localhost:5173
-start "HRMS Frontend" cmd /k "cd /d ""%ROOT%frontend"" && npm run dev"
+echo [4/4] Starting frontend : http://localhost:5173
+pushd "%ROOT%frontend"
+start "HRMS Frontend" cmd /k "npm run dev"
+popd
 
 echo.
 echo All services are launching.

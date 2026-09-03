@@ -86,10 +86,10 @@ export async function createCourse(input: {
             where: {
                 OR: [
                     {
-                        id: versionGroupId,
+                        id: (versionGroupId ?? undefined) as string,
                     },
                     {
-                        versionGroupId,
+                        versionGroupId: (versionGroupId ?? undefined) as string,
                     },
                 ],
             },
@@ -243,7 +243,7 @@ export async function publishCourse(courseId: string) {
     const versionGroupId =
         course.versionGroupId ?? course.id;
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx: any) => {
 
         // Archive previously published version
         await tx.course.updateMany({
@@ -537,7 +537,7 @@ export async function submitQuiz(
     }
 
     const result =
-        await prisma.$transaction(async (tx) => {
+        await prisma.$transaction(async (tx: any) => {
             const attempt =
                 await tx.courseQuizAttempt.create({
                     data: {
@@ -590,7 +590,7 @@ export async function submitQuiz(
         });
 
 
-    let certificate = null;
+    let certificate: any = null;
 
     if (passed) {
         certificate = await createCertificate({
@@ -947,7 +947,7 @@ export async function updateCourseVersion(
     }
 
     const updatedCourse =
-        await prisma.$transaction(async (tx) => {
+        await prisma.$transaction(async (tx: any) => {
             // Remove old questions.
             await tx.courseQuizQuestion.deleteMany({
                 where: {
@@ -1368,7 +1368,7 @@ export async function getEnrollmentContent(
 
     const contents = enrollment.course.contents.map(
         (content) => {
-            const progress =
+            const progress: any =
                 progressMap.get(content.id);
 
             return {

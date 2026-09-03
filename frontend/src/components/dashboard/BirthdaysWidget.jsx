@@ -11,11 +11,10 @@ export default function BirthdaysWidget() {
     <DashboardWidgetCard icon={Cake} title="Birthdays This Week" iconColor="#dc2626" iconBg="#fef2f2"
       loading={loading} error={error} onRetry={retry}
       isEmpty={!loading && !error && (!data || data.length === 0)} emptyLabel="No birthdays in the next 7 days">
-      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+      <div className="dashboard-mini-list">
         {data?.map((b) => (
-          <div key={b.name} style={{ display: "flex", justifyContent: "space-between", fontSize: "13px" }}>
-            <span style={{ color: "var(--text)" }}>{b.name}</span>
-            <span style={{ color: "var(--subtext)", fontFamily: "monospace" }}>{fmtDate(b.date)}</span>
+          <div key={b.name} className="dashboard-mini-row">
+            <span>{b.name}</span><small>{fmtDate(b.date)}</small>
           </div>
         ))}
       </div>

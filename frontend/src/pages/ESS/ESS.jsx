@@ -1,8 +1,8 @@
 /**
- * Employee Self Service (ESS) Page � Module 16
- * Tabs: Overview � Tax Declaration � Download My Data
+ * Employee Self Service (ESS) Page  •  Module 16
+ * Tabs: Overview  •  Tax Declaration  •  Download My Data
  *
- * ESS is a thin, employee-scoped aggregation layer over other modules �
+ * ESS is a thin, employee-scoped aggregation layer over other modules  • 
  * it deep-links into Leave/Attendance/Payroll/LMS/Assets rather than
  * duplicating their data stores.
  */
@@ -32,6 +32,7 @@ import StatusBadge from "../../components/shared/StatusBadge";
 import Spinner from "../../components/shared/Spinner";
 import EmptyState from "../../components/shared/EmptyState";
 import Modal from "../../components/shared/Modal";
+import { useAuth } from "../../context/AuthContext";
 import {
   getOverview,
   getTaxDeclarations,
@@ -41,10 +42,7 @@ import {
 } from "../../services/essService";
 import { proofStatusMeta, EXPORT_THROTTLE_DAYS, EXPORT_EXPIRY_HOURS } from "../../mock/ess";
 
-// Identity is always this session's user � never taken from a route param,
-// query string, or form field, per the ESS scoping rule (16.6).
-const ME = { id: "EMP001", name: "Matsya Singh" };
-const currency = (n) => `?${Number(n).toLocaleString("en-IN")}`;
+const currency = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
 const fmtDateTime = (iso) => new Date(iso).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 const fmtDate = (d) => new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
@@ -191,7 +189,7 @@ function OverviewTab({ overview, simulatePayrollDown, onToggleSimulate }) {
 
         <OverviewWidget icon={Clock} label="This Month">
           <p style={{ fontSize: "22px", fontWeight: 800, color: "var(--text)" }}>{overview.attendanceThisMonth.present} days</p>
-          <p style={{ fontSize: "11.5px", color: "var(--subtext)" }}>Present � {overview.attendanceThisMonth.late} late � {overview.attendanceThisMonth.wfh} WFH</p>
+          <p style={{ fontSize: "11.5px", color: "var(--subtext)" }}>Present  •  {overview.attendanceThisMonth.late} late  •  {overview.attendanceThisMonth.wfh} WFH</p>
         </OverviewWidget>
 
         <OverviewWidget icon={Wallet} label="Latest Payslip" error={overview.payrollError}>
@@ -206,7 +204,7 @@ function OverviewTab({ overview, simulatePayrollDown, onToggleSimulate }) {
         <OverviewWidget icon={GraduationCap} label="Learning">
           <p style={{ fontSize: "22px", fontWeight: 800, color: "var(--text)" }}>{overview.learning.inProgress}</p>
           <p style={{ fontSize: "11.5px", color: overview.learning.complianceOverdue > 0 ? "var(--red)" : "var(--subtext)" }}>
-            In progress{overview.learning.complianceOverdue > 0 ? ` � ${overview.learning.complianceOverdue} compliance overdue` : ""}
+            In progress{overview.learning.complianceOverdue > 0 ? `  •  ${overview.learning.complianceOverdue} compliance overdue` : ""}
           </p>
         </OverviewWidget>
 
@@ -223,7 +221,7 @@ function OverviewTab({ overview, simulatePayrollDown, onToggleSimulate }) {
 
       {overview.payrollError && (
         <p style={{ fontSize: "11.5px", color: "var(--subtext)", marginTop: "14px" }}>
-          Payroll data is unavailable right now, but the rest of your dashboard loaded normally � that's intentional (a single module outage shouldn't take ESS down).
+          Payroll data is unavailable right now, but the rest of your dashboard loaded normally  •  that's intentional (a single module outage shouldn't take ESS down).
         </p>
       )}
     </div>
@@ -273,13 +271,13 @@ function AddDeclarationModal({ isOpen, onClose, onSaved }) {
           <input value={investmentType} onChange={(e) => setInvestmentType(e.target.value)} placeholder="e.g. ELSS Mutual Fund" style={inputStyle(false)} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-          {fieldLabel("Amount (?) *")}
+          {fieldLabel("Amount (₹) *")}
           <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} style={inputStyle(false)} />
         </div>
         <p style={{ fontSize: "11px", color: "var(--subtext)", margin: 0 }}>Proof documents can be uploaded after submission; status starts as "Pending" until reviewed by Payroll.</p>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Submitting�" : "Submit Declaration"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Submitting • " : "Submit Declaration"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -294,7 +292,7 @@ function TaxDeclarationTab({ declarations, onAdded }) {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
         <div>
-          <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Tax Declarations � FY 2026-27</h2>
+          <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Tax Declarations  •  FY 2026-27</h2>
           <p style={{ fontSize: "12px", color: "var(--subtext)" }}>Total declared: {currency(total)}</p>
         </div>
         <PrimaryButton onClick={() => setShowAdd(true)}><Plus size={16} /> Add Declaration</PrimaryButton>
@@ -395,7 +393,7 @@ function DataExportTab({ lastRequest, onRequested }) {
     <div style={{ maxWidth: "560px" }}>
       <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)", marginBottom: "6px" }}>Download My Data</h2>
       <p style={{ fontSize: "12.5px", color: "var(--subtext)", marginBottom: "18px" }}>
-        Request a complete export of everything linked to your employee record across every module � profile, attendance, leave, payroll, performance, learning, and assets. This is a data subject access request (DSAR), limited to once every {EXPORT_THROTTLE_DAYS} days.
+        Request a complete export of everything linked to your employee record across every module  •  profile, attendance, leave, payroll, performance, learning, and assets. This is a data subject access request (DSAR), limited to once every {EXPORT_THROTTLE_DAYS} days.
       </p>
 
       <div style={{ ...cardStyle, padding: "20px 22px" }}>
@@ -403,7 +401,7 @@ function DataExportTab({ lastRequest, onRequested }) {
           <>
             <p style={{ fontSize: "13px", color: "var(--subtext)", marginBottom: "14px" }}>No export requested yet.</p>
             <PrimaryButton onClick={handleRequest} disabled={requesting}>
-              <DownloadCloud size={16} /> {requesting ? "Preparing export�" : "Request Data Export"}
+              <DownloadCloud size={16} /> {requesting ? "Preparing export • " : "Request Data Export"}
             </PrimaryButton>
           </>
         ) : (
@@ -451,6 +449,7 @@ const TABS = [
 ];
 
 export default function SelfService() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
   const [loading, setLoading] = useState(true);
   const [overview, setOverview] = useState(null);
@@ -458,17 +457,24 @@ export default function SelfService() {
   const [declarations, setDeclarations] = useState([]);
   const [lastExportRequest, setLastExportRequest] = useState(null);
 
+  const userId = user?.employeeCode || user?.id || "EMP001";
+  const userName = `${user?.firstName || "Current"} ${user?.lastName || "User"}`;
+
   useEffect(() => {
     setLoading(true);
-    Promise.all([getOverview(simulatePayrollDown), getTaxDeclarations(ME.id), getLastExportRequest(ME.id)])
+    Promise.all([
+      getOverview(simulatePayrollDown).catch(() => ({ data: null })),
+      getTaxDeclarations(userId).catch(() => ({ data: [] })),
+      getLastExportRequest(userId).catch(() => ({ data: null }))
+    ])
       .then(([ov, td, exp]) => {
-        setOverview(ov.data);
-        setDeclarations(td.data);
-        setLastExportRequest(exp.data);
+        setOverview(ov?.data || null);
+        setDeclarations(td?.data || []);
+        setLastExportRequest(exp?.data || null);
       })
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [simulatePayrollDown]);
+  }, [simulatePayrollDown, userId]);
 
   if (loading) {
     return (
@@ -481,7 +487,7 @@ export default function SelfService() {
   return (
     <MainLayout>
       <div style={{ maxWidth: "1480px", margin: "0 auto" }}>
-        <PageHeader title="Self Service" subtitle={`Welcome back, ${ME.name}`} />
+        <PageHeader title="Self Service" subtitle={`Welcome back, ${userName} (${user?.role || "Employee"})`} />
         <TabNav tabs={TABS} active={activeTab} onChange={setActiveTab} />
 
         {activeTab === "overview" && (

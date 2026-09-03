@@ -1,6 +1,6 @@
 ﻿/**
- * Organization Management Page � Module 20
- * Tabs: Structure � Locations � Cost Centers � Designations & Grades � Reporting Structure
+ * Organization Management Page  •  Module 20
+ * Tabs: Structure  •  Locations  •  Cost Centers  •  Designations & Grades  •  Reporting Structure
  */
 
 import { useState, useEffect } from "react";
@@ -40,7 +40,7 @@ import {
   updateReportingManager,
   bulkReassignDepartment,
   getAuditLog,
-} from "../../services/Orgmanagementservice";
+} from "../../services/orgManagementService";
 import { statusMeta } from "../../mock/orgManagement";
 
 /* ---------------------------------- shared bits ---------------------------------- */
@@ -151,7 +151,7 @@ function AddBusinessUnitModal({ isOpen, onClose, company, onSaved }) {
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving�" : "Add Business Unit"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving..." : "Add Business Unit"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -207,7 +207,7 @@ function AddDepartmentModal({ isOpen, onClose, businessUnits, onSaved }) {
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving�" : "Add Department"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving • " : "Add Department"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -223,7 +223,7 @@ function StructureTab({ company, businessUnits, departments, onBUAdded, onDeptAd
       <div style={{ ...cardStyle, padding: "18px 20px", marginBottom: "18px" }}>
         <p style={{ fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.4px" }}>Company</p>
         <h2 style={{ fontSize: "16px", fontWeight: 700, color: "var(--text)", marginTop: "4px" }}>{company.name}</h2>
-        <p style={{ fontSize: "12.5px", color: "var(--subtext)", marginTop: "2px" }}>{company.registrationNumber} � {company.country} � {company.currency}</p>
+        <p style={{ fontSize: "12.5px", color: "var(--subtext)", marginTop: "2px" }}>{company.registrationNumber}  •  {company.country}  •  {company.currency}</p>
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
@@ -328,7 +328,7 @@ function AddLocationModal({ isOpen, onClose, onSaved }) {
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving�" : "Add Location"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving • " : "Add Location"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -467,7 +467,7 @@ function AddCostCenterModal({ isOpen, onClose, departments, onSaved }) {
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving�" : "Add Cost Center"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving • " : "Add Cost Center"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -505,7 +505,7 @@ function CostCentersTab({ costCenters, departments, onAdded }) {
                     <tr key={cc.id} style={{ borderBottom: i < costCenters.length - 1 ? "1px solid var(--border)" : "none" }}>
                       <td style={{ padding: "13px 16px", fontSize: "13px", color: "var(--text)", fontFamily: "monospace" }}>{cc.code}</td>
                       <td style={{ padding: "13px 16px", fontSize: "13.5px", color: "var(--text)", fontWeight: 600 }}>{cc.name}</td>
-                      <td style={{ padding: "13px 16px", fontSize: "12.5px", color: "var(--subtext)" }}>{cc.departmentIds.map(deptName).join(", ") || "�"}</td>
+                      <td style={{ padding: "13px 16px", fontSize: "12.5px", color: "var(--subtext)" }}>{cc.departmentIds.map(deptName).join(", ") || " • "}</td>
                       <td style={{ padding: "13px 16px" }}><StatusBadge label={cc.status} color={meta.color} bg={meta.bg} /></td>
                     </tr>
                   );
@@ -792,7 +792,7 @@ function ReassignManagerRow({ employee, roster, departments, onReassign, error }
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
         <div>
           <p style={{ fontSize: "13.5px", fontWeight: 600, color: "var(--text)" }}>{employee.name}</p>
-          <p style={{ fontSize: "11.5px", color: "var(--subtext)" }}>{employee.title} � {dept?.name || "�"} � reports to {manager?.name || "� (top of hierarchy)"}</p>
+          <p style={{ fontSize: "11.5px", color: "var(--subtext)" }}>{employee.title}  •  {dept?.name || " • "}  •  reports to {manager?.name || " •  (top of hierarchy)"}</p>
 
         </div>
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
@@ -858,7 +858,7 @@ function BulkReassignPanel({ roster, departments, onReassigned }) {
   return (
     <div style={{ ...cardStyle, padding: "18px 20px", marginTop: "18px" }}>
       <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)", marginBottom: "6px" }}>Bulk Reassignment</h3>
-      <p style={{ fontSize: "12px", color: "var(--subtext)", marginBottom: "12px" }}>High-blast-radius action � requires explicit confirmation and logs every affected record individually, not just a summary line.</p>
+      <p style={{ fontSize: "12px", color: "var(--subtext)", marginBottom: "12px" }}>High-blast-radius action  •  requires explicit confirmation and logs every affected record individually, not just a summary line.</p>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "12px" }}>
         {roster.map((r) => (
@@ -871,7 +871,7 @@ function BulkReassignPanel({ roster, departments, onReassigned }) {
 
       <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
         <select value={newDepartmentId} onChange={(e) => setNewDepartmentId(e.target.value)} style={{ ...inputStyle(false), height: "36px", width: "200px" }}>
-          <option value="">New department�</option>
+          <option value="">New department • </option>
           {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
         </select>
         {!confirming ? (
@@ -879,7 +879,7 @@ function BulkReassignPanel({ roster, departments, onReassigned }) {
         ) : (
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             <span style={{ fontSize: "12px", color: "var(--red)", fontWeight: 600 }}>Confirm reassigning {selected.length} employee(s)?</span>
-            <PrimaryButton onClick={handleConfirm} disabled={saving}>{saving ? "Applying�" : "Yes, confirm"}</PrimaryButton>
+            <PrimaryButton onClick={handleConfirm} disabled={saving}>{saving ? "Applying • " : "Yes, confirm"}</PrimaryButton>
             <SecondaryButton onClick={() => setConfirming(false)}>Cancel</SecondaryButton>
           </div>
         )}
@@ -905,7 +905,7 @@ function AuditLogPanel({ log, roster }) {
           ) : (
             log.map((entry) => (
               <div key={entry.id} style={{ padding: "10px 16px", borderBottom: "1px solid var(--border)", fontSize: "12px", color: "var(--text)" }}>
-                <strong>{empName(entry.entityId)}</strong>.{entry.field}: {entry.oldValue || "�"} ? {entry.newValue || "�"} � by {entry.actor} � {new Date(entry.timestamp).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                <strong>{empName(entry.entityId)}</strong>.{entry.field}: {entry.oldValue || " • "} ? {entry.newValue || " • "}  •  by {entry.actor}  •  {new Date(entry.timestamp).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
               </div>
             ))
           )}

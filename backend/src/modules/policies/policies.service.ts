@@ -133,7 +133,7 @@ export async function publishPolicy(id: string, actor?: AccessTokenPayload) {
   const nextReviewDate = policy.reviewCycleMonths
     ? new Date(Date.UTC(current.effectiveDate.getUTCFullYear(), current.effectiveDate.getUTCMonth() + policy.reviewCycleMonths, current.effectiveDate.getUTCDate()))
     : null;
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     await tx.policy.update({ where: { id }, data: { status: "Published", nextReviewDate } });
     await tx.policyVersion.update({ where: { id: current.id }, data: { publishedAt: new Date() } });
     const previous = policy.versions.at(-2);

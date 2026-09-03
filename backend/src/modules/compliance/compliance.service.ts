@@ -107,7 +107,7 @@ export async function runRetention(actor?: AccessTokenPayload) {
   const records = await prisma.complianceRetentionRecord.findMany({ where: { purgedAt: null } });
   const now = new Date();
   const result = { purged: [] as string[], blockedByHold: [] as string[], needsReview: [] as string[], notDue: [] as string[] };
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     for (const record of records) {
       if (record.retentionExpiresAt > now) { result.notDue.push(record.id); continue; }
       if (record.legalHold) {

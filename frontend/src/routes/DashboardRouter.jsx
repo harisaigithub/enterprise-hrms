@@ -2,14 +2,14 @@
 import EmployeeDashboard from "../pages/Dashboard/EmployeeDashboard";
 import HRDashboard from "../pages/Dashboard/HRDashboard";
 import ManagerDashboard from "../pages/Dashboard/ManagerDashboard";
-import AdminDashboard from "../pages/Dashboard/Admindashboard";
+import AdminDashboard from "../pages/Dashboard/AdminDashboard";
 
 /**
  * Picks which dashboard to render based on the logged-in user's real role
  * (from AuthContext, set at /auth/login). Each role has its own dedicated
  * dashboard component — Manager and Admin are NOT variants of
  * EmployeeDashboard, they're separate files (ManagerDashboard.jsx,
- * Admindashboard.jsx).
+ * AdminDashboard.jsx).
  */
 export default function DashboardRouter() {
   const { user, role } = useAuth();

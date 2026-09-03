@@ -186,6 +186,10 @@ model User {
   employee      Employee?
   auditLogs     AuditLog[]
   refreshTokens RefreshToken[]
+  notifications Notification[]
+  notificationPreferences NotificationPreference[]
+  notificationTemplatesCreated NotificationTemplate[] @relation("NotificationTemplateCreator")
+  notificationDeliveries NotificationDelivery[]
 
   @@index([roleId])
   @@map("users")
@@ -683,6 +687,76 @@ model RefreshToken {
   @@index([userId])
   @@index([expiresAt])
   @@map("refresh_tokens")
+}
+
+// ── Notifications ───────────────────────────────────────────────────────────
+
+model Notification {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  title     String    @db.VarChar(180)
+  body      String    @db.Text
+  category  String    @db.VarChar(80)
+  link      String?   @db.VarChar(500)
+  isRead    Boolean   @default(false) @map("is_read")
+  readAt    DateTime? @map("read_at") @db.Timestamp(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries NotificationDelivery[]
+
+  @@index([userId, isRead, createdAt])
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  category     String   @db.VarChar(80)
+  emailEnabled Boolean  @default(true) @map("email_enabled")
+  inAppEnabled Boolean  @default(true) @map("in_app_enabled")
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, category])
+  @@index([userId])
+  @@map("notification_preferences")
+}
+
+model NotificationTemplate {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String   @db.VarChar(180)
+  category        String   @db.VarChar(80)
+  body            String   @db.Text
+  status          String   @default("Active") @db.VarChar(30)
+  createdByUserId String?  @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  createdBy User? @relation("NotificationTemplateCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([category, status])
+  @@map("notification_templates")
+}
+
+model NotificationDelivery {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  notificationId String?  @map("notification_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  category       String   @db.VarChar(80)
+  channel        String   @db.VarChar(30)
+  status         String   @db.VarChar(30)
+  attempt        Int      @default(1)
+  failureReason  String?  @map("failure_reason") @db.VarChar(500)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  notification Notification? @relation(fields: [notificationId], references: [id], onDelete: SetNull)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([notificationId])
+  @@map("notification_deliveries")
 }
 
 // ── Recruitment / ATS (Module 5) ──────────────────────────────────────────

@@ -1,6 +1,6 @@
 ﻿/**
- * Task Management Page � Module 13
- * Views: Kanban Board � Calendar (deadline) View � Projects
+ * Task Management Page — Module 13
+ * Views: Kanban Board • Calendar (deadline) View • Projects
  */
 
 import { useState, useEffect, useMemo } from "react";
@@ -191,7 +191,7 @@ function CreateTaskModal({
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Creating�" : "Create Task"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Creating..." : "Create Task"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -217,12 +217,12 @@ function ForceCloseModal({ isOpen, onClose, task, openBlockers, onResolved, canW
   if (!task) return null;
 
   return (
-    <Modal isOpen={isOpen} title={`Force-close � ${task.title}`} onClose={onClose}>
+    <Modal isOpen={isOpen} title={`Force-close — ${task.title}`} onClose={onClose}>
       <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
           <AlertTriangle size={16} style={{ color: "var(--amber, #d97706)", marginTop: "2px", flexShrink: 0 }} />
           <p style={{ fontSize: "12.5px", color: "var(--subtext)", margin: 0 }}>
-            This task has open blocker(s): <strong>{openBlockers.map((b) => b.title).join(", ")}</strong>. Only a Project Lead should force-close past this � a reason is logged to Task History.
+            This task has open blocker(s): <strong>{openBlockers.map((b) => b.title).join(", ")}</strong>. Only a Project Lead should force-close past this — a reason is logged to Task History.
           </p>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
@@ -290,9 +290,8 @@ function TaskDetailModal({
       <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
           <StatusBadge label={task.status} color={meta.color} bg={meta.bg} />
-          <span style={{ fontSize: "12px", color: "var(--subtext)" }}>Due {fmtDate(task.dueDate)} � {task.assigneeName}</span>
+          <span style={{ fontSize: "12px", color: "var(--subtext)" }}>Due {fmtDate(task.dueDate)} • {task.assigneeName}</span>
         </div>
-
         <div>
           <h4 style={{ fontSize: "12px", fontWeight: 700, color: "var(--label)", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
             <Clock size={13} /> Log time ({totalHours}h logged)
@@ -305,7 +304,7 @@ function TaskDetailModal({
           <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "110px", overflowY: "auto" }}>
             {entries.map((e) => (
               <div key={e.id} style={{ fontSize: "12px", color: "var(--subtext)" }}>
-                {fmtDate(e.date)} � <strong>{e.hours}h</strong> � {e.employeeName}{e.note ? ` � ${e.note}` : ""}
+                {fmtDate(e.date)} • <strong>{e.hours}h</strong> • {e.employeeName}{e.note ? ` • ${e.note}` : ""}
               </div>
             ))}
           </div>
@@ -318,7 +317,7 @@ function TaskDetailModal({
           <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "120px", overflowY: "auto" }}>
             {taskHistory.map((h) => (
               <div key={h.id} style={{ fontSize: "12px", color: "var(--subtext)" }}>
-                {fmtDate(h.date)} � <strong>{h.action}</strong> � {h.detail}
+                {fmtDate(h.date)} • <strong>{h.action}</strong> • {h.detail}
               </div>
             ))}
           </div>
@@ -356,13 +355,13 @@ function OrphanedTasksBanner({
     <div style={{ ...cardStyle, padding: "14px 18px", marginBottom: "16px", background: "#fef2f2", border: "1px solid #fecaca" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
         <UserX size={16} style={{ color: "var(--red)" }} />
-        <h3 style={{ fontSize: "13px", fontWeight: 700, color: "#991b1b" }}>Orphaned tasks � assignee no longer active</h3>
+        <h3 style={{ fontSize: "13px", fontWeight: 700, color: "#991b1b" }}>Orphaned tasks — assignee no longer active</h3>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         {orphaned.map((t) => (
           <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
             <span style={{ fontSize: "12.5px", color: "#991b1b" }}>
-              <strong>{t.title}</strong> � was assigned to {t.assigneeName}
+              <strong>{t.title}</strong> — was assigned to {t.assigneeName}
             </span>
             {canWrite && (
               <button
@@ -383,7 +382,7 @@ function OrphanedTasksBanner({
         ))}
       </div>
 
-      <Modal isOpen={!!reassignTarget} title={`Reassign � ${reassignTarget?.title || ""}`} onClose={() => setReassignTarget(null)}>
+      <Modal isOpen={!!reassignTarget} title={`Reassign — ${reassignTarget?.title || ""}`} onClose={() => setReassignTarget(null)}>
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
             {fieldLabel("New assignee *")}
@@ -396,7 +395,7 @@ function OrphanedTasksBanner({
           </div>
           <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
             <SecondaryButton onClick={() => setReassignTarget(null)}>Cancel</SecondaryButton>
-            <PrimaryButton onClick={handleReassign} disabled={saving || !newAssigneeId}>{saving ? "Reassigning�" : "Reassign"}</PrimaryButton>
+            <PrimaryButton onClick={handleReassign} disabled={saving || !newAssigneeId}>{saving ? "Reassigning..." : "Reassign"}</PrimaryButton>
           </div>
         </div>
       </Modal>
@@ -436,7 +435,7 @@ function TaskCard({
         <h4 style={{ fontSize: "13px", fontWeight: 700, color: "var(--text)" }}>{task.title}</h4>
         <span style={{ fontSize: "10px", fontWeight: 700, color: meta.color, background: meta.bg, padding: "2px 7px", borderRadius: "99px", whiteSpace: "nowrap" }}>{task.priority}</span>
       </div>
-      <p style={{ fontSize: "11.5px", color: "var(--subtext)", marginBottom: "8px" }}>{task.assigneeName} � due {fmtDate(task.dueDate)}</p>
+      <p style={{ fontSize: "11.5px", color: "var(--subtext)", marginBottom: "8px" }}>{task.assigneeName} • due {fmtDate(task.dueDate)}</p>
       {task.blockedByTaskIds.length > 0 && task.status !== "Done" && (
         <p style={{ fontSize: "10.5px", color: "var(--amber, #d97706)", marginBottom: "8px" }}>? {task.blockedByTaskIds.length} blocker(s)</p>
       )}
@@ -526,14 +525,14 @@ function CalendarTab({
         return (
           <div key={date}>
             <h3 style={{ fontSize: "12.5px", fontWeight: 700, color: isOverdue ? "var(--red)" : "var(--subtext)", marginBottom: "8px" }}>
-              {fmtDate(date)}{isOverdue ? " � overdue" : ""}
+              {fmtDate(date)}{isOverdue ? " • overdue" : ""}
             </h3>
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               {dayTasks.map((t) => {
                 const meta = statusMeta[t.status] || {};
                 return (
                   <div key={t.id} onClick={() => onOpen(t)} style={{ ...cardStyle, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
-                    <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>{t.title} <span style={{ fontWeight: 400, color: "var(--subtext)" }}>� {t.assigneeName}</span></span>
+                    <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>{t.title} <span style={{ fontWeight: 400, color: "var(--subtext)" }}>• {t.assigneeName}</span></span>
                     <StatusBadge label={t.status} color={meta.color} bg={meta.bg} />
                   </div>
                 );
@@ -637,7 +636,7 @@ function CreateProjectModal({
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Creating�" : "Create Project"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Creating..." : "Create Project"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -663,7 +662,7 @@ function AddMilestoneModal({ isOpen, onClose, project, onSaved }) {
   if (!project) return null;
 
   return (
-    <Modal isOpen={isOpen} title={`Add Milestone � ${project.name}`} onClose={onClose}>
+    <Modal isOpen={isOpen} title={`Add Milestone — ${project.name}`} onClose={onClose}>
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           {fieldLabel("Milestone Title *")}
@@ -675,7 +674,7 @@ function AddMilestoneModal({ isOpen, onClose, project, onSaved }) {
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Adding�" : "Add Milestone"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Adding..." : "Add Milestone"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -715,12 +714,12 @@ function ProjectsTab({
               <div key={p.id} style={{ ...cardStyle, padding: "18px 20px" }}>
                 <h3 style={{ fontSize: "14.5px", fontWeight: 700, color: "var(--text)", marginBottom: "6px" }}>{p.name}</h3>
                 <p style={{ fontSize: "12px", color: "var(--subtext)", marginBottom: "10px" }}>
-                  {p.members.length} member(s) � {doneCount}/{projectTasks.length} tasks done
+                  {p.members.length} member(s) • {doneCount}/{projectTasks.length} tasks done
                 </p>
                 {p.milestones.length > 0 && (
                   <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginBottom: "10px" }}>
                     {p.milestones.map((m) => (
-                      <span key={m.id} style={{ fontSize: "11.5px", color: "var(--subtext)" }}>? {m.title} � due {fmtDate(m.dueDate)}</span>
+                      <span key={m.id} style={{ fontSize: "11.5px", color: "var(--subtext)" }}>• {m.title} • due {fmtDate(m.dueDate)}</span>
                     ))}
                   </div>
                 )}
