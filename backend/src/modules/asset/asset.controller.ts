@@ -101,10 +101,18 @@ export async function getRequests(
                 ? req.query.employeeId
                 : undefined;
 
-        const data =
-            await assetService.getRequests(
-                employeeId
-            );
+        const userId = req.auth?.sub;
+
+        if (!userId) {
+            return res.status(401).json({
+                message: "Authentication required",
+            });
+        }
+
+        const data = await assetService.getRequests(
+            userId,
+            req.auth?.role ?? ""
+        );
 
         res.json(data);
     } catch (error) {
@@ -240,30 +248,30 @@ export async function fulfillRequest(
 
 
 export async function getMyAssets(
-  req: Request,
-  res: Response
+    req: Request,
+    res: Response
 ) {
-  try {
-    if (!req.auth?.sub) {
-      return res.status(401).json({
-        message: "Authentication required",
-      });
+    try {
+        if (!req.auth?.sub) {
+            return res.status(401).json({
+                message: "Authentication required",
+            });
+        }
+
+        const data =
+            await assetService.getMyAssets(req.auth.sub);
+
+        res.json(data);
+    } catch (error) {
+        console.error("Get my assets error:", error);
+
+        res.status(400).json({
+            message:
+                error instanceof Error
+                    ? error.message
+                    : "Failed to fetch my assets",
+        });
     }
-
-    const data =
-      await assetService.getMyAssets(req.auth.sub);
-
-    res.json(data);
-  } catch (error) {
-    console.error("Get my assets error:", error);
-
-    res.status(400).json({
-      message:
-        error instanceof Error
-          ? error.message
-          : "Failed to fetch my assets",
-    });
-  }
 }
 
 /* =========================================================
@@ -282,7 +290,8 @@ export async function acknowledgeReceipt(
         const data =
             await assetService.acknowledgeReceipt(
                 req.params.id,
-                req.auth.sub
+                req.auth.sub,
+                req.auth.role
             );
 
         res.json(data);
@@ -303,42 +312,43 @@ export async function acknowledgeReceipt(
 ========================================================= */
 
 export async function returnAsset(
-  req: Request,
-  res: Response
+    req: Request,
+    res: Response
 ) {
-  try {
-    if (!req.auth) {
-      throw new Error("Authentication required");
+    try {
+        if (!req.auth) {
+            throw new Error("Authentication required");
+        }
+
+        const {
+            condition,
+            wipeCompleted,
+        } = req.body;
+
+        const data =
+            await assetService.returnAsset(
+                req.params.id,
+                req.auth.sub,
+                req.auth.role,
+                condition,
+                Boolean(wipeCompleted)
+            );
+
+        if ("error" in data) {
+            return res.status(400).json(data);
+        }
+
+        res.json(data);
+    } catch (error) {
+        console.error(error);
+
+        res.status(400).json({
+            message:
+                error instanceof Error
+                    ? error.message
+                    : "Failed to return asset",
+        });
     }
-
-    const {
-      condition,
-      wipeCompleted,
-    } = req.body;
-
-    const data =
-      await assetService.returnAsset(
-        req.params.id,
-        req.auth.sub,
-        condition,
-        Boolean(wipeCompleted)
-      );
-
-    if ("error" in data) {
-      return res.status(400).json(data);
-    }
-
-    res.json(data);
-  } catch (error) {
-    console.error(error);
-
-    res.status(400).json({
-      message:
-        error instanceof Error
-          ? error.message
-          : "Failed to return asset",
-    });
-  }
 }
 
 /* =========================================================
@@ -346,28 +356,28 @@ export async function returnAsset(
 ========================================================= */
 
 export async function getPendingReturns(
-  req: Request,
-  res: Response
+    req: Request,
+    res: Response
 ) {
-  try {
-    if (!req.auth) {
-      throw new Error("Authentication required");
+    try {
+        if (!req.auth) {
+            throw new Error("Authentication required");
+        }
+
+        const data =
+            await assetService.getPendingReturnsForEmployee(
+                req.auth.sub
+            );
+
+        res.json(data);
+    } catch (error) {
+        console.error(error);
+
+        res.status(400).json({
+            message:
+                error instanceof Error
+                    ? error.message
+                    : "Failed to fetch pending returns",
+        });
     }
-
-    const data =
-      await assetService.getPendingReturnsForEmployee(
-        req.auth.sub
-      );
-
-    res.json(data);
-  } catch (error) {
-    console.error(error);
-
-    res.status(400).json({
-      message:
-        error instanceof Error
-          ? error.message
-          : "Failed to fetch pending returns",
-    });
-  }
 }

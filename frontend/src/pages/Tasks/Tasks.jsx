@@ -35,6 +35,7 @@ import {
   getTaskMeta,
   getTaskTotalHours
 } from "../../services/taskService";
+import { useAuth } from "../../context/AuthContext";
 
 const fmtDate = (d) => new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
@@ -199,7 +200,7 @@ function CreateTaskModal({
 
 /* ---------------------------------- Force-close modal ---------------------------------- */
 
-function ForceCloseModal({ isOpen, onClose, task, openBlockers, onResolved }) {
+function ForceCloseModal({ isOpen, onClose, task, openBlockers, onResolved, canWrite, }) {
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -230,7 +231,7 @@ function ForceCloseModal({ isOpen, onClose, task, openBlockers, onResolved }) {
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton onClick={handleForceClose} disabled={saving || !reason.trim()}>{saving ? "Closing�" : "Force-close as Done"}</PrimaryButton>
+          <PrimaryButton onClick={handleForceClose} disabled={!canWrite || saving || !reason.trim()}>{saving ? "Closing�" : "Force-close as Done"}</PrimaryButton>
         </div>
       </div>
     </Modal>
@@ -244,6 +245,9 @@ function TaskDetailModal({
   onClose,
   task,
   statusMeta,
+  canWrite,
+  currentEmployee,
+  canLogTime,
 }) {
   const [entries, setEntries] = useState([]);
   const [taskHistory, setTaskHistory] = useState([]);
@@ -263,10 +267,15 @@ function TaskDetailModal({
   const handleLogTime = async (e) => {
     e.preventDefault();
     if (!hours) return;
+    if (!currentEmployee) return;
     setLogging(true);
     const entry = await logTimeEntry({
-      taskId: task.id, employeeId: ME.id, employeeName: ME.name,
-      date: new Date().toISOString().slice(0, 10), hours, note: note.trim(),
+      taskId: task.id,
+      employeeId: currentEmployee.id,
+      employeeName: currentEmployee.name,
+      date: new Date().toISOString().slice(0, 10),
+      hours,
+      note: note.trim(),
     });
     setEntries((prev) => [entry.data, ...prev]);
     setLogging(false);
@@ -288,11 +297,11 @@ function TaskDetailModal({
           <h4 style={{ fontSize: "12px", fontWeight: 700, color: "var(--label)", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
             <Clock size={13} /> Log time ({totalHours}h logged)
           </h4>
-          <form onSubmit={handleLogTime} style={{ display: "flex", gap: "8px", marginBottom: "10px" }}>
+          {canWrite && (<form onSubmit={handleLogTime} style={{ display: "flex", gap: "8px", marginBottom: "10px" }}>
             <input type="number" step="0.5" min="0.5" placeholder="Hours" value={hours} onChange={(e) => setHours(e.target.value)} style={{ ...inputStyle(), width: "90px" }} />
             <input placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} style={inputStyle()} />
             <PrimaryButton type="submit" disabled={logging || !hours} style={{ padding: "9px 14px" }}>{logging ? "�" : "Log"}</PrimaryButton>
-          </form>
+          </form>)}
           <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "110px", overflowY: "auto" }}>
             {entries.map((e) => (
               <div key={e.id} style={{ fontSize: "12px", color: "var(--subtext)" }}>
@@ -325,6 +334,7 @@ function OrphanedTasksBanner({
   orphaned,
   employees,
   onReassigned,
+  canWrite,
 }) {
   const [reassignTarget, setReassignTarget] = useState(null);
   const [newAssigneeId, setNewAssigneeId] = useState("");
@@ -354,9 +364,21 @@ function OrphanedTasksBanner({
             <span style={{ fontSize: "12.5px", color: "#991b1b" }}>
               <strong>{t.title}</strong> � was assigned to {t.assigneeName}
             </span>
-            <button onClick={() => setReassignTarget(t)} style={{ fontSize: "12px", fontWeight: 700, color: "var(--primary)", border: "none", background: "none", cursor: "pointer" }}>
-              Reassign
-            </button>
+            {canWrite && (
+              <button
+                onClick={() => setReassignTarget(t)}
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  color: "var(--primary)",
+                  border: "none",
+                  background: "none",
+                  cursor: "pointer"
+                }}
+              >
+                Reassign
+              </button>
+            )}
           </div>
         ))}
       </div>
@@ -391,6 +413,8 @@ function TaskCard({
   onOpen,
   onMove,
   onBlockedAttempt,
+  canWrite,
+  canMoveTask,
 }) {
   const meta = priorityMeta[task.priority] || {};
   const currentIndex = statuses.indexOf(task.status);
@@ -420,10 +444,10 @@ function TaskCard({
         <p style={{ fontSize: "10.5px", color: "var(--red)", marginBottom: "8px" }}>Force-closed: {task.forceCloseReason}</p>
       )}
       <div style={{ display: "flex", gap: "8px" }} onClick={(e) => e.stopPropagation()}>
-        {currentIndex > 0 && (
+        {canMoveTask && currentIndex > 0 && (
           <button onClick={() => handleMove(-1)} style={{ fontSize: "11px", fontWeight: 600, color: "var(--subtext)", border: "none", background: "none", cursor: "pointer" }}>? {statuses[currentIndex - 1]}</button>
         )}
-        {currentIndex < statuses.length - 1 && (
+        {canMoveTask && currentIndex < statuses.length - 1 && (
           <button onClick={() => handleMove(1)} style={{ fontSize: "11px", fontWeight: 600, color: "var(--primary)", border: "none", background: "none", cursor: "pointer" }}>{statuses[currentIndex + 1]} ?</button>
         )}
       </div>
@@ -438,6 +462,8 @@ function KanbanTab({
   onOpen,
   onMove,
   onBlockedAttempt,
+  canWrite,
+  canMoveTask,
 }) {
   if (tasks.length === 0) return <EmptyState icon={KanbanSquare} title="No tasks yet" />;
 
@@ -460,6 +486,8 @@ function KanbanTab({
                   onOpen={onOpen}
                   onMove={onMove}
                   onBlockedAttempt={onBlockedAttempt}
+                  canWrite={canWrite}
+                  canMoveTask={canMoveTask(t)}
                 />
               ))}
             </div>
@@ -661,6 +689,7 @@ function ProjectsTab({
   currentEmployee,
   onProjectAdded,
   onMilestoneAdded,
+  canWrite,
 }) {
   const [showCreate, setShowCreate] = useState(false);
   const [milestoneTarget, setMilestoneTarget] = useState(null);
@@ -669,7 +698,11 @@ function ProjectsTab({
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
         <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Projects</h2>
-        <PrimaryButton onClick={() => setShowCreate(true)}><Plus size={16} /> Create Project</PrimaryButton>
+        {canWrite && (
+          <PrimaryButton onClick={() => setShowCreate(true)}>
+            <Plus size={16} /> Create Project
+          </PrimaryButton>
+        )}
       </div>
       {projects.length === 0 ? (
         <EmptyState icon={FolderKanban} title="No projects yet" />
@@ -691,9 +724,21 @@ function ProjectsTab({
                     ))}
                   </div>
                 )}
-                <button onClick={() => setMilestoneTarget(p)} style={{ fontSize: "12px", fontWeight: 700, color: "var(--primary)", border: "none", background: "none", cursor: "pointer" }}>
-                  + Add milestone
-                </button>
+                {canWrite && (
+                  <button
+                    onClick={() => setMilestoneTarget(p)}
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      color: "var(--primary)",
+                      border: "none",
+                      background: "none",
+                      cursor: "pointer"
+                    }}
+                  >
+                    + Add milestone
+                  </button>
+                )}
               </div>
             );
           })}
@@ -720,6 +765,28 @@ const TABS = [
 ];
 
 export default function Tasks() {
+  const { permissions = [], role } = useAuth();
+
+  const can = (permission) =>
+    permissions.includes(permission);
+
+  const canRead = can("tasks:read");
+  const canWrite = can("tasks:write");
+
+  const isEmployee = role === "EMPLOYEE";
+  const canManageTasks = canWrite && !isEmployee;
+
+  const canMoveTask = (task) => {
+    if (!canWrite) return false;
+
+    // Admin / HR / Manager
+    if (!isEmployee) return true;
+
+    // Employee → only assigned task
+    return task.assigneeId === taskMeta.currentEmployee?.id;
+  };
+
+
   const [activeTab, setActiveTab] = useState("kanban");
   const [loading, setLoading] = useState(true);
   const [projects, setProjects] = useState([]);
@@ -738,7 +805,23 @@ export default function Tasks() {
   const [detailTask, setDetailTask] = useState(null);
   const [blockedState, setBlockedState] = useState(null); // { task, openBlockers }
 
+  const selectedTask = detailTask
+    ? tasks.find((t) => t.id === detailTask.id)
+    : null;
+
+  const canLogTime = (task) => {
+    if (!task || !canWrite) return false;
+
+    if (!isEmployee) return true;
+
+    return task.assigneeId === taskMeta.currentEmployee?.id;
+  };
+
   useEffect(() => {
+    if (!canRead) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     Promise.all([
       getProjects(),
@@ -753,7 +836,20 @@ export default function Tasks() {
         setTaskMeta(m.data);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [canRead]);
+
+
+  if (!canRead) {
+    return (
+      <MainLayout>
+        <EmptyState
+          icon={AlertTriangle}
+          title="Access Denied"
+          subtitle="You do not have permission to view Task Management."
+        />
+      </MainLayout>
+    );
+  }
 
   const handleTaskMoved = (updated) => {
     setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
@@ -790,13 +886,16 @@ export default function Tasks() {
         <PageHeader title="Task Management" subtitle="Projects, milestones, tasks and time tracking" />
         <TabNav tabs={TABS} active={activeTab} onChange={setActiveTab} />
 
-        <OrphanedTasksBanner orphaned={orphaned} onReassigned={handleReassigned} />
+        <OrphanedTasksBanner orphaned={orphaned} onReassigned={handleReassigned} canWrite={canManageTasks} />
 
-        {(activeTab === "kanban" || activeTab === "calendar") && (
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "14px" }}>
-            <PrimaryButton onClick={() => setShowCreateTask(true)}><Plus size={16} /> Create Task</PrimaryButton>
-          </div>
-        )}
+        {canManageTasks &&
+          (activeTab === "kanban" || activeTab === "calendar") && (
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "14px" }}>
+              <PrimaryButton onClick={() => setShowCreateTask(true)}>
+                <Plus size={16} /> Create Task
+              </PrimaryButton>
+            </div>
+          )}
 
         {activeTab === "kanban" && (
           <KanbanTab
@@ -808,6 +907,8 @@ export default function Tasks() {
             onBlockedAttempt={(task, openBlockers) =>
               setBlockedState({ task, openBlockers })
             }
+            canWrite={canWrite}
+            canMoveTask={canMoveTask}
           />
         )}
 
@@ -825,6 +926,7 @@ export default function Tasks() {
             currentEmployee={taskMeta.currentEmployee}
             onProjectAdded={handleProjectAdded}
             onMilestoneAdded={handleMilestoneAdded}
+            canWrite={canManageTasks}
           />
         )}
 
@@ -837,13 +939,14 @@ export default function Tasks() {
           currentEmployee={taskMeta.currentEmployee}
           onSaved={handleTaskAdded}
         />
-        <TaskDetailModal isOpen={!!detailTask} onClose={() => setDetailTask(null)} task={detailTask ? tasks.find((t) => t.id === detailTask.id) : null} />
+        <TaskDetailModal isOpen={!!detailTask} onClose={() => setDetailTask(null)} task={detailTask ? tasks.find((t) => t.id === detailTask.id) : null} statusMeta={taskMeta.statusMeta} canWrite={canWrite} canLogTime={canLogTime(selectedTask)} currentEmployee={taskMeta.currentEmployee} />
         <ForceCloseModal
           isOpen={!!blockedState}
           onClose={() => setBlockedState(null)}
           task={blockedState?.task}
           openBlockers={blockedState?.openBlockers || []}
           onResolved={(updated) => { handleTaskMoved(updated); setBlockedState(null); }}
+          canWrite={canManageTasks}
         />
       </div>
     </MainLayout>

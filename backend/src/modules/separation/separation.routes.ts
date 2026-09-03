@@ -14,6 +14,7 @@ import {
 } from "./separation.controller";
 
 import { authenticate } from "../../middlewares/auth";
+import { requirePermission } from "../../middlewares/rbac";
 
 const router = Router();
 
@@ -25,6 +26,7 @@ router.use(authenticate);
 
 router.get(
   "/alumni",
+  requirePermission("alumni:read"),
   getAlumni
 );
 
@@ -34,11 +36,13 @@ router.get(
 
 router.get(
   "/",
+  requirePermission("separation:read"),
   getSeparations
 );
 
 router.post(
   "/",
+  requirePermission("separation:write"),
   initiateSeparation
 );
 
@@ -48,11 +52,13 @@ router.post(
 
 router.get(
   "/:id/clearance",
+  requirePermission("clearance:read"),
   getClearanceItems
 );
 
 router.patch(
   "/clearance/:id",
+  requirePermission("clearance:write"),
   updateClearanceItem
 );
 
@@ -62,11 +68,13 @@ router.patch(
 
 router.get(
   "/:id/exit-interview",
+  requirePermission("exitinterview:read"),
   getExitInterview
 );
 
 router.post(
   "/:id/exit-interview",
+  requirePermission("exitinterview:write"),
   recordExitInterview
 );
 
@@ -76,6 +84,7 @@ router.post(
 
 router.post(
   "/:id/settlement",
+  requirePermission("settlement:write"),
   computeSettlement
 );
 
@@ -85,6 +94,7 @@ router.post(
 
 router.post(
   "/:id/revoke-access",
+  requirePermission("access:revoke"),
   revokeAccess
 );
 
@@ -94,6 +104,7 @@ router.post(
 
 router.post(
   "/:id/alumni",
+  requirePermission("alumni:write"),
   convertToAlumni
 );
 
