@@ -333,7 +333,7 @@ function ApprovalsTab({ requests, onRequestUpdated }) {
             {pendingManager.map((req) => (
               <div key={req.id} style={{ ...cardStyle, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
                 <div>
-                  <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)" }}>{req.employeeName} ? {req.destination}</p>
+                  <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)" }}>{req.employeeName} → {req.destination}</p>
                   <p style={{ fontSize: "12px", color: "var(--subtext)" }}>{req.purpose} • Est. {fmtINR(req.estimatedCost)} • {fmtDate(req.startDate)} – {fmtDate(req.endDate)}</p>
                   {req.estimatedCost > travelPolicy.financeApprovalThreshold && (
                     <p style={{ fontSize: "11px", color: "#d97706", marginTop: "4px" }}>Above ₹{travelPolicy.financeApprovalThreshold.toLocaleString("en-IN")} — will also need Finance approval.</p>
@@ -360,7 +360,7 @@ function ApprovalsTab({ requests, onRequestUpdated }) {
             {pendingFinance.map((req) => (
               <div key={req.id} style={{ ...cardStyle, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
                 <div>
-                  <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)" }}>{req.employeeName} ? {req.destination}</p>
+                  <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)" }}>{req.employeeName} → {req.destination}</p>
                   <p style={{ fontSize: "12px", color: "var(--subtext)" }}>Est. {fmtINR(req.estimatedCost)} — manager-approved by {req.managerApproval?.by}</p>
                 </div>
                 <div style={{ display: "flex", gap: "12px" }}>
@@ -545,7 +545,7 @@ function TravelDeskTab({ requests, onRequestUpdated }) {
             {needsBooking.map((req) => (
               <div key={req.id} style={{ ...cardStyle, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
                 <div>
-                  <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)" }}>{req.employeeName} ? {req.destination}{req.isInternational ? " (international)" : ""}</p>
+                  <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)" }}>{req.employeeName} → {req.destination}{req.isInternational ? " (international)" : ""}</p>
                   <p style={{ fontSize: "12px", color: "var(--subtext)" }}>{req.mode} • {fmtDate(req.startDate)}</p>
                   {req.booking?.bookingFailed && (
                     <p style={{ fontSize: "11.5px", color: "var(--red)", marginTop: "4px", display: "flex", alignItems: "center", gap: "5px" }}>
@@ -580,7 +580,7 @@ function TravelDeskTab({ requests, onRequestUpdated }) {
             {canDisburseAdvance.map((req) => (
               <div key={req.id} style={{ ...cardStyle, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
                 <div>
-                  <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)" }}>{req.employeeName} ? {req.destination}</p>
+                  <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)" }}>{req.employeeName} → {req.destination}</p>
                   <p style={{ fontSize: "12px", color: "var(--subtext)" }}>Est. {fmtINR(req.estimatedCost)} — cap {fmtINR(Math.round(req.estimatedCost * (travelPolicy.advanceMaxPercent / 100)))}</p>
                 </div>
                 <button onClick={() => setAdvanceTarget(req)} style={{ fontSize: "12px", fontWeight: 700, color: "var(--primary)", border: "none", background: "none", cursor: "pointer" }}>
@@ -603,7 +603,7 @@ function TravelDeskTab({ requests, onRequestUpdated }) {
             {settlementsToClose.map((req) => (
               <div key={req.id} style={{ ...cardStyle, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
                 <div>
-                  <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)" }}>{req.employeeName} ? {req.destination}</p>
+                  <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)" }}>{req.employeeName} → {req.destination}</p>
                   <p style={{ fontSize: "12px", color: "var(--subtext)" }}>
                     Actual {fmtINR(req.settlement.actualCost)} vs advance {fmtINR(req.settlement.advanceGiven)}
                     {req.settlement.balance > 0 ? ` • ${fmtINR(req.settlement.balance)} ${req.settlement.balanceType}` : " • balanced"}

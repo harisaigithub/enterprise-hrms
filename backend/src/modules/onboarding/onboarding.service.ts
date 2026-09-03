@@ -358,6 +358,8 @@ async function serializeOnboarding(record: any) {
                 id: true,
                 firstName: true,
                 lastName: true,
+                department: { select: { name: true } },
+                designation: { select: { title: true } },
             },
         });
 
@@ -433,9 +435,9 @@ async function serializeOnboarding(record: any) {
             )}`
             : null,
 
-        designation: null,
+        designation: employee?.designation?.title ?? null,
 
-        department: null,
+        department: employee?.department?.name ?? null,
 
         joinDate: record.joinDate
             ? new Date(record.joinDate)

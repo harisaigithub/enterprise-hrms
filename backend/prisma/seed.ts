@@ -258,6 +258,9 @@ const EMPLOYEES: EmployeeSeed[] = [
   { code: "EMP013", firstName: "Neha", lastName: "Joshi", email: "neha.joshi@company.com", phone: "+1-555-0113", designation: "Marketing Manager", department: "Marketing", location: "Miami", employmentType: "Full-Time", status: "Active", joinDate: "2020-11-15", salary: 92000, managerId: "EMP010", gender: "Female", dob: "1989-07-03", role: "EMPLOYEE", isDepartmentHead: false },
   { code: "EMP014", firstName: "Kiran", lastName: "Kumar", email: "kiran.kumar@company.com", phone: "+1-555-0114", designation: "Frontend Engineer", department: "Engineering", location: "Remote", employmentType: "Contract", status: "Active", joinDate: "2023-07-01", salary: 75000, managerId: "EMP005", gender: "Male", dob: "1996-03-22", role: "EMPLOYEE", isDepartmentHead: false },
   { code: "EMP015", firstName: "Pooja", lastName: "Iyer", email: "pooja.iyer@company.com", phone: "+1-555-0115", designation: "Finance Analyst", department: "Finance", location: "London", employmentType: "Full-Time", status: "Inactive", joinDate: "2021-04-19", salary: 80000, managerId: "EMP010", gender: "Female", dob: "1992-11-08", role: "EMPLOYEE", isDepartmentHead: false },
+  { code: "EMP016", firstName: "Ananya", lastName: "Verma", email: "ananya.verma@company.com", phone: "+91-981-0021-991", designation: "Senior Software Engineer", department: "Engineering", location: "Delhi", employmentType: "Full-Time", status: "Active", joinDate: "2026-08-01", salary: 98000, managerId: "EMP005", gender: "Female", dob: "1994-04-12", role: "EMPLOYEE", isDepartmentHead: false },
+  { code: "EMP017", firstName: "Rishi", lastName: "Saxena", email: "rishi.saxena@company.com", phone: "+91-981-0022-882", designation: "UX Designer", department: "Design", location: "Delhi", employmentType: "Full-Time", status: "Active", joinDate: "2026-08-15", salary: 86000, managerId: "EMP002", gender: "Male", dob: "1995-09-25", role: "EMPLOYEE", isDepartmentHead: false },
+  { code: "EMP018", firstName: "Nandini", lastName: "Pillai", email: "nandini.pillai@company.com", phone: "+91-981-0023-773", designation: "HR Specialist", department: "Human Resources", location: "Delhi", employmentType: "Full-Time", status: "Active", joinDate: "2026-09-01", salary: 72000, managerId: "EMP011", gender: "Female", dob: "1996-01-18", role: "EMPLOYEE", isDepartmentHead: false },
 ];
 
 const LEAVE_TYPES = [
@@ -273,6 +276,45 @@ async function main() {
   console.log("🌱 Seeding database…");
 
   // Wipe in FK-safe order
+  await prisma.onboardingChecklistItem.deleteMany();
+  await prisma.onboarding.deleteMany();
+  await prisma.candidateDocument.deleteMany();
+  await prisma.offer.deleteMany();
+  await prisma.interviewScorecard.deleteMany();
+  await prisma.interviewPanel.deleteMany();
+  await prisma.interview.deleteMany();
+  await prisma.application.deleteMany();
+  await prisma.candidate.deleteMany();
+  await prisma.jobRequisition.deleteMany();
+  await prisma.courseCertificate.deleteMany();
+  await prisma.courseContentProgress.deleteMany();
+  await prisma.courseQuizAttemptAnswer.deleteMany();
+  await prisma.courseQuizAttempt.deleteMany();
+  await prisma.courseQuizOption.deleteMany();
+  await prisma.courseQuizQuestion.deleteMany();
+  await prisma.courseContent.deleteMany();
+  await prisma.courseEnrollment.deleteMany();
+  await prisma.course.deleteMany();
+  await prisma.policyAcknowledgement.deleteMany();
+  await prisma.policyVersion.deleteMany();
+  await prisma.policy.deleteMany();
+  await prisma.helpdeskComment.deleteMany();
+  await prisma.helpdeskTicket.deleteMany();
+  await prisma.assetHistory.deleteMany();
+  await prisma.assetRequest.deleteMany();
+  await prisma.asset.deleteMany();
+  await prisma.taskTimeEntry.deleteMany();
+  await prisma.taskDependency.deleteMany();
+  await prisma.taskHistory.deleteMany();
+  await prisma.task.deleteMany();
+  await prisma.taskMilestone.deleteMany();
+  await prisma.taskProjectMember.deleteMany();
+  await prisma.taskProject.deleteMany();
+  await prisma.separationSettlement.deleteMany();
+  await prisma.separationClearance.deleteMany();
+  await prisma.exitInterview.deleteMany();
+  await prisma.alumni.deleteMany();
+  await prisma.separation.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.refreshToken.deleteMany();
   await prisma.workflowEvent.deleteMany();
@@ -812,7 +854,588 @@ async function main() {
     ],
   });
 
-  console.log("✅ Seed complete.");
+  // ── 1. Job Requisitions (Module 5) ──────────────────────────────────────────
+  console.log("📋 Seeding Job Requisitions…");
+  const deptEng = deptByName.get("Engineering")!;
+  const deptDesign = deptByName.get("Design")!;
+  const deptHR = deptByName.get("Human Resources")!;
+  const deptFin = deptByName.get("Finance")!;
+  const deptProd = deptByName.get("Product")!;
+
+  const locNY = locByName.get("New York")!;
+  const locDelhi = locByName.get("Delhi")!;
+  const locAustin = locByName.get("Austin")!;
+
+  const desigBackend = desigByTitle.get("Backend Engineer") || desigByTitle.get("Senior Software Engineer")!;
+  const desigDesigner = desigByTitle.get("UX Designer")!;
+  const desigDevOps = desigByTitle.get("DevOps Engineer")!;
+  const desigHR = desigByTitle.get("HR Specialist")!;
+  const desigFinance = desigByTitle.get("Finance Analyst")!;
+
+  const reqEng = await prisma.jobRequisition.create({
+    data: {
+      requisitionCode: "REQ-2026-001",
+      title: "Senior Backend Engineer",
+      departmentId: deptEng,
+      designationId: desigBackend,
+      locationId: locNY,
+      openings: 2,
+      salaryMin: 1800000,
+      salaryMax: 2600000,
+      grade: "L4",
+      justification: "Scaling core distributed event streams and database latency reduction.",
+      status: "Open",
+      raisedBy: empPKByCode.get("EMP005")!,
+    },
+  });
+
+  const reqDesign = await prisma.jobRequisition.create({
+    data: {
+      requisitionCode: "REQ-2026-002",
+      title: "Lead Product Designer",
+      departmentId: deptDesign,
+      designationId: desigDesigner,
+      locationId: locAustin,
+      openings: 1,
+      salaryMin: 1600000,
+      salaryMax: 2200000,
+      grade: "L4",
+      justification: "Design systems unification and enterprise design lead.",
+      status: "Open",
+      raisedBy: empPKByCode.get("EMP002")!,
+    },
+  });
+
+  const reqDevOps = await prisma.jobRequisition.create({
+    data: {
+      requisitionCode: "REQ-2026-003",
+      title: "Cloud Platform Architect",
+      departmentId: deptEng,
+      designationId: desigDevOps,
+      locationId: locDelhi,
+      openings: 2,
+      salaryMin: 2000000,
+      salaryMax: 2800000,
+      grade: "L4",
+      justification: "Multi-region Kubernetes migration and SOC2 observability stack.",
+      status: "Open",
+      raisedBy: empPKByCode.get("EMP005")!,
+    },
+  });
+
+  const reqHR = await prisma.jobRequisition.create({
+    data: {
+      requisitionCode: "REQ-2026-004",
+      title: "Senior HR Business Partner",
+      departmentId: deptHR,
+      designationId: desigHR,
+      locationId: locDelhi,
+      openings: 1,
+      salaryMin: 1400000,
+      salaryMax: 2000000,
+      grade: "L4",
+      justification: "APAC regional employee relations and leadership coaching.",
+      status: "Open",
+      raisedBy: empPKByCode.get("EMP011")!,
+    },
+  });
+
+  const reqFin = await prisma.jobRequisition.create({
+    data: {
+      requisitionCode: "REQ-2026-005",
+      title: "Financial Planning Analyst",
+      departmentId: deptFin,
+      designationId: desigFinance,
+      locationId: locNY,
+      openings: 1,
+      salaryMin: 1200000,
+      salaryMax: 1800000,
+      grade: "L3",
+      justification: "Annual budget planning and cashflow forecasting.",
+      status: "Open",
+      raisedBy: empPKByCode.get("EMP010")!,
+    },
+  });
+
+  // ── 2. Candidates & Applications across Funnel Stages ─────────────────────
+  console.log("👥 Seeding Candidates across Pipeline Funnel…");
+
+  // A. Applied (5 candidates)
+  const appliedCandidatesData = [
+    { code: "CAN-001", first: "Aarav", last: "Mehta", email: "aarav.mehta@example.com", phone: "+91-982-101-1001", reqId: reqEng.id, rating: 3, notes: "7 years Node & Go experience in logistics." },
+    { code: "CAN-002", first: "Sneha", last: "Kapoor", email: "sneha.k.design@example.com", phone: "+1-555-020-2002", reqId: reqDesign.id, rating: 4, notes: "Strong portfolio in Figma enterprise tokens." },
+    { code: "CAN-003", first: "Kunal", last: "Joshi", email: "kunal.joshi@example.com", phone: "+91-982-103-3003", reqId: reqDevOps.id, rating: 3, notes: "AWS certified solutions architect." },
+    { code: "CAN-004", first: "Pooja", last: "Batra", email: "pooja.batra@example.com", phone: "+91-982-104-4004", reqId: reqHR.id, rating: 4, notes: "SHRM-SCP certified with 6 years tenure." },
+    { code: "CAN-005", first: "Devendra", last: "Rao", email: "devendra.rao@example.com", phone: "+1-555-025-5005", reqId: reqFin.id, rating: 3, notes: "FP&A background in consumer tech." },
+  ];
+  for (const c of appliedCandidatesData) {
+    const cand = await prisma.candidate.create({
+      data: { candidateCode: c.code, firstName: c.first, lastName: c.last, email: c.email, phone: c.phone, resumeSummary: c.notes },
+    });
+    await prisma.application.create({
+      data: { candidateId: cand.id, requisitionId: c.reqId, stage: "Applied", rating: c.rating, notes: c.notes, approvalStatus: "HR Review" },
+    });
+  }
+
+  // B. Screening (4 candidates)
+  const screeningCandidatesData = [
+    { code: "CAN-006", first: "Rahul", last: "Verma", email: "rahul.verma.dev@example.com", phone: "+91-982-106-6006", reqId: reqEng.id, rating: 4, notes: "Passed preliminary technical phone screen." },
+    { code: "CAN-007", first: "Meera", last: "Swaminathan", email: "meera.swami@example.com", phone: "+91-982-107-7007", reqId: reqDesign.id, rating: 4, notes: "Reviewed design challenge; great typography." },
+    { code: "CAN-008", first: "Gaurav", last: "Sen", email: "gaurav.sen@example.com", phone: "+91-982-108-8008", reqId: reqDevOps.id, rating: 3, notes: "Terraform automation background." },
+    { code: "CAN-009", first: "Simran", last: "Kaur", email: "simran.kaur.fin@example.com", phone: "+1-555-029-9009", reqId: reqFin.id, rating: 4, notes: "Cleared financial modeling assessment." },
+  ];
+  for (const c of screeningCandidatesData) {
+    const cand = await prisma.candidate.create({
+      data: { candidateCode: c.code, firstName: c.first, lastName: c.last, email: c.email, phone: c.phone, resumeSummary: c.notes },
+    });
+    await prisma.application.create({
+      data: { candidateId: cand.id, requisitionId: c.reqId, stage: "Screening", rating: c.rating, notes: c.notes, approvalStatus: "HR Review" },
+    });
+  }
+
+  // C. Interview (3 candidates with scheduled interviews & scorecards)
+  const interviewCandidatesData = [
+    { code: "CAN-010", first: "Aditya", last: "Iyer", email: "aditya.iyer@example.com", phone: "+91-982-110-1010", reqId: reqEng.id, rating: 5, notes: "Exceptional systems design knowledge.", interviewer: emp005 },
+    { code: "CAN-011", first: "Tanvi", last: "Shah", email: "tanvi.shah@example.com", phone: "+91-982-111-1011", reqId: reqDesign.id, rating: 4, notes: "Strong design leadership experience.", interviewer: empPKByCode.get("EMP002")! },
+    { code: "CAN-012", first: "Harsh", last: "Vardhan", email: "harsh.vardhan@example.com", phone: "+91-982-112-1012", reqId: reqDevOps.id, rating: 4, notes: "Excellent Kubernetes cluster recovery answers.", interviewer: emp004 },
+  ];
+  for (const c of interviewCandidatesData) {
+    const cand = await prisma.candidate.create({
+      data: { candidateCode: c.code, firstName: c.first, lastName: c.last, email: c.email, phone: c.phone, resumeSummary: c.notes },
+    });
+    const app = await prisma.application.create({
+      data: { candidateId: cand.id, requisitionId: c.reqId, stage: "Interview", rating: c.rating, notes: c.notes, approvalStatus: "Interview Scheduled" },
+    });
+    const iv = await prisma.interview.create({
+      data: { applicationId: app.id, round: "Technical Round 2", scheduledAt: new Date("2026-09-08T10:00:00Z"), status: "Completed" },
+    });
+    await prisma.interviewPanel.create({
+      data: { interviewId: iv.id, interviewerId: c.interviewer },
+    });
+    await prisma.interviewScorecard.create({
+      data: { interviewId: iv.id, interviewerId: c.interviewer, rating: c.rating, notes: "Strong recommendation to proceed.", submitted: true, submittedAt: new Date("2026-09-02T16:00:00Z") },
+    });
+  }
+
+  // D. Offer (2 candidates)
+  const offer1Cand = await prisma.candidate.create({
+    data: { candidateCode: "CAN-013", firstName: "Priya", lastName: "Nair", email: "priya.nair.eng@example.com", phone: "+91-982-113-1013", resumeSummary: "Staff level engineer; offer letter extended." },
+  });
+  const offer1App = await prisma.application.create({
+    data: { candidateId: offer1Cand.id, requisitionId: reqEng.id, stage: "Offer", rating: 5, notes: "Offer rolled out, awaiting signature.", approvalStatus: "Offer Sent" },
+  });
+  await prisma.offer.create({
+    data: {
+      applicationId: offer1App.id,
+      proposedSalary: 2300000,
+      status: "Sent — Awaiting Signature",
+      joiningDate: new Date("2026-10-01T00:00:00Z"),
+      sentAt: new Date("2026-09-01T00:00:00Z"),
+      consentOnFile: true,
+    },
+  });
+
+  const offer2Cand = await prisma.candidate.create({
+    data: { candidateCode: "CAN-014", firstName: "Vikram", lastName: "Malhotra", email: "vikram.m.devops@example.com", phone: "+91-982-114-1014", resumeSummary: "Principal architect; offer pending budget sign-off." },
+  });
+  const offer2App = await prisma.application.create({
+    data: { candidateId: offer2Cand.id, requisitionId: reqDevOps.id, stage: "Offer", rating: 5, notes: "Salary compensation approval pending.", approvalStatus: "Salary Approval Pending" },
+  });
+  await prisma.offer.create({
+    data: {
+      applicationId: offer2App.id,
+      proposedSalary: 2500000,
+      status: "Salary Approval Pending",
+      joiningDate: new Date("2026-10-15T00:00:00Z"),
+      sentAt: new Date("2026-09-02T00:00:00Z"),
+      consentOnFile: true,
+    },
+  });
+
+  // E. Hired (3 candidates transitioning directly to Onboarding!)
+  const hiredData = [
+    { code: "CAN-015", empCode: "EMP016", first: "Ananya", last: "Verma", email: "ananya.verma@company.com", phone: "+91-981-0021-991", reqId: reqEng.id, salary: 2400000, joinDate: "2026-08-01", buddyCode: "EMP001" },
+    { code: "CAN-016", empCode: "EMP017", first: "Rishi", last: "Saxena", email: "rishi.saxena@company.com", phone: "+91-981-0022-882", reqId: reqDesign.id, salary: 2000000, joinDate: "2026-08-15", buddyCode: "EMP003" },
+    { code: "CAN-017", empCode: "EMP018", first: "Nandini", last: "Pillai", email: "nandini.pillai@company.com", phone: "+91-981-0023-773", reqId: reqHR.id, salary: 1800000, joinDate: "2026-09-01", buddyCode: "EMP008" },
+  ];
+
+  console.log("🚀 Seeding Onboarding Records for Hired Joiners…");
+  for (const h of hiredData) {
+    const cand = await prisma.candidate.create({
+      data: { candidateCode: h.code, firstName: h.first, lastName: h.last, email: h.email, phone: h.phone, resumeSummary: "Candidate hired and successfully onboarded." },
+    });
+    const empId = empPKByCode.get(h.empCode)!;
+    const app = await prisma.application.create({
+      data: { candidateId: cand.id, requisitionId: h.reqId, stage: "Hired", rating: 5, notes: "Accepted offer and joined the company.", approvalStatus: "Employee Created", employeeId: empId },
+    });
+    const offer = await prisma.offer.create({
+      data: {
+        applicationId: app.id,
+        proposedSalary: h.salary,
+        status: "Accepted",
+        joiningDate: new Date(`${h.joinDate}T00:00:00Z`),
+        decisionAt: new Date("2026-07-25T00:00:00Z"),
+        consentOnFile: true,
+      },
+    });
+
+    const joinDateObj = new Date(`${h.joinDate}T00:00:00Z`);
+    const probationEnd = new Date(joinDateObj);
+    probationEnd.setDate(probationEnd.getDate() + 90);
+
+    const buddyName = EMPLOYEES.find((e) => e.code === h.buddyCode);
+    const buddyStr = buddyName ? `${buddyName.firstName} ${buddyName.lastName}` : "Matsya Singh";
+
+    const onb = await prisma.onboarding.create({
+      data: {
+        employeeId: empId,
+        offerId: offer.id,
+        joinDate: joinDateObj,
+        probationEndDate: probationEnd,
+        buddy: buddyStr,
+        status: "IN_PROGRESS",
+      },
+    });
+
+    const d = (offsetDays: number) => {
+      const dt = new Date(joinDateObj);
+      dt.setDate(dt.getDate() + offsetDays);
+      return dt;
+    };
+
+    const checklistItems = [
+      { title: "Upload ID & address proof", category: "Documents & Policy", owner: "Employee", dueDate: d(-3), status: "Complete" as const },
+      { title: "Upload education certificates", category: "Documents & Policy", owner: "Employee", dueDate: d(-3), status: "Complete" as const },
+      { title: "Verify identity documents", category: "Documents & Policy", owner: "HR", dueDate: d(-2), status: "Complete" as const },
+      { title: "Accept Code of Conduct & IT Policy", category: "Documents & Policy", owner: "Employee", dueDate: d(-1), status: "Complete" as const },
+      { title: "Complete remaining personal details", category: "Documents & Policy", owner: "Employee", dueDate: d(-1), status: "Complete" as const },
+      { title: "Create corporate email & core accounts", category: "IT & Assets", owner: "IT", dueDate: d(-1), status: "Complete" as const, dependsOn: "identity-verify" },
+      { title: "Allocate laptop", category: "IT & Assets", owner: "IT", dueDate: d(0), status: "Complete" as const },
+      { title: "Allocate access card", category: "IT & Assets", owner: "IT", dueDate: d(0), status: "Complete" as const },
+      { title: "Confirm laptop handover (condition ack.)", category: "IT & Assets", owner: "Employee", dueDate: d(0), status: "Pending" as const, dependsOn: "asset-laptop" },
+      { title: "Attend induction session", category: "Induction & Buddy", owner: "HR", dueDate: d(1), status: "Pending" as const },
+      { title: "Assign onboarding buddy", category: "Induction & Buddy", owner: "Manager", dueDate: d(-1), status: "Complete" as const },
+      { title: "Schedule probation review", category: "Probation", owner: "Manager", dueDate: d(90), status: "Pending" as const },
+    ];
+
+    for (const item of checklistItems) {
+      await prisma.onboardingChecklistItem.create({
+        data: {
+          onboardingId: onb.id,
+          title: item.title,
+          category: item.category,
+          owner: item.owner,
+          dueDate: item.dueDate,
+          status: item.status,
+          dependsOn: item.dependsOn || null,
+        },
+      });
+    }
+  }
+
+  // ── 3. Learning Management System (LMS) Seed ──────────────────────────────
+  console.log("📚 Seeding LMS Courses & Accurately Themed Thumbnails…");
+
+  const lmsCourses = [
+    {
+      title: "Information Security & Cyber Defense (ISO 27001)",
+      description: "Comprehensive training covering data classification, zero-trust access, anti-phishing defense, and enterprise incident response protocols.",
+      thumbnailUrl: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=800&q=80",
+      isCompliance: true,
+      expiryMonths: 12,
+      passThreshold: 80,
+      modules: ["Data Classification & Handling", "Zero-Trust & Access Governance", "Phishing Defenses & Social Engineering", "Security Incident Reporting Protocols"],
+      contents: [
+        { title: "Module 1: Principles of Enterprise Security", type: "TEXT" as const, content: "# Enterprise Information Security\n\nAll company data is classified into Public, Internal, Confidential, and Restricted. Encryption at rest and in transit is mandatory." },
+        { title: "Module 2: SOC2 & ISO 27001 Controls", type: "LINK" as const, content: "https://csrc.nist.gov/publications/detail/sp/800-53/rev-5/final" },
+      ],
+      questions: [
+        { question: "What classification applies to customer PII and financial records?", options: [{ optionText: "Public", isCorrect: false }, { optionText: "Restricted", isCorrect: true }, { optionText: "Internal", isCorrect: false }] },
+        { question: "When should an unauthorized access attempt be reported?", options: [{ optionText: "Immediately within 1 hour", isCorrect: true }, { optionText: "At month end", isCorrect: false }, { optionText: "Only if data was deleted", isCorrect: false }] },
+      ],
+    },
+    {
+      title: "Workplace POSH & Anti-Harassment Compliance",
+      description: "Statutory training on the Prevention of Sexual Harassment at Workplace (POSH Act), establishing safe, inclusive, and respectful working environments.",
+      thumbnailUrl: "https://images.unsplash.com/photo-1450133064473-71024230f91b?auto=format&fit=crop&w=800&q=80",
+      isCompliance: true,
+      expiryMonths: 12,
+      passThreshold: 80,
+      modules: ["Understanding the POSH Statutory Framework", "Recognizing Inappropriate Behaviors", "Internal Complaints Committee (ICC) Redressal", "Bystander Intervention & Support"],
+      contents: [
+        { title: "Module 1: POSH Policy & Scope", type: "TEXT" as const, content: "# Workplace POSH Compliance\n\nZero tolerance for sexual harassment. The Internal Complaints Committee (ICC) ensures swift, confidential, and unbiased resolution." },
+      ],
+      questions: [
+        { question: "What is the primary role of the Internal Complaints Committee (ICC)?", options: [{ optionText: "Conduct fair, confidential inquiries into complaints", isCorrect: true }, { optionText: "Publish public dispute lists", isCorrect: false }] },
+      ],
+    },
+    {
+      title: "Modern Full-Stack Web Architecture with React & Node",
+      description: "Master modern microservice paradigms, scalable REST/GraphQL APIs, clean React architecture, state management, and PostgreSQL optimization.",
+      thumbnailUrl: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=800&q=80",
+      isCompliance: false,
+      expiryMonths: null,
+      passThreshold: 70,
+      modules: ["Design System Componentry & Micro-Frontends", "High-Performance REST & Async Queues", "Prisma ORM & PostgreSQL Optimization", "Zero-Downtime Deployment & CI/CD"],
+      contents: [
+        { title: "Module 1: Resilient Component Patterns", type: "TEXT" as const, content: "# Frontend Architecture\n\nEncapsulate state, enforce unidirectional data flow, and use strict TypeScript contracts with backend endpoints." },
+      ],
+      questions: [
+        { question: "Why are database transactions critical in multi-step onboarding mutations?", options: [{ optionText: "To guarantee all records commit together atomically or roll back on error", isCorrect: true }, { optionText: "To improve CSS rendering speed", isCorrect: false }] },
+      ],
+    },
+    {
+      title: "Strategic Leadership & Engineering Management",
+      description: "Proven practices for engineering leaders: running impactful 1-on-1s, fostering psychological safety, OKR alignment, and high-performance team coaching.",
+      thumbnailUrl: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=800&q=80",
+      isCompliance: false,
+      expiryMonths: null,
+      passThreshold: 75,
+      modules: ["High-Trust 1-on-1 Coaching Frameworks", "Engineering Team OKR Cascading", "Conflict Resolution & Healthy Disagreement", "Talent Retention & Staff-Plus Career Tracks"],
+      contents: [
+        { title: "Module 1: 1-on-1 Frameworks", type: "TEXT" as const, content: "# Leadership Coaching\n\n1-on-1s belong to the direct report. Focus on long-term career growth, blockers, and bidirectional feedback." },
+      ],
+      questions: [
+        { question: "What should be the primary focus of bi-weekly 1-on-1s?", options: [{ optionText: "Career growth, personal check-in, and strategic alignment", isCorrect: true }, { optionText: "A mechanical task status readout", isCorrect: false }] },
+      ],
+    },
+    {
+      title: "Ergonomics, Mental Health & Workplace Safety",
+      description: "Practical guidance for hybrid and office setups, proper workstation ergonomics, avoiding repetitive strain injuries, and holistic wellness resources.",
+      thumbnailUrl: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=800&q=80",
+      isCompliance: true,
+      expiryMonths: 24,
+      passThreshold: 70,
+      modules: ["Workstation Setup: Chair, Monitor & Lumbar Support", "Repetitive Strain Prevention (RSI)", "Stress Awareness & Wellness Support", "Office Emergency Evacuation Procedures"],
+      contents: [
+        { title: "Module 1: Ergonomic Best Practices", type: "TEXT" as const, content: "# Posture & Health\n\nKeep eye level aligned with top third of display. Ensure 90-degree arm resting angle and take micro-breaks every 45 minutes." },
+      ],
+      questions: [
+        { question: "What is the recommended monitor height for neutral neck posture?", options: [{ optionText: "Eye level aligned with the top third of the monitor", isCorrect: true }, { optionText: "Below desk height", isCorrect: false }] },
+      ],
+    },
+  ];
+
+  for (const c of lmsCourses) {
+    const course = await prisma.course.create({
+      data: {
+        title: c.title,
+        description: c.description,
+        thumbnailUrl: c.thumbnailUrl,
+        isCompliance: c.isCompliance,
+        expiryMonths: c.expiryMonths,
+        passThreshold: c.passThreshold,
+        status: "PUBLISHED",
+        contentModules: c.modules,
+        contents: {
+          create: c.contents.map((cnt, idx) => ({ moduleName: c.modules[idx] || c.modules[0] || "Overview", title: cnt.title, type: cnt.type, content: cnt.content, order: idx + 1 })),
+        },
+        questions: {
+          create: c.questions.map((q, idx) => ({
+            question: q.question,
+            order: idx + 1,
+            options: { create: q.options },
+          })),
+        },
+      },
+    });
+
+    // Enroll key active employees
+    for (const [empCode, st] of [["EMP001", "PASSED"], ["EMP002", "IN_PROGRESS"], ["EMP003", "NOT_STARTED"]] as const) {
+      const eId = empPKByCode.get(empCode);
+      const empInfo = EMPLOYEES.find((e) => e.code === empCode);
+      const eName = empInfo ? `${empInfo.firstName} ${empInfo.lastName}` : "Matsya Singh";
+      if (eId) {
+        await prisma.courseEnrollment.create({
+          data: {
+            courseId: course.id,
+            employeeId: eId,
+            employeeName: eName,
+            status: st,
+            score: st === "PASSED" ? 90 : null,
+            attempts: st === "PASSED" ? 1 : 0,
+          },
+        });
+      }
+    }
+  }
+
+  // ── 4. Policies (Module 15) ────────────────────────────────────────────────
+  console.log("📜 Seeding Policies…");
+  const policiesData = [
+    { title: "Information Security & Acceptable Use Policy", category: "Security", scope: "company-wide", summary: "Mandates encryption, password hygiene, and VPN use on public Wi-Fi." },
+    { title: "Code of Business Conduct & Ethics", category: "HR", scope: "company-wide", summary: "Sets standards for professional integrity, anti-bribery, and conflicts of interest." },
+    { title: "Global Remote & Hybrid Work Policy", category: "Operations", scope: "company-wide", summary: "Guidelines for core working hours, home office stipend, and data protection outside the office." },
+    { title: "Corporate Travel & Expense Policy", category: "Finance", scope: "company-wide", summary: "Guidelines on flight booking tiers, per diem limits, and receipt submission deadlines." },
+  ];
+  for (const pol of policiesData) {
+    const policy = await prisma.policy.create({
+      data: {
+        title: pol.title,
+        category: pol.category,
+        scope: pol.scope,
+        mandatoryAcknowledgement: true,
+        status: "Published",
+        versions: {
+          create: [
+            {
+              versionNumber: 1,
+              summary: pol.summary,
+              createdByName: "Sunita Reddy",
+              effectiveDate: new Date("2026-01-01T00:00:00Z"),
+              acknowledgementDeadlineDays: 14,
+              publishedAt: new Date("2026-01-01T00:00:00Z"),
+            },
+          ],
+        },
+      },
+      include: { versions: true },
+    });
+    // Acknowledge for EMP001
+    await prisma.policyAcknowledgement.create({
+      data: { versionId: policy.versions[0].id, employeeId: emp001 },
+    });
+  }
+
+  // ── 5. Helpdesk Tickets (Module 16) ─────────────────────────────────────────
+  console.log("🎫 Seeding Helpdesk Tickets…");
+  const emp002 = empPKByCode.get("EMP002")!;
+  const emp003 = empPKByCode.get("EMP003")!;
+  const emp008 = empPKByCode.get("EMP008")!;
+  const emp010 = empPKByCode.get("EMP010")!;
+  const emp011 = empPKByCode.get("EMP011")!;
+
+  const helpdeskData = [
+    { ticketNumber: "HD-1001", requester: emp001, assignee: emp004, cat: "Hardware", queue: "IT Operations", sub: "MacBook Pro M3 battery health degraded below 70%", desc: "Device rapidly drains power during video calls.", prio: "Urgent", st: "Open" },
+    { ticketNumber: "HD-1002", requester: emp002, assignee: emp005, cat: "Software", queue: "DevOps", sub: "Request for AWS Staging Sandbox Access", desc: "Need permissions to validate new billing workflow in staging environment.", prio: "High", st: "In Progress" },
+    { ticketNumber: "HD-1003", requester: emp003, assignee: emp011, cat: "HR", queue: "Human Resources", sub: "Clarification on Q3 tax deduction in payslip", desc: "Section 80C investment proof verification query.", prio: "Medium", st: "Resolved" },
+    { ticketNumber: "HD-1004", requester: emp004, assignee: emp008, cat: "Facilities", queue: "Office Admin", sub: "Ergonomic monitor arm for Seattle desk", desc: "Dual monitor mount requisition.", prio: "Low", st: "Open" },
+    { ticketNumber: "HD-1005", requester: emp001, assignee: emp011, cat: "Leave", queue: "Human Resources", sub: "Comp-off balance crediting for weekend deployment", desc: "Production migration support on Sunday Aug 23.", prio: "Medium", st: "Resolved" },
+  ];
+  for (const h of helpdeskData) {
+    const sla = new Date();
+    sla.setHours(sla.getHours() + (h.prio === "Urgent" ? 4 : h.prio === "High" ? 12 : 48));
+    const ticket = await prisma.helpdeskTicket.create({
+      data: {
+        ticketNumber: h.ticketNumber,
+        requesterId: h.requester,
+        assignedToId: h.assignee,
+        category: h.cat,
+        queue: h.queue,
+        subject: h.sub,
+        description: h.desc,
+        priority: h.prio,
+        status: h.st,
+        slaDeadline: sla,
+      },
+    });
+    await prisma.helpdeskComment.create({
+      data: { ticketId: ticket.id, authorId: h.requester, message: `Ticket logged: ${h.desc}` },
+    });
+  }
+
+  // ── 6. Assets (Module 12) ──────────────────────────────────────────────────
+  console.log("💻 Seeding Physical & IT Assets…");
+  const assetsData = [
+    { serial: "MBP-2024-8841", cat: "Laptop", make: "Apple", model: "MacBook Pro 16 M3 Max", st: "ASSIGNED" as const, holder: emp001 },
+    { serial: "MON-4K-2024-102", cat: "Peripheral", make: "Dell", model: "UltraSharp 27 4K U2723QE", st: "ASSIGNED" as const, holder: emp001 },
+    { serial: "YUBI-89021", cat: "Security", make: "Yubico", model: "YubiKey 5 NFC", st: "ASSIGNED" as const, holder: emp001 },
+    { serial: "XPS-2024-5512", cat: "Laptop", make: "Dell", model: "XPS 15 9530 Core i9", st: "ASSIGNED" as const, holder: emp002 },
+    { serial: "APL-KB-3301", cat: "Peripheral", make: "Apple", model: "Magic Keyboard with Touch ID", st: "ASSIGNED" as const, holder: emp003 },
+    { serial: "TP-2024-9912", cat: "Laptop", make: "Lenovo", model: "ThinkPad P1 Gen 6", st: "ASSIGNED" as const, holder: emp004 },
+    { serial: "MBP-2024-7721", cat: "Laptop", make: "Apple", model: "MacBook Pro 14 M3 Pro", st: "IN_STOCK" as const, holder: null },
+    { serial: "HM-2024-0044", cat: "Furniture", make: "Herman Miller", model: "Aeron Ergonomic Chair B", st: "ASSIGNED" as const, holder: emp005 },
+  ];
+  for (const a of assetsData) {
+    await prisma.asset.create({
+      data: {
+        serial: a.serial,
+        category: a.cat,
+        make: a.make,
+        model: a.model,
+        status: a.st,
+        currentHolderId: a.holder,
+        acknowledged: Boolean(a.holder),
+      },
+    });
+  }
+
+  // ── 7. Tasks & Projects (Module 13) ─────────────────────────────────────────
+  console.log("📌 Seeding Tasks & Projects…");
+  const taskProject = await prisma.taskProject.create({
+    data: { name: "HRMS 2.0 Enterprise Platform" },
+  });
+  const taskMilestone = await prisma.taskMilestone.create({
+    data: {
+      projectId: taskProject.id,
+      title: "Sprint 14: Core Module Hardening & Polish",
+      dueDate: new Date("2026-09-30T00:00:00Z"),
+    },
+  });
+  const tasksData = [
+    { title: "Implement live Admin Dashboard hiring funnel aggregation", prio: "High", st: "Done", assignee: emp001, days: 5 },
+    { title: "Audit LMS course thumbnails and design system fallbacks", prio: "High", st: "In Progress", assignee: emp003, days: 3 },
+    { title: "Fix currency symbol encodings across travel and expenses", prio: "Medium", st: "Done", assignee: emp001, days: 2 },
+    { title: "Automate onboarding asset assignment upon offer acceptance", prio: "Medium", st: "In Progress", assignee: emp004, days: 4 },
+    { title: "SOC2 Compliance Type II evidence collection", prio: "Critical", st: "Todo", assignee: emp005, days: 10 },
+    { title: "Configure SMTP candidate invitation dispatch", prio: "Low", st: "Done", assignee: emp001, days: 1 },
+  ];
+  for (const t of tasksData) {
+    const due = new Date();
+    due.setDate(due.getDate() + t.days);
+    await prisma.task.create({
+      data: {
+        projectId: taskProject.id,
+        milestoneId: taskMilestone.id,
+        title: t.title,
+        priority: t.prio,
+        status: t.st,
+        assigneeId: t.assignee,
+        dueDate: due,
+      },
+    });
+  }
+
+  // ── 8. Separation Management (Module 14) ────────────────────────────────────
+  console.log("🚪 Seeding Separation Record…");
+  const sepEmpId = empPKByCode.get("EMP015")!;
+  const separation = await prisma.separation.create({
+    data: {
+      employeeId: sepEmpId,
+      type: "Resignation",
+      reason: "Relocating to London office",
+      noticePeriodDays: 30,
+      submittedOn: new Date("2026-07-01T00:00:00Z"),
+      lastWorkingDay: new Date("2026-07-31T00:00:00Z"),
+      status: "Settled",
+      exitInterviewCompleted: true,
+      accessRevoked: true,
+    },
+  });
+  await prisma.separationClearance.createMany({
+    data: [
+      { separationId: separation.id, item: "Hardware Return (Laptop & Badge)", owner: "IT", status: "Complete", completedAt: new Date("2026-07-30T00:00:00Z") },
+      { separationId: separation.id, item: "Knowledge Transfer & Code Handoff", owner: "Engineering Manager", status: "Complete", completedAt: new Date("2026-07-28T00:00:00Z") },
+      { separationId: separation.id, item: "Finance & Travel Advance Clearance", owner: "Finance", status: "Complete", completedAt: new Date("2026-07-31T00:00:00Z") },
+    ],
+  });
+  await prisma.exitInterview.create({
+    data: {
+      separationId: separation.id,
+      conductedBy: "Sunita Reddy",
+      responses: { primaryReason: "Relocation to London headquarters", overallExperience: 5, wouldRecommend: true },
+    },
+  });
+  await prisma.separationSettlement.create({
+    data: {
+      separationId: separation.id,
+      pendingSalary: 80000,
+      leaveEncashment: 24000,
+      reimbursements: 5000,
+      recoveries: 0,
+      netSettlement: 109000,
+    },
+  });
   console.log("🔑 Login credentials (all): email from list below / Password@123");
   console.log("   ADMIN  → robert.king@company.com (Robert King, CEO)");
   console.log("   HR     → sunita.reddy@company.com (Sunita Reddy, HR Manager)");

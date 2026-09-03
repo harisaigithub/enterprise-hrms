@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Separation Management Page — Module 19
  * Tabs: Separations • Clearance • Exit Interview • Settlement & Alumni
  */
@@ -37,7 +37,7 @@ import {
 import { getEmployees } from "../../services/employeeService";
 import { useAuth } from "../../context/AuthContext";
 
-const currency = (n) => `?${Number(n).toLocaleString("en-IN")}`;
+const currency = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
 const fmtDate = (value) => {
   if (!value) return "—";
 
@@ -991,19 +991,19 @@ function SettlementForm({ separation, items, onSettled, canWrite, }) {
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-          {fieldLabel("Pending Salary (?)")}
+          {fieldLabel("Pending Salary (₹)")}
           <input type="number" value={pendingSalary} onChange={(e) => setPendingSalary(e.target.value)} readOnly={!canWrite} style={inputStyle(false)} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-          {fieldLabel("Leave Encashment (?)")}
+          {fieldLabel("Leave Encashment (₹)")}
           <input type="number" value={leaveEncashment} onChange={(e) => setLeaveEncashment(e.target.value)} readOnly={!canWrite} style={inputStyle(false)} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-          {fieldLabel("Reimbursement Dues (?)")}
+          {fieldLabel("Reimbursement Dues (₹)")}
           <input type="number" value={reimbursements} onChange={(e) => setReimbursements(e.target.value)} readOnly={!canWrite} style={inputStyle(false)} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-          {fieldLabel("Recoveries � unreturned assets/advances (?)")}
+          {fieldLabel("Recoveries — unreturned assets/advances (₹)")}
           <input type="number" value={recoveries} onChange={(e) => setRecoveries(e.target.value)} readOnly={!canWrite} style={inputStyle(false)} />
         </div>
       </div>
@@ -1105,7 +1105,7 @@ function SettlementAlumniTab({ separation, items, onSettled, onRevoked, onAlumni
             <p style={{ fontSize: "13px", color: "var(--red)", fontWeight: 600, display: "flex", alignItems: "center", gap: "6px" }}><ShieldOff size={15} /> Revoked — SSO, email, VPN and HRMS access disabled; active sessions invalidated.</p>
           ) : (
             <>
-              <p style={{ fontSize: "12.5px", color: "var(--subtext)", marginBottom: "10px" }}>Settlement is complete � revoke access atomically across all connected systems.</p>
+              <p style={{ fontSize: "12.5px", color: "var(--subtext)", marginBottom: "10px" }}>Settlement is complete — revoke access atomically across all connected systems.</p>
               {can("access:revoke") && (
                 <PrimaryButton
                   onClick={handleRevoke}

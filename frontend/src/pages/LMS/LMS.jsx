@@ -139,6 +139,171 @@ function SecondaryButton({ children, ...props }) {
   );
 }
 
+function CourseThumbnail({ course, height = "180px" }) {
+  const [imgFailed, setImgFailed] = useState(false);
+
+  // Topic classification for resilient domain-specific visual fallback
+  const title = course?.title || "";
+  const isSecurity = /security|cyber|defense|iso|zero-trust/i.test(title);
+  const isPosh = /posh|harassment|compliance|conduct/i.test(title) || course?.isCompliance;
+  const isTech = /react|node|web|architect|engineer|full-stack|devops|cloud|code/i.test(title);
+  const isLeadership = /lead|management|coach|strategy|okr/i.test(title);
+  const isHealth = /ergo|health|safety|wellness/i.test(title);
+
+  const theme = isSecurity
+    ? {
+        bg: "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0369a1 100%)",
+        icon: Lock,
+        tag: "Cyber Defense",
+        accent: "#38bdf8",
+      }
+    : isPosh
+    ? {
+        bg: "linear-gradient(135deg, #3b0764 0%, #6b21a8 50%, #9333ea 100%)",
+        icon: ShieldAlert,
+        tag: "Mandatory Compliance",
+        accent: "#d8b4fe",
+      }
+    : isTech
+    ? {
+        bg: "linear-gradient(135deg, #042f2e 0%, #0f766e 50%, #0284c7 100%)",
+        icon: BookOpen,
+        tag: "Engineering & Tech",
+        accent: "#2dd4bf",
+      }
+    : isLeadership
+    ? {
+        bg: "linear-gradient(135deg, #451a03 0%, #b45309 50%, #f59e0b 100%)",
+        icon: Award,
+        tag: "Leadership & Management",
+        accent: "#fcd34d",
+      }
+    : isHealth
+    ? {
+        bg: "linear-gradient(135deg, #064e3b 0%, #047857 50%, #10b981 100%)",
+        icon: GraduationCap,
+        tag: "Health & Ergonomics",
+        accent: "#6ee7b7",
+      }
+    : {
+        bg: "linear-gradient(135deg, #1e1b4b 0%, #4338ca 60%, #6366f1 100%)",
+        icon: BookOpen,
+        tag: "Enterprise Learning",
+        accent: "#a5b4fc",
+      };
+
+  const IconComponent = theme.icon;
+
+  if (course?.thumbnailUrl && !imgFailed) {
+    return (
+      <div style={{ width: "100%", height, overflow: "hidden", position: "relative", background: "#0f172a" }}>
+        <img
+          src={getFileUrl(course.thumbnailUrl)}
+          alt={course.title || "Course thumbnail"}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            display: "block",
+          }}
+          onError={() => setImgFailed(true)}
+        />
+        {course.isCompliance && (
+          <span style={{
+            position: "absolute",
+            top: "10px",
+            right: "10px",
+            background: "rgba(124, 58, 237, 0.9)",
+            color: "#fff",
+            fontSize: "10.5px",
+            fontWeight: 700,
+            padding: "3px 8px",
+            borderRadius: "99px",
+            backdropFilter: "blur(4px)",
+          }}>
+            Compliance
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        width: "100%",
+        height,
+        background: theme.bg,
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
+        padding: "16px",
+        position: "relative",
+        overflow: "hidden",
+        boxSizing: "border-box",
+      }}
+    >
+      <IconComponent
+        size={80}
+        style={{
+          position: "absolute",
+          right: "-12px",
+          bottom: "-12px",
+          opacity: 0.15,
+          color: "#fff",
+          pointerEvents: "none",
+        }}
+      />
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", position: "relative", zIndex: 1 }}>
+        <span
+          style={{
+            fontSize: "11px",
+            fontWeight: 700,
+            color: theme.accent,
+            background: "rgba(255, 255, 255, 0.15)",
+            padding: "3px 9px",
+            borderRadius: "99px",
+            backdropFilter: "blur(6px)",
+            letterSpacing: "0.2px",
+          }}
+        >
+          {theme.tag}
+        </span>
+        <div style={{
+          width: "28px",
+          height: "28px",
+          borderRadius: "50%",
+          background: "rgba(255, 255, 255, 0.2)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#fff",
+        }}>
+          <IconComponent size={15} />
+        </div>
+      </div>
+
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <p style={{
+          fontSize: "13px",
+          fontWeight: 700,
+          color: "#fff",
+          lineHeight: 1.3,
+          textShadow: "0 1px 3px rgba(0,0,0,0.5)",
+          margin: 0,
+          display: "-webkit-box",
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: "vertical",
+          overflow: "hidden",
+        }}>
+          {title}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function TabNav({ tabs, active, onChange }) {
   return (
     <div style={{ display: "flex", gap: "4px", borderBottom: "1px solid var(--border)", marginBottom: "22px", overflowX: "auto" }}>
@@ -1439,39 +1604,7 @@ function CatalogTab({ courses, onCourseAdded, onCourseUpdated, isLmsManager }) {
               >
 
                 {/* COURSE THUMBNAIL */}
-                {c.thumbnailUrl ? (
-                  <img
-                    src={getFileUrl(c.thumbnailUrl)}
-                    alt={c.title}
-                    style={{
-                      width: "100%",
-                      height: "180px",
-                      objectFit: "cover",
-                      display: "block",
-                    }}
-                    onError={(e) => {
-                      console.error(
-                        "Thumbnail failed:",
-                        getFileUrl(c.thumbnailUrl)
-                      );
-                    }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: "100%",
-                      height: "180px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      background: "var(--surface)",
-                      color: "var(--subtext)",
-                      fontSize: "12px",
-                    }}
-                  >
-                    No thumbnail
-                  </div>
-                )}
+                <CourseThumbnail course={c} height="180px" />
 
                 {/* CARD CONTENT */}
                 <div
@@ -2672,12 +2805,14 @@ function MyLearningCard({ enrollment, course, onQuiz, onViewCourse, }) {
   };
 
   return (
-    <div style={{ ...cardStyle, padding: "18px 20px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px", marginBottom: "6px" }}>
-        <div>
-          <h3 style={{ fontSize: "14.5px", fontWeight: 700, color: "var(--text)" }}>{course.title}</h3>
-          {course.isCompliance && <span style={{ fontSize: "10.5px", fontWeight: 700, color: "#7c3aed" }}>Mandatory compliance training</span>}
-        </div>
+    <div style={{ ...cardStyle, padding: 0, overflow: "hidden" }}>
+      <CourseThumbnail course={course} height="140px" />
+      <div style={{ padding: "16px 20px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px", marginBottom: "6px" }}>
+          <div>
+            <h3 style={{ fontSize: "14.5px", fontWeight: 700, color: "var(--text)" }}>{course.title}</h3>
+            {course.isCompliance && <span style={{ fontSize: "10.5px", fontWeight: 700, color: "#7c3aed" }}>Mandatory compliance training</span>}
+          </div>
         <StatusBadge label={enrollment.status} color={meta.color} bg={meta.bg} />
       </div>
 
@@ -2772,6 +2907,7 @@ function MyLearningCard({ enrollment, course, onQuiz, onViewCourse, }) {
           </span>
         ) : null}
       </div>
+    </div>
     </div>
   );
 }

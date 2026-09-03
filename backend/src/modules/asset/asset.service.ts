@@ -668,7 +668,7 @@ export async function returnAsset(
             ? AssetReturnCondition.DAMAGED
             : AssetReturnCondition.GOOD;
 
-    return prisma.$transaction(async (tx) => {
+    return prisma.$transaction(async (tx: any) => {
         const updated = await tx.asset.update({
             where: {
                 id: assetId,
