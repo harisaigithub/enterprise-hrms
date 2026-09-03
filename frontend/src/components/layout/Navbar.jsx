@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Navbar — Global search (Ctrl+K), notifications dropdown, user menu with logout.
  * Reads from SearchContext for unified search state.
  *
@@ -15,11 +15,7 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSearch } from "../../context/SearchContext";
 import { useAuth } from "../../context/AuthContext";
-<<<<<<< HEAD
-import { RAW_INBOX } from "../../mock/notifications";
-=======
 import { getInboxNotifications, markAllRead as markAllNotificationsRead, markAsRead } from "../../services/notificationService";
->>>>>>> 6131c0564256db16d13c9827b08130599434aac1
 
 /* ─── Constants ──────────────────────────────────────── */
 const TYPE_COLOR = {
