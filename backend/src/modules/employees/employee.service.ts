@@ -95,6 +95,7 @@ export interface CreateEmployeeInput {
   managerId?: string;
   gender?: string;
   dob?: string;
+  status?: string;
   password?: string;
 }
 
@@ -221,6 +222,7 @@ export async function updateEmployee(id: string, input: Partial<CreateEmployeeIn
     reportingManager: input.managerId ? { connect: { id: input.managerId } } : undefined,
     employmentType: input.employmentType ?? undefined,
     dateOfJoining: input.dateOfJoining ? new Date(input.dateOfJoining) : undefined,
+    status: input.status ?? undefined,
   };
 
   const updated = await prisma.employee.update({
@@ -228,6 +230,13 @@ export async function updateEmployee(id: string, input: Partial<CreateEmployeeIn
     data,
     include: EMPLOYEE_INCLUDE,
   });
+
+  if (input.status && existing.userId) {
+    await prisma.user.update({
+      where: { id: existing.userId },
+      data: { isActive: input.status === "Active" },
+    });
+  }
 
   writeAuditLog({
     action: "UPDATE",

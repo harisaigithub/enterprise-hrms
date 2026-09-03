@@ -1,4 +1,4 @@
-﻿// Auth context — exposes user, role, permissions, login/logout.
+// Auth context — exposes user, role, permissions, login/logout.
 // JWT is stored in localStorage; session is restored on page load via GET /auth/me.
 
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
@@ -6,7 +6,7 @@ import api from "../services/api";
 
 // Role accounts for quick sign-in (same credentials as the seeded database).
 const DEMO_ACCOUNTS = [
-  { label: "Admin",    email: "robert.king@company.com",  password: "Password@123" },
+  { label: "Admin",    email: "rajesh.menon@company.com", password: "Password@123" },
   { label: "HR",       email: "sunita.reddy@company.com", password: "Password@123" },
   { label: "Manager",  email: "anjali.desai@company.com",  password: "Password@123" },
   { label: "Employee", email: "matsya.singh@company.com", password: "Password@123" },
