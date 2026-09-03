@@ -141,7 +141,7 @@ export async function adminDashboard() {
   const payrollCostTrend = recentRuns.length > 0
     ? [...recentRuns].reverse().map((run) => ({
         month: MONTH_NAMES[(run.month - 1) % 12] || `M${run.month}`,
-        cost: Number((Number(run.totalGross) / 10000000).toFixed(2)),
+cost: Number((Number(run.grossPayroll) / 10000000).toFixed(2)),
       }))
     : [
         { month: "Mar", cost: 4.1 },
