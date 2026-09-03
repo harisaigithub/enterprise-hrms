@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Task Management Page — Module 13
  * Views: Kanban Board • Calendar (deadline) View • Projects
  */
@@ -231,7 +231,7 @@ function ForceCloseModal({ isOpen, onClose, task, openBlockers, onResolved, canW
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton onClick={handleForceClose} disabled={!canWrite || saving || !reason.trim()}>{saving ? "Closing�" : "Force-close as Done"}</PrimaryButton>
+          <PrimaryButton onClick={handleForceClose} disabled={!canWrite || saving || !reason.trim()}>{saving ? "Closing..." : "Force-close as Done"}</PrimaryButton>
         </div>
       </div>
     </Modal>
@@ -299,7 +299,7 @@ function TaskDetailModal({
           {canWrite && (<form onSubmit={handleLogTime} style={{ display: "flex", gap: "8px", marginBottom: "10px" }}>
             <input type="number" step="0.5" min="0.5" placeholder="Hours" value={hours} onChange={(e) => setHours(e.target.value)} style={{ ...inputStyle(), width: "90px" }} />
             <input placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} style={inputStyle()} />
-            <PrimaryButton type="submit" disabled={logging || !hours} style={{ padding: "9px 14px" }}>{logging ? "�" : "Log"}</PrimaryButton>
+            <PrimaryButton type="submit" disabled={logging || !hours} style={{ padding: "9px 14px" }}>{logging ? "..." : "Log"}</PrimaryButton>
           </form>)}
           <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "110px", overflowY: "auto" }}>
             {entries.map((e) => (
@@ -437,17 +437,17 @@ function TaskCard({
       </div>
       <p style={{ fontSize: "11.5px", color: "var(--subtext)", marginBottom: "8px" }}>{task.assigneeName} • due {fmtDate(task.dueDate)}</p>
       {task.blockedByTaskIds.length > 0 && task.status !== "Done" && (
-        <p style={{ fontSize: "10.5px", color: "var(--amber, #d97706)", marginBottom: "8px" }}>? {task.blockedByTaskIds.length} blocker(s)</p>
+        <p style={{ fontSize: "10.5px", color: "var(--amber, #d97706)", marginBottom: "8px" }}>⚠ {task.blockedByTaskIds.length} blocker(s)</p>
       )}
       {task.forceClosed && (
         <p style={{ fontSize: "10.5px", color: "var(--red)", marginBottom: "8px" }}>Force-closed: {task.forceCloseReason}</p>
       )}
       <div style={{ display: "flex", gap: "8px" }} onClick={(e) => e.stopPropagation()}>
         {canMoveTask && currentIndex > 0 && (
-          <button onClick={() => handleMove(-1)} style={{ fontSize: "11px", fontWeight: 600, color: "var(--subtext)", border: "none", background: "none", cursor: "pointer" }}>? {statuses[currentIndex - 1]}</button>
+          <button onClick={() => handleMove(-1)} style={{ fontSize: "11px", fontWeight: 600, color: "var(--subtext)", border: "none", background: "none", cursor: "pointer" }}>← {statuses[currentIndex - 1]}</button>
         )}
         {canMoveTask && currentIndex < statuses.length - 1 && (
-          <button onClick={() => handleMove(1)} style={{ fontSize: "11px", fontWeight: 600, color: "var(--primary)", border: "none", background: "none", cursor: "pointer" }}>{statuses[currentIndex + 1]} ?</button>
+          <button onClick={() => handleMove(1)} style={{ fontSize: "11px", fontWeight: 600, color: "var(--primary)", border: "none", background: "none", cursor: "pointer" }}>{statuses[currentIndex + 1]} →</button>
         )}
       </div>
     </div>

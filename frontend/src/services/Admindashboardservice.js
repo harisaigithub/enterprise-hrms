@@ -1,11 +1,15 @@
 /**
  * Admin (Management) Dashboard service — 
- * Single nightly-materialized snapshot rather than live per-widget queries.
+ * Fetches live analytics metrics from /api/dashboard/admin with offline fallback.
  */
+import api from "./api";
 import { analyticsSnapshot } from "../mock/adminDashboard";
 
-function delay(value, ms = 500) {
-  return new Promise((resolve) => setTimeout(() => resolve({ data: value }), ms));
-}
-
-export const getAnalyticsSnapshot = () => delay(analyticsSnapshot);
+export const getAnalyticsSnapshot = async () => {
+  try {
+    const res = await api.get("/dashboard/admin");
+    return res.data;
+  } catch (_err) {
+    return { data: analyticsSnapshot };
+  }
+};

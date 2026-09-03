@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Recruitment (ATS) Page  •  Module 5
  * Tabs: Requisitions  •  Candidate Pipeline  •  Interviews  •  Offers
  */
@@ -93,7 +93,7 @@ const offerStatusMeta = {
   Expired: { color: "#64748b", bg: "#f1f5f9" },
 };
 
-const currency = (n) => `?${Number(n).toLocaleString("en-IN")}`;
+const currency = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
 const fmtDate = (value) => {
   if (!value) return "—";
 

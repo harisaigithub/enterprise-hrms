@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Expense Management Page  •  Module 14
  * Tabs: My Claims (submit + track), Approvals (Manager/Finance queue).
  * Policy violations and possible duplicates are surfaced for approver
@@ -20,7 +20,7 @@ import { EXPENSE_CATEGORIES, EXPENSE_POLICY, expenseStatusMeta, LOCKED_STATUSES 
 
 const CURRENT_EMPLOYEE = { id: "EMP014", name: "Ananya Verma" };
 const fmtDate = (d) => new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-const fmtAmount = (n) => `?${n.toLocaleString("en-IN")}`;
+const fmtAmount = (n) => `₹${n.toLocaleString("en-IN")}`;
 
 function SubmitClaimModal({ isOpen, onClose, onSubmitted }) {
   const [form, setForm] = useState({ category: "", amount: "", expenseDate: "", businessPurpose: "", receiptFileName: "" });
