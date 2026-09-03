@@ -35,6 +35,7 @@ import {
 } from "../../services/separationService";
 
 import { getEmployees } from "../../services/employeeService";
+import { useAuth } from "../../context/AuthContext";
 
 const currency = (n) => `?${Number(n).toLocaleString("en-IN")}`;
 const fmtDate = (value) => {
@@ -707,14 +708,18 @@ function InitiateSeparationModal({
   );
 }
 
-function SeparationsTab({ separations, selectedId, onSelect, onAdded }) {
+function SeparationsTab({ separations, selectedId, onSelect, onAdded, can, }) {
   const [showAdd, setShowAdd] = useState(false);
 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
         <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Separations</h2>
-        <PrimaryButton onClick={() => setShowAdd(true)}><Plus size={16} /> Initiate Separation</PrimaryButton>
+        {can("separation:write") && (
+          <PrimaryButton onClick={() => setShowAdd(true)}>
+            <Plus size={16} /> Initiate Separation
+          </PrimaryButton>
+        )}
       </div>
 
       {separations.length === 0 ? (
@@ -790,7 +795,7 @@ function SeparationsTab({ separations, selectedId, onSelect, onAdded }) {
 
 /* ---------------------------------- Clearance tab ---------------------------------- */
 
-function ClearanceRow({ item, onUpdate }) {
+function ClearanceRow({ item, onUpdate, canWrite }) {
   const meta = clearanceStatusMeta[item.status];
   const [notes, setNotes] = useState(item.notes || "");
 
@@ -804,19 +809,49 @@ function ClearanceRow({ item, onUpdate }) {
         <StatusBadge label={item.status} color={meta.color} bg={meta.bg} />
       </div>
       <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-        <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes" style={{ ...inputStyle(false), height: "32px", fontSize: "12px" }} />
-        {item.status !== "Complete" && (
-          <button onClick={() => onUpdate(item.id, "Complete", notes)} style={{ fontSize: "11.5px", fontWeight: 700, color: "var(--green)", border: "none", background: "none", cursor: "pointer", whiteSpace: "nowrap" }}>Mark Complete</button>
+        <input value={notes} onChange={(e) => setNotes(e.target.value)} readOnly={!canWrite} placeholder="Notes" style={{ ...inputStyle(false), height: "32px", fontSize: "12px" }} />
+        {canWrite && item.status !== "Complete" && (
+          <button
+            onClick={() =>
+              onUpdate(item.id, "Complete", notes)
+            }
+            style={{
+              fontSize: "11.5px",
+              fontWeight: 700,
+              color: "var(--green)",
+              border: "none",
+              background: "none",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Mark Complete
+          </button>
         )}
-        {item.status !== "Flagged" && (
-          <button onClick={() => onUpdate(item.id, "Flagged", notes)} style={{ fontSize: "11.5px", fontWeight: 700, color: "var(--red)", border: "none", background: "none", cursor: "pointer", whiteSpace: "nowrap" }}>Flag Issue</button>
+        {canWrite && item.status !== "Flagged" && (
+          <button
+            onClick={() =>
+              onUpdate(item.id, "Flagged", notes)
+            }
+            style={{
+              fontSize: "11.5px",
+              fontWeight: 700,
+              color: "var(--red)",
+              border: "none",
+              background: "none",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Flag Issue
+          </button>
         )}
       </div>
     </div>
   );
 }
 
-function ClearanceTab({ separation, items, onUpdate }) {
+function ClearanceTab({ separation, items, onUpdate, canWrite, }) {
   if (!separation) return <EmptyState icon={ListChecks} title="Select a separation" subtitle="Choose one from the Separations tab first." />;
 
   const allComplete = items.length > 0 && items.every((i) => i.status === "Complete");
@@ -834,7 +869,7 @@ function ClearanceTab({ separation, items, onUpdate }) {
       )}
 
       <div style={{ ...cardStyle, overflow: "hidden" }}>
-        {items.map((item) => <ClearanceRow key={item.id} item={item} onUpdate={onUpdate} />)}
+        {items.map((item) => <ClearanceRow key={item.id} item={item} onUpdate={onUpdate} canWrite={canWrite} />)}
       </div>
     </div>
   );
@@ -848,7 +883,7 @@ const DEFAULT_QUESTIONS = [
   "Anything the company could have done differently?",
 ];
 
-function ExitInterviewTab({ separation, interview, onSaved }) {
+function ExitInterviewTab({ separation, interview, onSaved, canwrite, }) {
   const [answers, setAnswers] = useState(DEFAULT_QUESTIONS.map(() => ""));
   const [saving, setSaving] = useState(false);
 
@@ -895,7 +930,16 @@ function ExitInterviewTab({ separation, interview, onSaved }) {
             </div>
           ))}
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving�" : "Record Exit Interview"}</PrimaryButton>
+            {canWrite && (
+              <PrimaryButton
+                type="submit"
+                disabled={saving}
+              >
+                {saving
+                  ? "Saving..."
+                  : "Record Exit Interview"}
+              </PrimaryButton>
+            )}
           </div>
         </form>
       )}
@@ -905,7 +949,7 @@ function ExitInterviewTab({ separation, interview, onSaved }) {
 
 /* ---------------------------------- Settlement & Alumni tab ---------------------------------- */
 
-function SettlementForm({ separation, items, onSettled }) {
+function SettlementForm({ separation, items, onSettled, canWrite, }) {
   const [pendingSalary, setPendingSalary] = useState(0);
   const [leaveEncashment, setLeaveEncashment] = useState(0);
   const [reimbursements, setReimbursements] = useState(0);
@@ -948,19 +992,19 @@ function SettlementForm({ separation, items, onSettled }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           {fieldLabel("Pending Salary (?)")}
-          <input type="number" value={pendingSalary} onChange={(e) => setPendingSalary(e.target.value)} style={inputStyle(false)} />
+          <input type="number" value={pendingSalary} onChange={(e) => setPendingSalary(e.target.value)} readOnly={!canWrite} style={inputStyle(false)} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           {fieldLabel("Leave Encashment (?)")}
-          <input type="number" value={leaveEncashment} onChange={(e) => setLeaveEncashment(e.target.value)} style={inputStyle(false)} />
+          <input type="number" value={leaveEncashment} onChange={(e) => setLeaveEncashment(e.target.value)} readOnly={!canWrite} style={inputStyle(false)} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           {fieldLabel("Reimbursement Dues (?)")}
-          <input type="number" value={reimbursements} onChange={(e) => setReimbursements(e.target.value)} style={inputStyle(false)} />
+          <input type="number" value={reimbursements} onChange={(e) => setReimbursements(e.target.value)} readOnly={!canWrite} style={inputStyle(false)} />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           {fieldLabel("Recoveries � unreturned assets/advances (?)")}
-          <input type="number" value={recoveries} onChange={(e) => setRecoveries(e.target.value)} style={inputStyle(false)} />
+          <input type="number" value={recoveries} onChange={(e) => setRecoveries(e.target.value)} readOnly={!canWrite} style={inputStyle(false)} />
         </div>
       </div>
 
@@ -971,13 +1015,13 @@ function SettlementForm({ separation, items, onSettled }) {
       {!allComplete && (
         <>
           <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12.5px", color: "var(--label)", cursor: "pointer" }}>
-            <input type="checkbox" checked={override} onChange={(e) => setOverride(e.target.checked)} />
+            <input type="checkbox" checked={override} onChange={(e) => setOverride(e.target.checked)} readOnly={!canWrite} />
             Apply documented HR override to bypass the clearance gate
           </label>
           {override && (
             <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
               {fieldLabel("Override reason *")}
-              <textarea rows={2} value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)} style={{ ...inputStyle(false), resize: "vertical" }} />
+              <textarea rows={2} value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)} readOnly={!canWrite} style={{ ...inputStyle(false), resize: "vertical" }} />
             </div>
           )}
         </>
@@ -986,13 +1030,22 @@ function SettlementForm({ separation, items, onSettled }) {
       {error && <p style={{ fontSize: "11.5px", color: "var(--red)", margin: 0 }}>{error}</p>}
 
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <PrimaryButton type="submit" disabled={saving}>{saving ? "Computing�" : "Compute & Approve Settlement"}</PrimaryButton>
+        {canWrite && (
+          <PrimaryButton
+            type="submit"
+            disabled={saving}
+          >
+            {saving
+              ? "Computing..."
+              : "Compute & Approve Settlement"}
+          </PrimaryButton>
+        )}
       </div>
     </form>
   );
 }
 
-function SettlementAlumniTab({ separation, items, onSettled, onRevoked, onAlumniConverted, alumni }) {
+function SettlementAlumniTab({ separation, items, onSettled, onRevoked, onAlumniConverted, alumni, can, }) {
   const [role, setRole] = useState("");
   const [tenure, setTenure] = useState("");
   const [eligible, setEligible] = useState(true);
@@ -1053,7 +1106,17 @@ function SettlementAlumniTab({ separation, items, onSettled, onRevoked, onAlumni
           ) : (
             <>
               <p style={{ fontSize: "12.5px", color: "var(--subtext)", marginBottom: "10px" }}>Settlement is complete � revoke access atomically across all connected systems.</p>
-              <PrimaryButton onClick={handleRevoke} disabled={revoking}><ShieldOff size={15} /> {revoking ? "Revoking�" : "Revoke All Access"}</PrimaryButton>
+              {can("access:revoke") && (
+                <PrimaryButton
+                  onClick={handleRevoke}
+                  disabled={revoking}
+                >
+                  <ShieldOff size={15} />
+                  {revoking
+                    ? "Revoking..."
+                    : "Revoke All Access"}
+                </PrimaryButton>
+              )}
             </>
           )}
         </div>
@@ -1071,7 +1134,16 @@ function SettlementAlumniTab({ separation, items, onSettled, onRevoked, onAlumni
             <input type="checkbox" checked={eligible} onChange={(e) => setEligible(e.target.checked)} />
             Eligible for rehire
           </label>
-          <PrimaryButton onClick={handleConvert} disabled={converting}>{converting ? "Converting�" : "Convert to Alumni"}</PrimaryButton>
+          {can("alumni:write") && (
+            <PrimaryButton
+              onClick={handleConvert}
+              disabled={converting}
+            >
+              {converting
+                ? "Converting..."
+                : "Convert to Alumni"}
+            </PrimaryButton>
+          )}
         </div>
       )}
 
@@ -1100,6 +1172,10 @@ const TABS = [
 ];
 
 export default function Separation() {
+  const { permissions = [] } = useAuth();
+
+  const can = (permission) =>
+    permissions.includes(permission);
   const [activeTab, setActiveTab] = useState("separations");
   const [loading, setLoading] = useState(true);
   const [separations, setSeparations] = useState([]);
@@ -1107,6 +1183,41 @@ export default function Separation() {
   const [clearanceByEmp, setClearanceByEmp] = useState({});
   const [interview, setInterview] = useState(null);
   const [alumni, setAlumni] = useState([]);
+
+  const visibleTabs = TABS.filter((tab) => {
+    if (tab.key === "separations") {
+      return can("separation:read");
+    }
+
+    if (tab.key === "clearance") {
+      return can("clearance:read");
+    }
+
+    if (tab.key === "exitInterview") {
+      return can("exitinterview:read");
+    }
+
+    if (tab.key === "settlement") {
+      return (
+        can("settlement:read") ||
+        can("alumni:read")
+      );
+    }
+
+    return false;
+  });
+
+  useEffect(() => {
+    if (visibleTabs.length === 0) return;
+
+    const allowed = visibleTabs.some(
+      (tab) => tab.key === activeTab
+    );
+
+    if (!allowed) {
+      setActiveTab(visibleTabs[0].key);
+    }
+  }, [permissions, activeTab]);
 
   useEffect(() => {
     setLoading(true);
@@ -1159,7 +1270,7 @@ export default function Separation() {
     <MainLayout>
       <div style={{ maxWidth: "1480px", margin: "0 auto" }}>
         <PageHeader title="Separation Management" subtitle="Resignation, clearance, exit interview and full & final settlement" />
-        <TabNav tabs={TABS} active={activeTab} onChange={setActiveTab} />
+        <TabNav tabs={visibleTabs} active={activeTab} onChange={setActiveTab} />
 
         {activeTab === "separations" && (
           <SeparationsTab
@@ -1167,15 +1278,21 @@ export default function Separation() {
             selectedId={selectedId}
             onSelect={setSelectedId}
             onAdded={(s) => { setSeparations((prev) => [s, ...prev]); setSelectedId(s.id); }}
+            can={can}
           />
         )}
 
         {activeTab === "clearance" && (
-          <ClearanceTab separation={selectedSeparation} items={clearanceByEmp[selectedId] || []} onUpdate={handleClearanceUpdate} />
+          <ClearanceTab separation={selectedSeparation} items={clearanceByEmp[selectedId] || []} onUpdate={handleClearanceUpdate} canWrite={can("clearance:write")} />
         )}
 
         {activeTab === "exitInterview" && (
-          <ExitInterviewTab separation={selectedSeparation} interview={interview} onSaved={setInterview} />
+          <ExitInterviewTab
+            separation={selectedSeparation}
+            interview={interview}
+            onSaved={setInterview}
+            canWrite={can("exitinterview:write")}
+          />
         )}
 
         {activeTab === "settlement" && (
@@ -1186,6 +1303,7 @@ export default function Separation() {
             onRevoked={handleRevoked}
             onAlumniConverted={handleAlumniConverted}
             alumni={alumni}
+            can={can}
           />
         )}
       </div>

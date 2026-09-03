@@ -156,27 +156,53 @@ export async function getLicenseAlerts() {
 ========================================================= */
 
 export async function getRequests(
-    employeeIdOrCode?: string | null
+    userId: string,
+    role: string
 ) {
-    let employeeId: string | undefined;
+    const normalizedRole = role.toUpperCase();
 
-    if (employeeIdOrCode) {
-        const employee = await findEmployee(employeeIdOrCode);
+    // ADMIN / HR / MANAGER → all requests
+    if (
+        normalizedRole === "ADMIN" ||
+        normalizedRole === "HR" ||
+        normalizedRole === "MANAGER"
+    ) {
+        return prisma.assetRequest.findMany({
+            include: {
+                employee: {
+                    select: {
+                        id: true,
+                        employeeCode: true,
+                        firstName: true,
+                        lastName: true,
+                    },
+                },
+                asset: true,
+            },
+            orderBy: {
+                raisedAt: "desc",
+            },
+        });
+    }
 
-        if (!employee) {
-            throw new Error("Employee not found");
-        }
+    // EMPLOYEE → only own requests
+    const employee = await prisma.employee.findUnique({
+        where: {
+            userId,
+        },
+        select: {
+            id: true,
+        },
+    });
 
-        employeeId = employee.id;
+    if (!employee) {
+        throw new Error("Employee profile not found");
     }
 
     return prisma.assetRequest.findMany({
-        where: employeeId
-            ? {
-                employeeId,
-            }
-            : undefined,
-
+        where: {
+            employeeId: employee.id,
+        },
         include: {
             employee: {
                 select: {
@@ -186,16 +212,13 @@ export async function getRequests(
                     lastName: true,
                 },
             },
-
             asset: true,
         },
-
         orderBy: {
             raisedAt: "desc",
         },
     });
 }
-
 /* =========================================================
    RAISE REQUEST
 ========================================================= */
@@ -488,8 +511,38 @@ export async function getMyAssets(userId: string) {
 
 export async function acknowledgeReceipt(
     assetId: string,
-    userId: string
+    userId: string,
+    role: string
 ) {
+    const normalizedRole = role.toUpperCase();
+
+    const asset = await prisma.asset.findUnique({
+        where: {
+            id: assetId,
+        },
+    });
+
+    if (!asset) {
+        throw new Error("Asset not found");
+    }
+
+    // ADMIN / HR / MANAGER → full access
+    if (
+        normalizedRole === "ADMIN" ||
+        normalizedRole === "HR" ||
+        normalizedRole === "MANAGER"
+    ) {
+        return prisma.asset.update({
+            where: {
+                id: assetId,
+            },
+            data: {
+                acknowledged: true,
+            },
+        });
+    }
+
+    // EMPLOYEE → only own asset
     const user = await prisma.user.findUnique({
         where: {
             id: userId,
@@ -509,16 +562,6 @@ export async function acknowledgeReceipt(
         throw new Error(
             "Authenticated user is not linked to an employee"
         );
-    }
-
-    const asset = await prisma.asset.findUnique({
-        where: {
-            id: assetId,
-        },
-    });
-
-    if (!asset) {
-        throw new Error("Asset not found");
     }
 
     if (asset.currentHolderId !== employeeId) {
@@ -543,31 +586,11 @@ export async function acknowledgeReceipt(
 export async function returnAsset(
     assetId: string,
     userId: string,
+    role: string,
     condition: string,
     wipeCompleted: boolean
 ) {
-
-    const employee = await prisma.employee.findUnique({
-        where: {
-            userId,
-        },
-        select: {
-            id: true,
-            status: true,
-        },
-    });
-
-    if (!employee) {
-        return {
-            error: "Employee profile not found",
-        };
-    }
-
-    if (employee.status !== "Active") {
-        return {
-            error: "Employee is inactive",
-        };
-    }
+    const normalizedRole = role.toUpperCase();
 
     const asset = await prisma.asset.findUnique({
         where: {
@@ -581,10 +604,40 @@ export async function returnAsset(
         };
     }
 
-    if (asset.currentHolderId !== employee.id) {
-        return {
-            error: "This asset is not assigned to you",
-        };
+    const isManagerRole =
+        normalizedRole === "ADMIN" ||
+        normalizedRole === "HR" ||
+        normalizedRole === "MANAGER";
+
+    // Employee ownership check
+    if (!isManagerRole) {
+        const employee = await prisma.employee.findUnique({
+            where: {
+                userId,
+            },
+            select: {
+                id: true,
+                status: true,
+            },
+        });
+
+        if (!employee) {
+            return {
+                error: "Employee profile not found",
+            };
+        }
+
+        if (employee.status !== "Active") {
+            return {
+                error: "Employee is inactive",
+            };
+        }
+
+        if (asset.currentHolderId !== employee.id) {
+            return {
+                error: "This asset is not assigned to you",
+            };
+        }
     }
 
     const dataBearingCategories = [
@@ -616,45 +669,47 @@ export async function returnAsset(
             : AssetReturnCondition.GOOD;
 
     return prisma.$transaction(async (tx) => {
-        const updated =
-            await tx.asset.update({
-                where: {
-                    id: assetId,
-                },
+        const updated = await tx.asset.update({
+            where: {
+                id: assetId,
+            },
 
-                data: {
-                    status:
-                        condition === "Damaged"
-                            ? AssetStatus.DAMAGED
-                            : AssetStatus.IN_STOCK,
-
-                    currentHolderId: null,
-                    acknowledged: false,
-
-                    ...(asset.category ===
-                        "Software License"
-                        ? {
-                            seatsUsed: {
-                                decrement: 1,
-                            },
-                        }
-                        : {}),
-                },
-            });
-
-        await tx.assetHistory.create({
             data: {
-                assetId,
-                employeeId: asset.currentHolderId,
-                action: "RETURNED",
-                condition: returnCondition,
-                wipeCompleted,
-                detail:
+                status:
                     condition === "Damaged"
-                        ? "Asset returned damaged"
-                        : "Asset returned to inventory",
+                        ? AssetStatus.DAMAGED
+                        : AssetStatus.IN_STOCK,
+
+                currentHolderId: null,
+                acknowledged: false,
+
+                ...(asset.category === "Software License"
+                    ? {
+                        seatsUsed: {
+                            decrement: 1,
+                        },
+                    }
+                    : {}),
             },
         });
+
+        // History employeeId can be null if an admin returns
+        // an asset that has no current holder.
+        if (asset.currentHolderId) {
+            await tx.assetHistory.create({
+                data: {
+                    assetId,
+                    employeeId: asset.currentHolderId,
+                    action: "RETURNED",
+                    condition: returnCondition,
+                    wipeCompleted,
+                    detail:
+                        condition === "Damaged"
+                            ? "Asset returned damaged"
+                            : "Asset returned to inventory",
+                },
+            });
+        }
 
         return {
             asset: updated,
