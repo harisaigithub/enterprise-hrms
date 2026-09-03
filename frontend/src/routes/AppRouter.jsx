@@ -96,6 +96,7 @@ export default function AppRouter() {
           <Route path="/helpdesk" element={<RequireAuth permission="helpdesk:read"><Helpdesk /></RequireAuth>} />
           <Route path="/policies" element={<RequireAuth permission="policies:read"><Policies /></RequireAuth>} />
 
+<<<<<<< HEAD
           {/* Admin / Governance */}
           <Route path="/separation"     element={<RequireAuth permission="separation:read"><Separation /></RequireAuth>} />
           <Route path="/org-management" element={<RequireAuth permission="orgmanagement:read"><OrgManagement /></RequireAuth>} />
@@ -104,6 +105,16 @@ export default function AppRouter() {
           <Route path="/notifications"  element={<RequireAuth permission="notifications:read"><Notifications /></RequireAuth>} />
           <Route path="/compliance"     element={<RequireAuth permission="compliance:read"><Compliance /></RequireAuth>} />
           <Route path="/security"       element={<RequireAuth permission="security:read"><SecurityAdmin /></RequireAuth>} />
+=======
+          {/* Admin */}
+          <Route path="/separation" element={<RequireAuth><Separation /></RequireAuth>} />
+          <Route path="/org-management" element={<RequireAuth><OrgManagement /></RequireAuth>} />
+          <Route path="/workflows" element={<RequireAuth><WorkflowEngine /></RequireAuth>} />
+          <Route path="/reports" element={<RequireAuth><Reports /></RequireAuth>} />
+          <Route path="/notifications" element={<RequireAuth permission="notifications:read"><Notifications /></RequireAuth>} />
+          <Route path="/compliance" element={<RequireAuth><Compliance /></RequireAuth>} />
+          <Route path="/security" element={<RequireAuth><SecurityAdmin /></RequireAuth>} />
+>>>>>>> 6131c0564256db16d13c9827b08130599434aac1
 
           {/* Fallback — redirect unknown routes to dashboard */}
           <Route path="*" element={<Navigate to="/" replace />} />

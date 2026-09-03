@@ -28,6 +28,8 @@ export function useDashboardWidget(fetcher, timeoutMs = DEFAULT_TIMEOUT_MS) {
     return () => { cancelled = true; };
   }, [fetcher, timeoutMs]);
 
+  // This effect intentionally synchronizes the widget with its remote API.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => load(), [load]);
 
   return { ...state, retry: load };

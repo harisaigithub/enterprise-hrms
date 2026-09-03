@@ -11,9 +11,9 @@ export default function AttendanceWidget() {
     <DashboardWidgetCard icon={Clock} title="Today's Attendance" iconColor="#0284c7" iconBg="#f0f9ff"
       loading={loading} error={error} onRetry={retry} onClick={() => navigate("/attendance")}>
       {data?.checkedIn ? (
-        <p style={{ fontSize: "13.5px", color: "var(--text)" }}>Checked in at <strong>{data.checkInTime}</strong>{data.checkOutTime ? `, out at ${data.checkOutTime}` : ""}</p>
+        <><div className="dashboard-metric"><strong>{data.checkInTime}</strong><span>check-in</span></div><div className="dashboard-track"><span style={{ width: data.checkOutTime ? "100%" : "55%" }} /></div><span className="dashboard-status">● {data.checkOutTime ? `Completed · ${data.checkOutTime}` : "Workday in progress"}</span></>
       ) : (
-        <p style={{ fontSize: "13.5px", color: "var(--amber)", fontWeight: 600 }}>Not checked in yet</p>
+        <><div className="dashboard-metric"><strong>--:--</strong><span>check-in</span></div><div className="dashboard-track"><span style={{ width: "0%" }} /></div><span className="dashboard-status warning">● Not checked in yet</span></>
       )}
     </DashboardWidgetCard>
   );
