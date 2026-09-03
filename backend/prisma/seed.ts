@@ -204,14 +204,20 @@ const DEPARTMENTS = [
 ];
 
 const LOCATIONS = [
-  { name: "New York", address: "200 Fifth Avenue, New York, NY" },
-  { name: "Delhi", address: "DLF Cyber City, Gurugram, Haryana" },
-  { name: "Austin", address: "400 Congress Ave, Austin, TX" },
-  { name: "Seattle", address: "1200 4th Ave, Seattle, WA" },
-  { name: "Chicago", address: "230 S LaSalle St, Chicago, IL" },
-  { name: "Boston", address: "1 Federal St, Boston, MA" },
-  { name: "Miami", address: "600 Brickell Ave, Miami, FL" },
-  { name: "London", address: "1 Canada Square, Canary Wharf, London" },
+  { name: "Bengaluru", address: "Embassy TechVillage, Outer Ring Road, Bengaluru, Karnataka" },
+  { name: "Hyderabad", address: "Mindspace Cyberabad, Madhapur, Hyderabad, Telangana" },
+  { name: "Pune", address: "Cybercity Magarpatta, Hadapsar, Pune, Maharashtra" },
+  { name: "Delhi NCR", address: "DLF Cyber City, Sector 24, Gurugram, Haryana" },
+  { name: "Mumbai", address: "Bandra Kurla Complex (BKC), Mumbai, Maharashtra" },
+  { name: "Chennai", address: "Tidel Park, Rajiv Gandhi Salai, Taramani, Chennai, Tamil Nadu" },
+  { name: "New York", address: "Bengaluru HQ Annex" },
+  { name: "Delhi", address: "DLF Cyber City, Sector 24, Gurugram, Haryana" },
+  { name: "Austin", address: "Pune Campus" },
+  { name: "Seattle", address: "Hyderabad Campus" },
+  { name: "Chicago", address: "Pune Annex" },
+  { name: "Boston", address: "Bengaluru Innovation Lab" },
+  { name: "Miami", address: "Mumbai Gateway Office" },
+  { name: "London", address: "London Overseas Client Desk" },
   { name: "Remote", address: null },
 ];
 
@@ -243,24 +249,24 @@ interface EmployeeSeed {
 }
 
 const EMPLOYEES: EmployeeSeed[] = [
-  { code: "EMP001", firstName: "Matsya", lastName: "Singh", email: "matsya.singh@company.com", phone: "+1-555-0101", designation: "Senior Software Engineer", department: "Engineering", location: "New York", employmentType: "Full-Time", status: "Active", joinDate: "2021-03-15", salary: 95000, managerId: "EMP005", gender: "Female", dob: "1990-07-22", role: "EMPLOYEE", isDepartmentHead: false },
-  { code: "EMP002", firstName: "Vijay", lastName: "Mudgal", email: "vijay.mudgal@company.com", phone: "+91-921-3217-008", designation: "Product Manager", department: "Product", location: "Delhi", employmentType: "Full-Time", status: "Active", joinDate: "2020-08-01", salary: 110000, managerId: "EMP007", gender: "Male", dob: "1988-02-14", role: "EMPLOYEE", isDepartmentHead: true },
-  { code: "EMP003", firstName: "Vikas", lastName: "Agarwal", email: "vikas.agarwal@company.com", phone: "+1-555-0103", designation: "UX Designer", department: "Design", location: "Austin", employmentType: "Full-Time", status: "Active", joinDate: "2022-01-10", salary: 85000, managerId: "EMP002", gender: "Male", dob: "1993-11-30", role: "EMPLOYEE", isDepartmentHead: false },
-  { code: "EMP004", firstName: "Rohan", lastName: "Sharma", email: "rohan.sharma@company.com", phone: "+1-555-0104", designation: "DevOps Engineer", department: "Engineering", location: "Seattle", employmentType: "Full-Time", status: "Active", joinDate: "2019-11-05", salary: 105000, managerId: "EMP005", gender: "Male", dob: "1987-05-18", role: "EMPLOYEE", isDepartmentHead: false },
-  { code: "EMP005", firstName: "Anjali", lastName: "Desai", email: "anjali.desai@company.com", phone: "+1-555-0105", designation: "Engineering Manager", department: "Engineering", location: "New York", employmentType: "Full-Time", status: "Active", joinDate: "2018-06-20", salary: 135000, managerId: "EMP010", gender: "Female", dob: "1985-03-07", role: "MANAGER", isDepartmentHead: true },
-  { code: "EMP006", firstName: "Rahul", lastName: "Verma", email: "rahul.verma@company.com", phone: "+1-555-0106", designation: "Data Analyst", department: "Analytics", location: "Chicago", employmentType: "Full-Time", status: "On Leave", joinDate: "2021-09-14", salary: 78000, managerId: "EMP009", gender: "Male", dob: "1991-08-25", role: "EMPLOYEE", isDepartmentHead: false },
-  { code: "EMP007", firstName: "Sneha", lastName: "Kapoor", email: "sneha.kapoor@company.com", phone: "+1-555-0107", designation: "VP of Product", department: "Product", location: "Delhi", employmentType: "Full-Time", status: "Active", joinDate: "2017-04-01", salary: 160000, managerId: "EMP010", gender: "Female", dob: "1983-12-01", role: "EMPLOYEE", isDepartmentHead: true },
-  { code: "EMP008", firstName: "Amit", lastName: "Patel", email: "amit.patel@company.com", phone: "+1-555-0108", designation: "HR Specialist", department: "Human Resources", location: "New York", employmentType: "Full-Time", status: "Active", joinDate: "2022-06-01", salary: 70000, managerId: "EMP011", gender: "Male", dob: "1994-09-12", role: "EMPLOYEE", isDepartmentHead: false },
-  { code: "EMP009", firstName: "Priya", lastName: "Mehta", email: "priya.mehta@company.com", phone: "+1-555-0109", designation: "Head of Analytics", department: "Analytics", location: "Boston", employmentType: "Full-Time", status: "Active", joinDate: "2019-07-22", salary: 125000, managerId: "EMP010", gender: "Female", dob: "1986-04-18", role: "EMPLOYEE", isDepartmentHead: true },
-  { code: "EMP010", firstName: "Robert", lastName: "King", email: "robert.king@company.com", phone: "+1-555-0110", designation: "CEO", department: "Executive", location: "New York", employmentType: "Full-Time", status: "Active", joinDate: "2015-01-01", salary: 300000, managerId: null, gender: "Male", dob: "1975-10-05", role: "ADMIN", isDepartmentHead: false },
-  { code: "EMP011", firstName: "Sunita", lastName: "Reddy", email: "sunita.reddy@company.com", phone: "+1-555-0111", designation: "HR Manager", department: "Human Resources", location: "New York", employmentType: "Full-Time", status: "Active", joinDate: "2018-03-12", salary: 95000, managerId: "EMP010", gender: "Female", dob: "1984-06-28", role: "HR", isDepartmentHead: true },
-  { code: "EMP012", firstName: "Manish", lastName: "Gupta", email: "manish.gupta@company.com", phone: "+1-555-0112", designation: "Backend Engineer", department: "Engineering", location: "Remote", employmentType: "Full-Time", status: "Active", joinDate: "2023-02-06", salary: 88000, managerId: "EMP005", gender: "Male", dob: "1995-01-14", role: "EMPLOYEE", isDepartmentHead: false },
-  { code: "EMP013", firstName: "Neha", lastName: "Joshi", email: "neha.joshi@company.com", phone: "+1-555-0113", designation: "Marketing Manager", department: "Marketing", location: "Miami", employmentType: "Full-Time", status: "Active", joinDate: "2020-11-15", salary: 92000, managerId: "EMP010", gender: "Female", dob: "1989-07-03", role: "EMPLOYEE", isDepartmentHead: false },
-  { code: "EMP014", firstName: "Kiran", lastName: "Kumar", email: "kiran.kumar@company.com", phone: "+1-555-0114", designation: "Frontend Engineer", department: "Engineering", location: "Remote", employmentType: "Contract", status: "Active", joinDate: "2023-07-01", salary: 75000, managerId: "EMP005", gender: "Male", dob: "1996-03-22", role: "EMPLOYEE", isDepartmentHead: false },
-  { code: "EMP015", firstName: "Pooja", lastName: "Iyer", email: "pooja.iyer@company.com", phone: "+1-555-0115", designation: "Finance Analyst", department: "Finance", location: "London", employmentType: "Full-Time", status: "Inactive", joinDate: "2021-04-19", salary: 80000, managerId: "EMP010", gender: "Female", dob: "1992-11-08", role: "EMPLOYEE", isDepartmentHead: false },
-  { code: "EMP016", firstName: "Ananya", lastName: "Verma", email: "ananya.verma@company.com", phone: "+91-981-0021-991", designation: "Senior Software Engineer", department: "Engineering", location: "Delhi", employmentType: "Full-Time", status: "Active", joinDate: "2026-08-01", salary: 98000, managerId: "EMP005", gender: "Female", dob: "1994-04-12", role: "EMPLOYEE", isDepartmentHead: false },
-  { code: "EMP017", firstName: "Rishi", lastName: "Saxena", email: "rishi.saxena@company.com", phone: "+91-981-0022-882", designation: "UX Designer", department: "Design", location: "Delhi", employmentType: "Full-Time", status: "Active", joinDate: "2026-08-15", salary: 86000, managerId: "EMP002", gender: "Male", dob: "1995-09-25", role: "EMPLOYEE", isDepartmentHead: false },
-  { code: "EMP018", firstName: "Nandini", lastName: "Pillai", email: "nandini.pillai@company.com", phone: "+91-981-0023-773", designation: "HR Specialist", department: "Human Resources", location: "Delhi", employmentType: "Full-Time", status: "Active", joinDate: "2026-09-01", salary: 72000, managerId: "EMP011", gender: "Female", dob: "1996-01-18", role: "EMPLOYEE", isDepartmentHead: false },
+  { code: "EMP001", firstName: "Matsya", lastName: "Singh", email: "matsya.singh@company.com", phone: "+91-98450-10101", designation: "Senior Software Engineer", department: "Engineering", location: "Bengaluru", employmentType: "Full-Time", status: "Active", joinDate: "2021-03-15", salary: 2400000, managerId: "EMP005", gender: "Female", dob: "1990-07-22", role: "EMPLOYEE", isDepartmentHead: false },
+  { code: "EMP002", firstName: "Vijay", lastName: "Mudgal", email: "vijay.mudgal@company.com", phone: "+91-98100-20202", designation: "Product Manager", department: "Product", location: "Delhi NCR", employmentType: "Full-Time", status: "Active", joinDate: "2020-08-01", salary: 2800000, managerId: "EMP007", gender: "Male", dob: "1988-02-14", role: "EMPLOYEE", isDepartmentHead: true },
+  { code: "EMP003", firstName: "Vikas", lastName: "Agarwal", email: "vikas.agarwal@company.com", phone: "+91-99200-30303", designation: "UX Designer", department: "Design", location: "Pune", employmentType: "Full-Time", status: "Active", joinDate: "2022-01-10", salary: 1900000, managerId: "EMP002", gender: "Male", dob: "1993-11-30", role: "EMPLOYEE", isDepartmentHead: false },
+  { code: "EMP004", firstName: "Rohan", lastName: "Sharma", email: "rohan.sharma@company.com", phone: "+91-98860-40404", designation: "DevOps Engineer", department: "Engineering", location: "Hyderabad", employmentType: "Full-Time", status: "Active", joinDate: "2019-11-05", salary: 2200000, managerId: "EMP005", gender: "Male", dob: "1987-05-18", role: "EMPLOYEE", isDepartmentHead: false },
+  { code: "EMP005", firstName: "Anjali", lastName: "Desai", email: "anjali.desai@company.com", phone: "+91-98451-50505", designation: "Engineering Manager", department: "Engineering", location: "Bengaluru", employmentType: "Full-Time", status: "Active", joinDate: "2018-06-20", salary: 3500000, managerId: "EMP010", gender: "Female", dob: "1985-03-07", role: "MANAGER", isDepartmentHead: true },
+  { code: "EMP006", firstName: "Rahul", lastName: "Verma", email: "rahul.verma@company.com", phone: "+91-99450-60606", designation: "Data Analyst", department: "Analytics", location: "Pune", employmentType: "Full-Time", status: "On Leave", joinDate: "2021-09-14", salary: 1600000, managerId: "EMP009", gender: "Male", dob: "1991-08-25", role: "EMPLOYEE", isDepartmentHead: false },
+  { code: "EMP007", firstName: "Sneha", lastName: "Kapoor", email: "sneha.kapoor@company.com", phone: "+91-98110-70707", designation: "VP of Product", department: "Product", location: "Delhi NCR", employmentType: "Full-Time", status: "Active", joinDate: "2017-04-01", salary: 4200000, managerId: "EMP010", gender: "Female", dob: "1983-12-01", role: "EMPLOYEE", isDepartmentHead: true },
+  { code: "EMP008", firstName: "Amit", lastName: "Patel", email: "amit.patel@company.com", phone: "+91-98920-80808", designation: "HR Specialist", department: "Human Resources", location: "Hyderabad", employmentType: "Full-Time", status: "Active", joinDate: "2022-06-01", salary: 1400000, managerId: "EMP011", gender: "Male", dob: "1994-09-12", role: "EMPLOYEE", isDepartmentHead: false },
+  { code: "EMP009", firstName: "Priya", lastName: "Mehta", email: "priya.mehta@company.com", phone: "+91-98452-90909", designation: "Head of Analytics", department: "Analytics", location: "Bengaluru", employmentType: "Full-Time", status: "Active", joinDate: "2019-07-22", salary: 3200000, managerId: "EMP010", gender: "Female", dob: "1986-04-18", role: "EMPLOYEE", isDepartmentHead: true },
+  { code: "EMP010", firstName: "Rajesh", lastName: "Menon", email: "rajesh.menon@company.com", phone: "+91-98450-01110", designation: "CEO", department: "Executive", location: "Bengaluru", employmentType: "Full-Time", status: "Active", joinDate: "2015-01-01", salary: 6000000, managerId: null, gender: "Male", dob: "1975-10-05", role: "ADMIN", isDepartmentHead: false },
+  { code: "EMP011", firstName: "Sunita", lastName: "Reddy", email: "sunita.reddy@company.com", phone: "+91-98450-11111", designation: "HR Manager", department: "Human Resources", location: "Bengaluru", employmentType: "Full-Time", status: "Active", joinDate: "2018-03-12", salary: 2600000, managerId: "EMP010", gender: "Female", dob: "1984-06-28", role: "HR", isDepartmentHead: true },
+  { code: "EMP012", firstName: "Manish", lastName: "Gupta", email: "manish.gupta@company.com", phone: "+91-99201-12121", designation: "Backend Engineer", department: "Engineering", location: "Pune", employmentType: "Full-Time", status: "Active", joinDate: "2023-02-06", salary: 2000000, managerId: "EMP005", gender: "Male", dob: "1995-01-14", role: "EMPLOYEE", isDepartmentHead: false },
+  { code: "EMP013", firstName: "Neha", lastName: "Joshi", email: "neha.joshi@company.com", phone: "+91-98200-13131", designation: "Marketing Manager", department: "Marketing", location: "Mumbai", employmentType: "Full-Time", status: "Active", joinDate: "2020-11-15", salary: 2200000, managerId: "EMP010", gender: "Female", dob: "1989-07-03", role: "EMPLOYEE", isDepartmentHead: false },
+  { code: "EMP014", firstName: "Kiran", lastName: "Kumar", email: "kiran.kumar@company.com", phone: "+91-98850-14141", designation: "Frontend Engineer", department: "Engineering", location: "Hyderabad", employmentType: "Contract", status: "Active", joinDate: "2023-07-01", salary: 1500000, managerId: "EMP005", gender: "Male", dob: "1996-03-22", role: "EMPLOYEE", isDepartmentHead: false },
+  { code: "EMP015", firstName: "Pooja", lastName: "Iyer", email: "pooja.iyer@company.com", phone: "+91-98201-15151", designation: "Finance Analyst", department: "Finance", location: "Mumbai", employmentType: "Full-Time", status: "Inactive", joinDate: "2021-04-19", salary: 1700000, managerId: "EMP010", gender: "Female", dob: "1992-11-08", role: "EMPLOYEE", isDepartmentHead: false },
+  { code: "EMP016", firstName: "Ananya", lastName: "Verma", email: "ananya.verma@company.com", phone: "+91-98100-21991", designation: "Senior Software Engineer", department: "Engineering", location: "Bengaluru", employmentType: "Full-Time", status: "Active", joinDate: "2026-08-01", salary: 2400000, managerId: "EMP005", gender: "Female", dob: "1994-04-12", role: "EMPLOYEE", isDepartmentHead: false },
+  { code: "EMP017", firstName: "Rishi", lastName: "Saxena", email: "rishi.saxena@company.com", phone: "+91-98100-22882", designation: "UX Designer", department: "Design", location: "Pune", employmentType: "Full-Time", status: "Active", joinDate: "2026-08-15", salary: 2000000, managerId: "EMP002", gender: "Male", dob: "1995-09-25", role: "EMPLOYEE", isDepartmentHead: false },
+  { code: "EMP018", firstName: "Nandini", lastName: "Pillai", email: "nandini.pillai@company.com", phone: "+91-98100-23773", designation: "HR Specialist", department: "Human Resources", location: "Hyderabad", employmentType: "Full-Time", status: "Active", joinDate: "2026-09-01", salary: 1800000, managerId: "EMP011", gender: "Female", dob: "1996-01-18", role: "EMPLOYEE", isDepartmentHead: false },
 ];
 
 const LEAVE_TYPES = [
@@ -446,6 +452,12 @@ async function main() {
       },
     });
     empByCode.set(e.code, emp.id);
+
+    if (e.code === "EMP010") {
+      await prisma.user.create({
+        data: { email: "robert.king@company.com", passwordHash, roleId: roles["ADMIN"] },
+      });
+    }
   }
 
   // Assign managers (self-referencing FK)
@@ -963,10 +975,10 @@ async function main() {
   // A. Applied (5 candidates)
   const appliedCandidatesData = [
     { code: "CAN-001", first: "Aarav", last: "Mehta", email: "aarav.mehta@example.com", phone: "+91-982-101-1001", reqId: reqEng.id, rating: 3, notes: "7 years Node & Go experience in logistics." },
-    { code: "CAN-002", first: "Sneha", last: "Kapoor", email: "sneha.k.design@example.com", phone: "+1-555-020-2002", reqId: reqDesign.id, rating: 4, notes: "Strong portfolio in Figma enterprise tokens." },
+    { code: "CAN-002", first: "Sneha", last: "Kapoor", email: "sneha.k.design@example.com", phone: "+91-981-002-2002", reqId: reqDesign.id, rating: 4, notes: "Strong portfolio in Figma enterprise tokens." },
     { code: "CAN-003", first: "Kunal", last: "Joshi", email: "kunal.joshi@example.com", phone: "+91-982-103-3003", reqId: reqDevOps.id, rating: 3, notes: "AWS certified solutions architect." },
     { code: "CAN-004", first: "Pooja", last: "Batra", email: "pooja.batra@example.com", phone: "+91-982-104-4004", reqId: reqHR.id, rating: 4, notes: "SHRM-SCP certified with 6 years tenure." },
-    { code: "CAN-005", first: "Devendra", last: "Rao", email: "devendra.rao@example.com", phone: "+1-555-025-5005", reqId: reqFin.id, rating: 3, notes: "FP&A background in consumer tech." },
+    { code: "CAN-005", first: "Devendra", last: "Rao", email: "devendra.rao@example.com", phone: "+91-981-005-5005", reqId: reqFin.id, rating: 3, notes: "FP&A background in consumer tech." },
   ];
   for (const c of appliedCandidatesData) {
     const cand = await prisma.candidate.create({
@@ -982,7 +994,7 @@ async function main() {
     { code: "CAN-006", first: "Rahul", last: "Verma", email: "rahul.verma.dev@example.com", phone: "+91-982-106-6006", reqId: reqEng.id, rating: 4, notes: "Passed preliminary technical phone screen." },
     { code: "CAN-007", first: "Meera", last: "Swaminathan", email: "meera.swami@example.com", phone: "+91-982-107-7007", reqId: reqDesign.id, rating: 4, notes: "Reviewed design challenge; great typography." },
     { code: "CAN-008", first: "Gaurav", last: "Sen", email: "gaurav.sen@example.com", phone: "+91-982-108-8008", reqId: reqDevOps.id, rating: 3, notes: "Terraform automation background." },
-    { code: "CAN-009", first: "Simran", last: "Kaur", email: "simran.kaur.fin@example.com", phone: "+1-555-029-9009", reqId: reqFin.id, rating: 4, notes: "Cleared financial modeling assessment." },
+    { code: "CAN-009", first: "Simran", last: "Kaur", email: "simran.kaur.fin@example.com", phone: "+91-981-009-9009", reqId: reqFin.id, rating: 4, notes: "Cleared financial modeling assessment." },
   ];
   for (const c of screeningCandidatesData) {
     const cand = await prisma.candidate.create({
@@ -1437,7 +1449,7 @@ async function main() {
     },
   });
   console.log("🔑 Login credentials (all): email from list below / Password@123");
-  console.log("   ADMIN  → robert.king@company.com (Robert King, CEO)");
+  console.log("   ADMIN  → rajesh.menon@company.com (Rajesh Menon, CEO) [alias: robert.king@company.com]");
   console.log("   HR     → sunita.reddy@company.com (Sunita Reddy, HR Manager)");
   console.log("   MANAGER→ anjali.desai@company.com (Anjali Desai, Engineering Manager)");
   console.log("   EMP    → matsya.singh@company.com (Matsya Singh, Senior Software Engineer)");

@@ -33,6 +33,7 @@ const createBodySchema = z.object({
   dateOfJoining: z.string().optional(),
   gender: z.string().optional(),
   dob: z.string().optional(),
+  status: z.string().optional(),
   password: z.string().min(8).optional(),
 });
 
