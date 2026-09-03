@@ -395,7 +395,9 @@ export async function createCandidate(input: any) {
         },
     });
 
-    let application = null;
+    let application: Awaited<
+        ReturnType<typeof prisma.application.create>
+    > | null = null;
 
     if (input.requisitionId) {
         application = await prisma.application.create({
