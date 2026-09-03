@@ -1,6 +1,6 @@
-﻿/**
- * Performance Page � Module 10
- * Tabs: Goals & OKRs � Review Cycle � Feedback � 1:1s � Ratings History
+/**
+ * Performance Page — Module 10
+ * Tabs: Goals & OKRs • Review Cycle • Feedback • 1:1s • Ratings History
  */
 
 import { useState, useEffect } from "react";
@@ -51,7 +51,7 @@ import {
   getAdminEmployeePerformanceDetail,
   rejectManagerGoal,
 } from "../../services/performanceService";
-import { goalStatusMeta, reviewPhaseMeta, feedbackTypeMeta, colleagues } from "../../mock/performance";
+import { goalStatusMeta, reviewPhaseMeta, feedbackTypeMeta, colleagues, _getReviewCycle } from "../../mock/performance";
 
 
 function getCurrentEmployeeCode() {
@@ -416,7 +416,7 @@ function GoalsTab({ goals, cycle, onGoalAdded }) {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
         <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>
-          My Goals � {cycle?.name?.replace(" Performance Review", "") || "This Cycle"}
+          My Goals — {cycle?.name?.replace(" Performance Review", "") || "This Cycle"}
         </h2>
         <PrimaryButton onClick={() => setShowAdd(true)} disabled={goalsLocked} title={goalsLocked ? "Goal-setting window is closed for this cycle" : undefined}>
           {goalsLocked ? <Lock size={14} /> : <Plus size={16} />}
@@ -1309,7 +1309,7 @@ function SubmitSelfAssessmentModal({ isOpen, onClose, goals, onSaved }) {
           <div key={g.id} style={{ borderBottom: "1px solid var(--border)", paddingBottom: "16px" }}>
             <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)", marginBottom: "8px" }}>{g.title}</p>
             <div style={{ display: "flex", flexDirection: "column", gap: "5px", marginBottom: "10px" }}>
-              {fieldLabel("Self-rating (1�5)")}
+              {fieldLabel("Self-rating (1–5)")}
               <select value={ratings[g.id] || 3} onChange={(e) => setRatings((p) => ({ ...p, [g.id]: e.target.value }))} style={{ ...inputStyle(false), height: "36px", width: "90px", cursor: "pointer" }}>
                 {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
               </select>
@@ -1320,7 +1320,7 @@ function SubmitSelfAssessmentModal({ isOpen, onClose, goals, onSaved }) {
                 rows={2}
                 value={comments[g.id] || ""}
                 onChange={(e) => setComments((p) => ({ ...p, [g.id]: e.target.value }))}
-                placeholder="Summarize progress and impact�"
+                placeholder="Summarize progress and impact..."
                 style={{ ...inputStyle(false), resize: "vertical" }}
               />
             </div>
@@ -1328,7 +1328,7 @@ function SubmitSelfAssessmentModal({ isOpen, onClose, goals, onSaved }) {
         ))}
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Submitting�" : "Submit Self-Assessment"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Submitting..." : "Submit Self-Assessment"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -1473,6 +1473,51 @@ function ManagerTeamReviewPanel({ goals }) {
   );
 }
 
+const PHASE_GUIDES = {
+  "Goal Setting": {
+    badge: "Phase 1 of 6",
+    desc: "Goal Setting is open. Employees can draft, align, and submit goals for manager approval. Goal editing is locked in subsequent phases.",
+    bg: "#f0f9ff",
+    color: "#0284c7",
+    border: "#bae6fd",
+  },
+  "Continuous Feedback": {
+    badge: "Phase 2 of 6",
+    desc: "Continuous Feedback is active. Team members can exchange peer praise, constructive feedback, and hold 1-on-1 check-ins.",
+    bg: "#f5f3ff",
+    color: "#7c3aed",
+    border: "#ddd6fe",
+  },
+  "Self-Assessment": {
+    badge: "Phase 3 of 6",
+    desc: "Self-Assessment window is open. Employees rate achievements (1–5) and submit reflections on their approved goals.",
+    bg: "#fffbeb",
+    color: "#d97706",
+    border: "#fde68a",
+  },
+  "Manager Review": {
+    badge: "Phase 4 of 6",
+    desc: "Manager Review is underway. People managers evaluate their direct reports' self-assessments and record manager ratings.",
+    bg: "#fffbeb",
+    color: "#d97706",
+    border: "#fde68a",
+  },
+  "Calibration": {
+    badge: "Phase 5 of 6",
+    desc: "Calibration is active. HR leadership reviews rating distributions across teams and releases final calibrated ratings.",
+    bg: "#fef2f2",
+    color: "#dc2626",
+    border: "#fecaca",
+  },
+  "Completed": {
+    badge: "Phase 6 of 6 — Finalized",
+    desc: "Review Cycle is Completed. All ratings, increments, and appraisals are finalized and permanently preserved in employee records.",
+    bg: "#f0fdf4",
+    color: "#16a34a",
+    border: "#bbf7d0",
+  },
+};
+
 function ReviewCycleTab({
   cycle,
   goals,
@@ -1480,6 +1525,7 @@ function ReviewCycleTab({
   managerReview,
   onSelfAssessmentSubmitted,
   isAdmin,
+  isHR,
   onCycleUpdated,
   isManager,
   managerGoals,
@@ -1489,18 +1535,19 @@ function ReviewCycleTab({
 
   if (!cycle) return <EmptyState icon={ClipboardCheck} title="No active review cycle" />;
 
-  const phaseMeta = reviewPhaseMeta[cycle.phase];
+  const canManageCycle = Boolean(isAdmin || isHR);
+  const phaseMeta = reviewPhaseMeta[cycle.phase] || { color: "#0284c7", bg: "#f0f9ff" };
+  const phaseGuide = PHASE_GUIDES[cycle.phase] || PHASE_GUIDES["Goal Setting"];
+
   const canSubmitSelfAssessment =
-    !isAdmin &&
     cycle.phase === "Self-Assessment" &&
-    !selfAssessment.submitted &&
-    goals.length > 0;
+    !selfAssessment?.submitted &&
+    goals?.length > 0;
   const currentPhaseIndex = PHASES.indexOf(cycle.phase);
-  const nextPhase = PHASES[currentPhaseIndex + 1];
+  const nextPhase = currentPhaseIndex >= 0 && currentPhaseIndex < PHASES.length - 1 ? PHASES[currentPhaseIndex + 1] : null;
 
   const handleAdvancePhase = async () => {
     if (!nextPhase) return;
-    if (!window.confirm(`Advance review cycle to ${nextPhase}?`)) return;
 
     try {
       setAdvancingPhase(true);
@@ -1514,22 +1561,74 @@ function ReviewCycleTab({
     }
   };
 
+  const handleSetPhase = async (targetPhase) => {
+    if (!targetPhase || targetPhase === cycle.phase) return;
+
+    try {
+      setAdvancingPhase(true);
+      const res = await advanceReviewCyclePhase(targetPhase);
+      onCycleUpdated(res.data);
+    } catch (error) {
+      console.error("Failed to update review cycle phase:", error);
+      alert(error?.message || "Unable to update review cycle phase");
+    } finally {
+      setAdvancingPhase(false);
+    }
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
       <div style={{ ...cardStyle, padding: "20px 22px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "10px", marginBottom: "18px" }}>
           <div>
             <h2 style={{ fontSize: "16px", fontWeight: 700, color: "var(--text)" }}>{cycle.name}</h2>
-            <p style={{ fontSize: "12.5px", color: "var(--subtext)", marginTop: "2px" }}>Current phase</p>
+            <p style={{ fontSize: "12.5px", color: "var(--subtext)", marginTop: "2px" }}>Current Review Cycle</p>
           </div>
-          <StatusBadge label={cycle.phase} color={phaseMeta.color} bg={phaseMeta.bg} />
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ fontSize: "11px", fontWeight: 700, padding: "3px 8px", borderRadius: "99px", background: phaseGuide.bg, color: phaseGuide.color, border: `1px solid ${phaseGuide.border}` }}>
+              {phaseGuide.badge}
+            </span>
+            <StatusBadge label={cycle.phase} color={phaseMeta.color} bg={phaseMeta.bg} />
+          </div>
         </div>
+
         <PhaseStepper phase={cycle.phase} />
-        {isAdmin && nextPhase && (
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "16px" }}>
-            <PrimaryButton onClick={handleAdvancePhase} disabled={advancingPhase}>
-              {advancingPhase ? "Advancing..." : `Advance to ${nextPhase}`}
-            </PrimaryButton>
+
+        {/* Informational phase guidance banner */}
+        <div style={{ marginTop: "16px", padding: "12px 14px", borderRadius: "8px", background: phaseGuide.bg, border: `1px solid ${phaseGuide.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+          <p style={{ fontSize: "12.5px", color: phaseGuide.color, fontWeight: 500, margin: 0 }}>
+            <strong>{cycle.phase}:</strong> {phaseGuide.desc}
+          </p>
+        </div>
+
+        {/* Admin and HR review cycle controls */}
+        {canManageCycle && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px", marginTop: "16px", paddingTop: "14px", borderTop: "1px solid var(--border)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--subtext)" }}>Switch Phase:</label>
+              <select
+                id="cycle-phase-selector"
+                value={cycle.phase}
+                onChange={(e) => handleSetPhase(e.target.value)}
+                disabled={advancingPhase}
+                style={{ ...inputStyle(false), width: "auto", height: "35px", padding: "4px 10px", fontSize: "12px", cursor: "pointer" }}
+              >
+                {PHASES.map((p, idx) => (
+                  <option key={p} value={p}>
+                    {idx + 1}. {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {nextPhase ? (
+              <PrimaryButton id="advance-phase-btn" onClick={handleAdvancePhase} disabled={advancingPhase}>
+                {advancingPhase ? "Advancing..." : `Advance to ${nextPhase}`}
+              </PrimaryButton>
+            ) : (
+              <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--green)", display: "flex", alignItems: "center", gap: "4px" }}>
+                <CheckCircle2 size={15} /> All 6 phases completed
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -1593,7 +1692,7 @@ function ReviewCycleTab({
         ) : (
           <p style={{ fontSize: "13px", color: "var(--subtext)" }}>
             {selfAssessment.submitted
-              ? "Your manager hasn't submitted their review yet � you'll be notified once it's ready."
+              ? "Your manager hasn't submitted their review yet — you'll be notified once it's ready."
               : "Manager review opens once your self-assessment is submitted."}
           </p>
         )}
@@ -1604,11 +1703,11 @@ function ReviewCycleTab({
         <div style={{ ...cardStyle, padding: "20px 22px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
             <Sparkles size={16} style={{ color: "var(--primary)" }} />
-            <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>360� Feedback</h3>
+            <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>360° Feedback</h3>
           </div>
           <p style={{ fontSize: "13px", color: "var(--subtext)" }}>
             {cycle.peerResponsesReceived} of {cycle.peerReviewersNominated} nominated peers have responded.
-            Results are shown to you only as an anonymized summary once the cycle completes � individual reviewers are never identified.
+            Results are shown to you only as an anonymized summary once the cycle completes — individual reviewers are never identified.
           </p>
         </div>
       )}
@@ -1673,7 +1772,7 @@ function GiveFeedbackModal({ isOpen, onClose, goals, onSaved }) {
           {fieldLabel("For *")}
           <select value={recipientId} onChange={(e) => setRecipientId(e.target.value)} style={{ ...inputStyle(errors.recipientId), height: "38px", cursor: "pointer" }}>
             <option value="">Select colleague</option>
-            {colleagues.map((c) => <option key={c.id} value={c.id}>{c.name} � {c.role}</option>)}
+            {colleagues.map((c) => <option key={c.id} value={c.id}>{c.name} • {c.role}</option>)}
           </select>
           {errors.recipientId && <span style={{ fontSize: "11px", color: "var(--red)" }}>{errors.recipientId}</span>}
         </div>
@@ -1700,7 +1799,7 @@ function GiveFeedbackModal({ isOpen, onClose, goals, onSaved }) {
             rows={4}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="Be specific and constructive�"
+            placeholder="Be specific and constructive..."
             style={{ ...inputStyle(errors.message), resize: "vertical" }}
           />
           {errors.message && <span style={{ fontSize: "11px", color: "var(--red)" }}>{errors.message}</span>}
@@ -1735,7 +1834,7 @@ function FeedbackCard({ entry, currentEmployeeCode, organizationView }) {
                 : `To ${entry.toName}`}
           </span>
           {entry.goalTag && (
-            <div style={{ fontSize: "11px", color: "var(--subtext)", marginTop: "2px" }}>on �{entry.goalTag}�</div>
+            <div style={{ fontSize: "11px", color: "var(--subtext)", marginTop: "2px" }}>on "{entry.goalTag}"</div>
           )}
         </div>
         <div style={{ display: "flex", gap: "6px", alignItems: "center", flexShrink: 0 }}>
@@ -1909,7 +2008,7 @@ function AddNoteModal({ isOpen, onClose, onSaved }) {
 
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           {fieldLabel("Notes")}
-          <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Free-form notes from the conversation�" style={{ ...inputStyle(false), resize: "vertical" }} />
+          <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Free-form notes from the conversation..." style={{ ...inputStyle(false), resize: "vertical" }} />
         </div>
 
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
@@ -2186,7 +2285,7 @@ function RatingsTab({ ratings, teamRatings, organizationView, cycle, onRatingsCh
                   <td style={{ padding: "13px 16px", fontSize: "13.5px", color: "var(--primary)", fontWeight: 700 }}>{r.finalRating} / 5</td>
                   <td style={{ padding: "13px 16px", fontSize: "13.5px", color: "var(--green)", fontWeight: 600 }}>{r.increment}</td>
                   <td style={{ padding: "13px 16px" }}>
-                    {r.promotion ? <StatusBadge label="Promoted" color="#16a34a" bg="#f0fdf4" /> : <span style={{ fontSize: "12.5px", color: "var(--subtext)" }}>�</span>}
+                    {r.promotion ? <StatusBadge label="Promoted" color="#16a34a" bg="#f0fdf4" /> : <span style={{ fontSize: "12.5px", color: "var(--subtext)" }}>—</span>}
                   </td>
                   <td style={{ padding: "13px 16px", fontSize: "12px", color: "var(--subtext)", whiteSpace: "nowrap" }}>
                     {new Date(r.releasedOn + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
@@ -2593,33 +2692,33 @@ export default function Performance() {
     const requests = hasOrgPerformanceView
       ? [
           Promise.resolve({ data: [] }),
-          getReviewCycle(),
+          getReviewCycle().catch(() => ({ data: null })),
           Promise.resolve({ data: { submitted: false, responses: [] } }),
           Promise.resolve({ data: { submitted: false, responses: [] } }),
-          getAdminFeedback(),
+          getAdminFeedback().catch(() => ({ data: [] })),
           Promise.resolve({ data: [] }),
-          getAdminRatingsHistory(),
+          getAdminRatingsHistory().catch(() => ({ data: [] })),
         ]
       : [
-          getGoals(),
-          getReviewCycle(),
-          getSelfAssessment(),
-          getManagerReview(),
-          getFeedback(),
-          getOneOnOnes(),
-          getRatingsHistory(),
+          getGoals().catch(() => ({ data: [] })),
+          getReviewCycle().catch(() => ({ data: null })),
+          getSelfAssessment().catch(() => ({ data: { submitted: false, responses: [] } })),
+          getManagerReview().catch(() => ({ data: { submitted: false, responses: [] } })),
+          getFeedback().catch(() => ({ data: [] })),
+          getOneOnOnes().catch(() => ({ data: [] })),
+          getRatingsHistory().catch(() => ({ data: [] })),
         ];
 
     // Manager gets team goals.
     if (isManager) {
-      requests.push(getManagerGoals());
-      requests.push(getManagerRatingsHistory());
+      requests.push(getManagerGoals().catch(() => ({ data: [] })));
+      requests.push(getManagerRatingsHistory().catch(() => ({ data: { employees: [] } })));
     }
 
     // Admin + HR get organization-wide Performance data.
     if (hasOrgPerformanceView) {
-      requests.push(getAdminPerformanceOverview());
-      requests.push(getAdminEmployeesPerformance());
+      requests.push(getAdminPerformanceOverview().catch(() => ({ data: null })));
+      requests.push(getAdminEmployeesPerformance().catch(() => ({ data: { employees: [] } })));
     }
 
     Promise.all(requests)
@@ -2645,7 +2744,7 @@ export default function Performance() {
 
         // Common logged-in-user data
         setGoals(g?.data || []);
-        setCycle(c?.data || null);
+        setCycle(c?.data || _getReviewCycle());
 
         setSelfAssessment(
           sa?.data || {

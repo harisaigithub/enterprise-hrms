@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Asset Management Page — Module 12
  * Backend + Prisma version
  *

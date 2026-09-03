@@ -424,7 +424,7 @@ export async function fulfillRequest(
     --------------------------------------------- */
 
     const result = await prisma.$transaction(
-        async (tx) => {
+        async (tx: any) => {
             const updatedAsset =
                 await tx.asset.update({
                     where: {

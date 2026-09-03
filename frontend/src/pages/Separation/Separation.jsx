@@ -1,6 +1,6 @@
 ﻿/**
- * Separation Management Page � Module 19
- * Tabs: Separations � Clearance � Exit Interview � Settlement & Alumni
+ * Separation Management Page — Module 19
+ * Tabs: Separations • Clearance • Exit Interview • Settlement & Alumni
  */
 
 import { useState, useEffect } from "react";
@@ -804,7 +804,7 @@ function ClearanceRow({ item, onUpdate, canWrite }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px", marginBottom: "8px" }}>
         <div>
           <p style={{ fontSize: "13.5px", fontWeight: 600, color: "var(--text)" }}>{item.item}</p>
-          <p style={{ fontSize: "11px", color: "var(--subtext)" }}>Owner: {item.owner}{item.completedAt ? ` � Completed ${fmtDate(item.completedAt)}` : ""}</p>
+          <p style={{ fontSize: "11px", color: "var(--subtext)" }}>Owner: {item.owner}{item.completedAt ? ` • Completed ${fmtDate(item.completedAt)}` : ""}</p>
         </div>
         <StatusBadge label={item.status} color={meta.color} bg={meta.bg} />
       </div>
@@ -858,13 +858,13 @@ function ClearanceTab({ separation, items, onUpdate, canWrite, }) {
 
   return (
     <div>
-      <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)", marginBottom: "4px" }}>Clearance � {separation.employeeName}</h2>
+      <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)", marginBottom: "4px" }}>Clearance — {separation.employeeName}</h2>
       <p style={{ fontSize: "12.5px", color: "var(--subtext)", marginBottom: "16px" }}>Parallel checklist across owners. Settlement is blocked until every item here is Complete (or a documented HR override is applied).</p>
 
       {allComplete && (
         <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "var(--radius-sm)", padding: "10px 14px", marginBottom: "16px" }}>
           <CheckCircle2 size={16} style={{ color: "var(--green)" }} />
-          <p style={{ fontSize: "12.5px", color: "#166534", margin: 0 }}>All clearance items complete � settlement can now be computed in the Settlement & Alumni tab.</p>
+          <p style={{ fontSize: "12.5px", color: "#166534", margin: 0 }}>All clearance items complete  —  settlement can now be computed in the Settlement & Alumni tab.</p>
         </div>
       )}
 
@@ -903,11 +903,11 @@ function ExitInterviewTab({ separation, interview, onSaved, canwrite, }) {
 
   return (
     <div style={{ maxWidth: "620px" }}>
-      <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)", marginBottom: "4px" }}>Exit Interview � {separation.employeeName}</h2>
+      <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)", marginBottom: "4px" }}>Exit Interview — {separation.employeeName}</h2>
       <div style={{ display: "flex", gap: "8px", alignItems: "flex-start", background: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: "var(--radius-sm)", padding: "10px 14px", margin: "10px 0 18px" }}>
         <Lock size={15} style={{ color: "#7c3aed", flexShrink: 0, marginTop: "1px" }} />
         <p style={{ fontSize: "12px", color: "#5b21b6", margin: 0 }}>
-          Restricted to HR only � not visible to the departing employee's manager or to Auditor roles by default. Only "an interview occurred" is visible elsewhere.
+          Restricted to HR only — not visible to the departing employee's manager or to Auditor roles by default. Only "an interview occurred" is visible elsewhere.
         </p>
       </div>
 
@@ -1071,7 +1071,7 @@ function SettlementAlumniTab({ separation, items, onSettled, onRevoked, onAlumni
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px", maxWidth: "640px" }}>
-      <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Settlement & Alumni � {separation.employeeName}</h2>
+      <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Settlement & Alumni — {separation.employeeName}</h2>
 
       {separation.settlement ? (
         <div style={{ ...cardStyle, padding: "18px 20px" }}>
@@ -1102,7 +1102,7 @@ function SettlementAlumniTab({ separation, items, onSettled, onRevoked, onAlumni
         <div style={{ ...cardStyle, padding: "18px 20px" }}>
           <h3 style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)", marginBottom: "10px" }}>System Access</h3>
           {separation.accessRevoked ? (
-            <p style={{ fontSize: "13px", color: "var(--red)", fontWeight: 600, display: "flex", alignItems: "center", gap: "6px" }}><ShieldOff size={15} /> Revoked � SSO, email, VPN and HRMS access disabled; active sessions invalidated.</p>
+            <p style={{ fontSize: "13px", color: "var(--red)", fontWeight: 600, display: "flex", alignItems: "center", gap: "6px" }}><ShieldOff size={15} /> Revoked — SSO, email, VPN and HRMS access disabled; active sessions invalidated.</p>
           ) : (
             <>
               <p style={{ fontSize: "12.5px", color: "var(--subtext)", marginBottom: "10px" }}>Settlement is complete � revoke access atomically across all connected systems.</p>
@@ -1152,8 +1152,8 @@ function SettlementAlumniTab({ separation, items, onSettled, onRevoked, onAlumni
           <h3 style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)", marginBottom: "10px" }}>Alumni Record</h3>
           {alumni.filter((a) => a.employeeId === separation.employeeId).map((a) => (
             <div key={a.id} style={{ fontSize: "13px", color: "var(--text)" }}>
-              <p>{a.name} � {a.role}</p>
-              <p style={{ color: "var(--subtext)", fontSize: "12px" }}>Tenure: {a.tenure} � {a.eligibleForRehire ? "Eligible for rehire" : "Not eligible for rehire"} � Exited {fmtDate(a.exitedOn)}</p>
+              <p>{a.name} • {a.role}</p>
+              <p style={{ color: "var(--subtext)", fontSize: "12px" }}>Tenure: {a.tenure} • {a.eligibleForRehire ? "Eligible for rehire" : "Not eligible for rehire"} • Exited {fmtDate(a.exitedOn)}</p>
             </div>
           ))}
         </div>

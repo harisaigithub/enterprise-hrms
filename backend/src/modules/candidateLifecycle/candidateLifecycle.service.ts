@@ -83,7 +83,7 @@ export async function decideOffer(token: string, decision: "Accepted" | "Decline
   if (offer.status !== "Sent — Awaiting Signature") {
     throw AppError.badRequest("This offer has already been processed");
   }
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const updated = await tx.offer.update({ where: { id: offer.id }, data: { status: decision, decisionAt: new Date() } });
     await tx.application.update({ where: { id: offer.applicationId }, data: {
       approvalStatus: decision === "Accepted" ? "Documents Pending" : "Offer Declined",
@@ -96,7 +96,7 @@ export async function decideOffer(token: string, decision: "Accepted" | "Decline
 export async function uploadDocument(token: string, input: any) {
   const offer = await findValidOffer(token);
   if (offer.status !== "Accepted") throw AppError.badRequest("Accept the offer before uploading documents");
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const document = await tx.candidateDocument.create({ data: {
       applicationId: offer.applicationId,
       documentType: input.documentType,
@@ -287,7 +287,7 @@ export async function createEmployeeAccount(applicationId: string) {
     );
 
     const result = await prisma.$transaction(
-        async (tx) => {
+        async (tx: any) => {
 
             // =====================================================
             // 1. CREATE USER

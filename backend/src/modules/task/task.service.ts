@@ -393,7 +393,7 @@ export async function createTask(
 
     const task =
         await prisma.$transaction(
-            async (tx) => {
+            async (tx: any) => {
                 const created =
                     await tx.task.create({
                         data: {
@@ -538,7 +538,7 @@ export async function updateTaskStatus(
 
     const updated =
         await prisma.$transaction(
-            async (tx) => {
+            async (tx: any) => {
                 const updatedTask =
                     await tx.task.update({
                         where: {
@@ -671,7 +671,7 @@ export async function reassignTask(
 
     const updated =
         await prisma.$transaction(
-            async (tx) => {
+            async (tx: any) => {
                 const result =
                     await tx.task.update({
                         where: {
@@ -908,7 +908,7 @@ export async function createTimeEntry(
 
     const entry =
         await prisma.$transaction(
-            async (tx) => {
+            async (tx: any) => {
                 const created =
                     await tx.taskTimeEntry.create({
                         data: {

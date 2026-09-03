@@ -5,7 +5,7 @@ import PageHeader from "../../components/shared/PageHeader";
 import Spinner from "../../components/shared/Spinner";
 import EmptyState from "../../components/shared/EmptyState";
 import { useAuth } from "../../context/AuthContext";
-import { exportReportCsv, getFieldCatalog, getOrgScope, getReportTemplates, runCustomReport, runStandardReport } from "../../services/Reportsservice";
+import { exportReportCsv, getFieldCatalog, getOrgScope, getReportTemplates, runCustomReport, runStandardReport } from "../../services/reportsService";
 
 const card = { background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-sm)" };
 const input = { height: 36, padding: "0 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "var(--card)", color: "var(--text)" };

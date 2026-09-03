@@ -193,7 +193,7 @@ export async function initiateSeparation(input: {
   ========================================================= */
 
   const separation =
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       const createdSeparation =
         await tx.separation.create({
           data: {

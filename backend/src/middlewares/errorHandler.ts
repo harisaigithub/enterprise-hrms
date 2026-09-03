@@ -16,7 +16,7 @@ interface ErrorResponse {
 }
 
 /** Central error handler — never leaks stack traces (Golden Rule: no raw stack exposure). */
-export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction): void {
+export function errorHandler(err: any, req: Request, res: Response, _next: NextFunction): void {
   const error = err as Error;
   const requestId = req.requestId ?? "unknown";
 
