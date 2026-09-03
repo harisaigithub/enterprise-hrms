@@ -53,11 +53,15 @@ pushd "%ROOT%backend"
 if not exist "%ROOT%.hrms-seeded" (
   call npx prisma migrate deploy
   if errorlevel 1 goto :fail
+  call npx prisma generate
+  if errorlevel 1 goto :fail
   call npm run prisma:seed
   if errorlevel 1 goto :fail
   echo seeded > "%ROOT%.hrms-seeded"
 ) else (
   call npx prisma migrate deploy
+  if errorlevel 1 goto :fail
+  call npx prisma generate
   if errorlevel 1 goto :fail
   echo   Demo data already seeded - keeping existing data.
 )
