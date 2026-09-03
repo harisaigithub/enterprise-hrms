@@ -15,7 +15,11 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSearch } from "../../context/SearchContext";
 import { useAuth } from "../../context/AuthContext";
+<<<<<<< HEAD
 import { RAW_INBOX } from "../../mock/notifications";
+=======
+import { getInboxNotifications, markAllRead as markAllNotificationsRead, markAsRead } from "../../services/notificationService";
+>>>>>>> 6131c0564256db16d13c9827b08130599434aac1
 
 /* ─── Constants ──────────────────────────────────────── */
 const TYPE_COLOR = {
@@ -46,13 +50,25 @@ export default function Navbar({ onToggleSidebar, sidebarOpen }) {
   const menuRef  = useRef(null);
   const [openMenu, setOpenMenu] = useState(null); // "notif" | "user" | null
 
-  const [inbox, setInbox] = useState(() =>
-    [...RAW_INBOX].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-  );
+  const [inbox, setInbox] = useState([]);
 
   const unreadCount = inbox.filter((n) => !n.read).length;
 
-  const markAllRead = useCallback(() => {
+  const loadNotifications = useCallback(async () => {
+    try {
+      const result = await getInboxNotifications();
+      setInbox(result.data.slice(0, 5));
+    } catch {
+      setInbox([]);
+    }
+  }, []);
+
+  // The effect intentionally starts an authenticated external-system fetch.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void loadNotifications(); }, [loadNotifications]);
+
+  const markAllRead = useCallback(async () => {
+    await markAllNotificationsRead();
     setInbox((prev) => prev.map((n) => ({ ...n, read: true })));
   }, []);
 
@@ -89,7 +105,8 @@ export default function Navbar({ onToggleSidebar, sidebarOpen }) {
     navigate("/login", { replace: true });
   };
 
-  const handleNotificationClick = (n) => {
+  const handleNotificationClick = async (n) => {
+    if (!n.read) await markAsRead(n.id);
     setInbox((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
     setOpenMenu(null);
     if (n.link) navigate(n.link);
@@ -282,7 +299,7 @@ export default function Navbar({ onToggleSidebar, sidebarOpen }) {
                 <p style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Notifications</p>
                 {unreadCount > 0 && (
                   <button
-                    onClick={markAllRead}
+                    onClick={() => void markAllRead()}
                     style={{ display: "flex", alignItems: "center", gap: "5px", background: "none", border: "none", cursor: "pointer", color: "var(--primary)", fontSize: "12px", fontWeight: 600 }}
                   >
                     <CheckCheck size={14} /> Mark all read
@@ -298,7 +315,7 @@ export default function Navbar({ onToggleSidebar, sidebarOpen }) {
                 inbox.map((n) => (
                   <button
                     key={n.id}
-                    onClick={() => handleNotificationClick(n)}
+                    onClick={() => void handleNotificationClick(n)}
                     style={{
                       display: "flex", gap: "12px", width: "100%", padding: "12px 16px",
                       background: n.read ? "none" : "var(--primary-light)",

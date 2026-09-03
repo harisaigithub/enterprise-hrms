@@ -11,11 +11,11 @@ export default function LeaveBalanceWidget() {
     <DashboardWidgetCard icon={Wallet} title="Leave Balance" iconColor="#7c3aed" iconBg="#f5f3ff"
       loading={loading} error={error} onRetry={retry} onClick={() => navigate("/leave")}
       isEmpty={!loading && !error && (!data || data.length === 0)} emptyLabel="No leave types configured">
-      <div style={{ display: "flex", gap: "14px", flexWrap: "wrap" }}>
+      <div className="dashboard-mini-list">
         {data?.map((b) => (
-          <div key={b.leaveType}>
-            <p style={{ fontSize: "17px", fontWeight: 800, color: "var(--primary)", lineHeight: 1 }}>{b.available}</p>
-            <p style={{ fontSize: "10.5px", color: "var(--subtext)", marginTop: "2px" }}>{b.leaveType}</p>
+          <div key={b.leaveType} className="dashboard-mini-row">
+            <span>{b.leaveType}<div className="dashboard-track" style={{ marginTop: "4px" }}><span style={{ width: `${Math.min(100, Math.max(0, (Number(b.available) / Math.max(1, Number(b.total ?? b.available))) * 100))}%`, background: "linear-gradient(90deg,#7c3aed,#a78bfa)" }} /></div></span>
+            <strong>{b.available}<small> days</small></strong>
           </div>
         ))}
       </div>

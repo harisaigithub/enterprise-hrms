@@ -19,40 +19,24 @@ export default function DashboardWidgetCard({
   return (
     <div
       id={cardId}
+      className={`employee-dashboard-card${clickable ? " is-clickable" : ""}`}
       onClick={clickable ? onClick : undefined}
       style={{
-        background: "#fff",
-        borderRadius: "var(--radius-lg)",
-        border: "1px solid var(--border)",
-        boxShadow: "var(--shadow-sm)",
-        padding: "18px 20px",
         cursor: clickable ? "pointer" : "default",
-        transition: "box-shadow 0.2s ease, transform 0.2s ease",
-        position: "relative",
-        overflow: "hidden",
-        animation: "slideUp 0.3s ease",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.boxShadow = "var(--shadow-md)";
-        if (clickable) e.currentTarget.style.transform = "translateY(-2px)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.boxShadow = "var(--shadow-sm)";
-        e.currentTarget.style.transform = "translateY(0)";
       }}
     >
       {/* Colored left accent bar */}
       <div style={{
         position: "absolute",
         left: 0, top: 0, bottom: 0,
-        width: "3px",
+        width: "4px",
         background: accentColor,
         borderRadius: "var(--radius-lg) 0 0 var(--radius-lg)",
-        opacity: 0.7,
+        opacity: 0.9,
       }} />
 
       {/* Header row */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
+      <div className="employee-dashboard-card-header">
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           {/* Icon badge */}
           <div style={{
