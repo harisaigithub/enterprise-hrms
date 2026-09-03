@@ -17,11 +17,11 @@ import { useAuth } from "../../context/AuthContext";
 import {
   getMyTickets, getAgentQueue, getAllQueueNames, raiseTicket, resolveTicket, reopenTicket,
   addTicketComment, assignTicket, updateTicketStatus,
-} from "../../services/Helpdeskservice";
+} from "../../services/helpdeskService";
 import { TICKET_CATEGORIES, ticketStatusMeta } from "../../mock/helpdesk";
 
 const fmtDateTime = (d) => new Date(d).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
-const cleanText = (value) => typeof value === "string" ? value.replaceAll("�", "-") : value;
+const cleanText = (value) => typeof value === "string" ? value.replaceAll(" • ", "-") : value;
 
 function RaiseTicketModal({ isOpen, onClose, onRaised }) {
   const [form, setForm] = useState({ category: "", subject: "", description: "", priority: "Medium", attachmentFileName: "" });

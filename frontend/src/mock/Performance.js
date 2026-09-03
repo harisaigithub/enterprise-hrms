@@ -201,6 +201,10 @@ export function _addGoal(goal) {
 export function _getReviewCycle() {
   return reviewCycle;
 }
+export function _advanceReviewCyclePhase(phase) {
+  reviewCycle = { ...reviewCycle, phase };
+  return reviewCycle;
+}
 export function _getSelfAssessment() {
   return selfAssessment;
 }

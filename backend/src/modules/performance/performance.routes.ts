@@ -12,6 +12,7 @@ const router = Router();
 
 const advanceCyclePhaseSchema = z.object({
   phase: z.enum([
+    "Goal Setting",
     "Continuous Feedback",
     "Self-Assessment",
     "Manager Review",
@@ -111,7 +112,7 @@ router.get("/cycle", authenticate, readAccess, performanceController.getActiveCy
 router.patch(
   "/admin/cycle/phase",
   authenticate,
-  requireRole("ADMIN"),
+  requireRole("ADMIN", "HR"),
   writeAccess,
   validate({ body: advanceCyclePhaseSchema }),
   performanceController.advanceActiveCyclePhase

@@ -5,6 +5,7 @@
  */
 
 import api from "./api";
+import { _getReviewCycle, _advanceReviewCyclePhase } from "../mock/performance";
 
 export const getGoals = async (employeeId) => {
   const res = await api.get("/performance/goals", { params: { employeeId } });
@@ -41,8 +42,12 @@ export const rejectManagerGoal = async (id) => {
 
 
 export const getReviewCycle = async () => {
-  const res = await api.get("/performance/cycle");
-  return res.data;
+  try {
+    const res = await api.get("/performance/cycle");
+    return res.data;
+  } catch {
+    return { data: _getReviewCycle() };
+  }
 };
 
 export const getSelfAssessment = async (employeeId) => {
@@ -145,6 +150,11 @@ export const getAdminFeedback = async () => {
 };
 
 export const advanceReviewCyclePhase = async (phase) => {
-  const res = await api.patch("/performance/admin/cycle/phase", { phase });
-  return res.data;
+  try {
+    const res = await api.patch("/performance/admin/cycle/phase", { phase });
+    return res.data;
+  } catch {
+    const updated = _advanceReviewCyclePhase(phase);
+    return { data: updated };
+  }
 };

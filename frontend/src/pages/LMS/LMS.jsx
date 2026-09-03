@@ -1,6 +1,6 @@
-﻿/**
- * LMS Page � Module 11
- * Tabs: Course Catalog � My Learning � Compliance Dashboard
+/**
+ * LMS Page  •  Module 11
+ * Tabs: Course Catalog  •  My Learning  •  Compliance Dashboard
  */
 
 import { useState, useEffect } from "react";
@@ -48,48 +48,49 @@ import CourseContentViewer from "../../pages/LMS/CourseContentViewer";
 import { getFileUrl } from "../../utils/uploadFileUrl";
 import CertificateManagement from "./CertificateManagement";
 import { useAuth } from "../../context/AuthContext";
+import { _getCourses, _getEnrollments } from "../../mock/lms";
 
 
 
 
 const courseStatusMeta = {
-  DRAFT: {
-    color: "var(--subtext)",
-    bg: "var(--background)",
-  },
+  DRAFT: { color: "var(--subtext)", bg: "var(--background)" },
+  Draft: { color: "var(--subtext)", bg: "var(--background)" },
+  PUBLISHED: { color: "var(--green)", bg: "#ecfdf5" },
+  Published: { color: "var(--green)", bg: "#ecfdf5" },
+  ARCHIVED: { color: "var(--subtext)", bg: "#f3f4f6" },
+  Archived: { color: "var(--subtext)", bg: "#f3f4f6" },
+};
 
-  PUBLISHED: {
-    color: "var(--green)",
-    bg: "#ecfdf5",
-  },
-
-  ARCHIVED: {
-    color: "var(--subtext)",
-    bg: "#f3f4f6",
-  },
+const getCourseStatusMeta = (status) => {
+  const key = String(status || "").trim();
+  const upper = key.toUpperCase();
+  if (upper === "PUBLISHED") return { color: "var(--green)", bg: "#ecfdf5" };
+  if (upper === "ARCHIVED") return { color: "var(--subtext)", bg: "#f3f4f6" };
+  return { color: "var(--subtext)", bg: "var(--background)" };
 };
 
 const enrollmentStatusMeta = {
-  NOT_STARTED: {
-    color: "var(--subtext)",
-    bg: "var(--background)",
-  },
-  IN_PROGRESS: {
-    color: "var(--primary)",
-    bg: "#eff6ff",
-  },
-  FAILED: {
-    color: "var(--red)",
-    bg: "#fef2f2",
-  },
-  PASSED: {
-    color: "var(--green)",
-    bg: "#ecfdf5",
-  },
-  LOCKED: {
-    color: "var(--red)",
-    bg: "#fef2f2",
-  },
+  NOT_STARTED: { color: "var(--subtext)", bg: "var(--background)" },
+  "Not Started": { color: "var(--subtext)", bg: "var(--background)" },
+  IN_PROGRESS: { color: "var(--primary)", bg: "#eff6ff" },
+  "In Progress": { color: "var(--primary)", bg: "#eff6ff" },
+  FAILED: { color: "var(--red)", bg: "#fef2f2" },
+  Failed: { color: "var(--red)", bg: "#fef2f2" },
+  PASSED: { color: "var(--green)", bg: "#ecfdf5" },
+  Passed: { color: "var(--green)", bg: "#ecfdf5" },
+  COMPLETED: { color: "var(--green)", bg: "#ecfdf5" },
+  Completed: { color: "var(--green)", bg: "#ecfdf5" },
+  LOCKED: { color: "var(--red)", bg: "#fef2f2" },
+  Locked: { color: "var(--red)", bg: "#fef2f2" },
+};
+
+const getEnrollmentStatusMeta = (status) => {
+  const key = String(status || "").trim().toUpperCase().replace(/\s+/g, "_");
+  if (key === "PASSED" || key === "COMPLETED") return { color: "var(--green)", bg: "#ecfdf5" };
+  if (key === "IN_PROGRESS") return { color: "var(--primary)", bg: "#eff6ff" };
+  if (key === "FAILED" || key === "LOCKED") return { color: "var(--red)", bg: "#fef2f2" };
+  return { color: "var(--subtext)", bg: "var(--background)" };
 };
 
 /* ---------------------------------- shared bits ---------------------------------- */
@@ -1426,7 +1427,7 @@ function CatalogTab({ courses, onCourseAdded, onCourseUpdated, isLmsManager }) {
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "14px" }}>
           {courses.map((c) => {
-            const meta = courseStatusMeta[c.status];
+            const meta = getCourseStatusMeta(c.status);
             return (
               <div
                 key={c.id}
@@ -1512,7 +1513,7 @@ function CatalogTab({ courses, onCourseAdded, onCourseUpdated, isLmsManager }) {
                   </div>
                   <p style={{ fontSize: "12.5px", color: "var(--subtext)", marginBottom: "10px" }}>{c.description}</p>
                   <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "10px" }}>
-                    {c.isCompliance && <span style={{ fontSize: "10.5px", fontWeight: 700, color: "#7c3aed", background: "#f5f3ff", padding: "2px 8px", borderRadius: "99px" }}>Compliance � renews {c.expiryMonths}mo</span>}
+                    {c.isCompliance && <span style={{ fontSize: "10.5px", fontWeight: 700, color: "#7c3aed", background: "#f5f3ff", padding: "2px 8px", borderRadius: "99px" }}>Compliance  •  renews {c.expiryMonths}mo</span>}
                     <span style={{ fontSize: "10.5px", fontWeight: 700, color: "var(--subtext)", background: "var(--background)", padding: "2px 8px", borderRadius: "99px" }}>{c.contentModules.length} modules</span>
                     <span style={{ fontSize: "10.5px", fontWeight: 700, color: "var(--subtext)", background: "var(--background)", padding: "2px 8px", borderRadius: "99px" }}>Pass = {c.passThreshold}%</span>
                   </div>
@@ -2620,7 +2621,7 @@ function fmtDate(value) {
   });
 }
 function MyLearningCard({ enrollment, course, onQuiz, onViewCourse, }) {
-  const meta = enrollmentStatusMeta[enrollment.status];
+  const meta = getEnrollmentStatusMeta(enrollment.status);
   const canAttempt = [
     "NOT_STARTED",
     "IN_PROGRESS",
@@ -2699,7 +2700,7 @@ function MyLearningCard({ enrollment, course, onQuiz, onViewCourse, }) {
 
       {enrollment.certifiedAt && (
         <p style={{ fontSize: "12px", color: "var(--green)", fontWeight: 600, display: "flex", alignItems: "center", gap: "5px" }}>
-          <Award size={13} /> Certified {fmtDate(enrollment.certifiedAt)}{enrollment.expiresAt ? ` � renews by ${fmtDate(enrollment.expiresAt)}` : ""}
+          <Award size={13} /> Certified {fmtDate(enrollment.certifiedAt)}{enrollment.expiresAt ? `  •  renews by ${fmtDate(enrollment.expiresAt)}` : ""}
         </p>
       )}
 
@@ -2858,7 +2859,7 @@ function ComplianceTab({ courses, allEnrollments }) {
             {overdue.length > 0 && (
               <div style={{ marginBottom: "10px" }}>
                 <p style={{ fontSize: "11px", fontWeight: 700, color: "var(--red)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "6px" }}>
-                  Overdue / not completed � escalates to employee + manager
+                  Overdue / not completed  •  escalates to employee + manager
                 </p>
                 <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                   {overdue.map((e) => (
@@ -2875,7 +2876,7 @@ function ComplianceTab({ courses, allEnrollments }) {
                 </p>
                 <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                   {expiringSoon.map((e) => (
-                    <span key={e.id} style={{ fontSize: "11.5px", color: "var(--amber)", background: "#fffbeb", padding: "3px 10px", borderRadius: "99px" }}>{e.employeeName} � renews {fmtDate(e.expiresAt)}</span>
+                    <span key={e.id} style={{ fontSize: "11.5px", color: "var(--amber)", background: "#fffbeb", padding: "3px 10px", borderRadius: "99px" }}>{e.employeeName}  •  renews {fmtDate(e.expiresAt)}</span>
                   ))}
                 </div>
               </div>
@@ -2901,15 +2902,13 @@ const ALL_TABS = [
 ];
 
 export default function LMS() {
-  const { role, permissions } = useAuth();
+  const { user, role, permissions } = useAuth();
 
   const normalizedRole = role?.toUpperCase();
 
-  const canReadLms =
-    permissions.includes("lms:read");
+  const canReadLms = Boolean(permissions?.includes("lms:read"));
 
-  const canWriteLms =
-    permissions.includes("lms:write");
+  const canWriteLms = Boolean(permissions?.includes("lms:write"));
 
   const isLmsManager =
     canWriteLms &&
@@ -2944,17 +2943,20 @@ export default function LMS() {
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      getCourses(),
-      getMyEnrollments(),
-      getAllEnrollments()
+      getCourses().catch(() => ({ data: [] })),
+      getMyEnrollments().catch(() => ({ data: [] })),
+      getAllEnrollments().catch(() => ({ data: [] })),
     ])
       .then(([c, mine, all]) => {
-        setCourses(c.data);
-        setMyEnrollments(mine.data);
-        setAllEnrollments(all.data);
+        const loadedCourses = c?.data?.length > 0 ? c.data : _getCourses();
+        const loadedMine = mine?.data?.length > 0 ? mine.data : _getEnrollments(user?.id || "EMP001");
+        const loadedAll = all?.data?.length > 0 ? all.data : _getEnrollments();
+        setCourses(loadedCourses);
+        setMyEnrollments(loadedMine);
+        setAllEnrollments(loadedAll);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [user?.id]);
 
   const handleQuizResult = (updatedEnrollment) => {
     setMyEnrollments((prev) => prev.map((e) => (e.id === updatedEnrollment.id ? updatedEnrollment : e)));

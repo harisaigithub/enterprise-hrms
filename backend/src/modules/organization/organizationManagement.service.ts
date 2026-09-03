@@ -706,7 +706,7 @@ export class OrganizationManagementService {
 
         let changedCount = 0;
 
-        await prisma.$transaction(async (tx) => {
+        await prisma.$transaction(async (tx: any) => {
             for (const employeeId of employeeIds) {
                 const employee = await tx.employee.findUnique({
                     where: {

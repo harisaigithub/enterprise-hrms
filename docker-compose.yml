@@ -1,50 +1,6 @@
-# version: "3.9"
-
-# services:
-#   db:
-#     image: postgres:16-alpine
-#     container_name: hrms-postgres
-#     restart: unless-stopped
-#     environment:
-#       POSTGRES_USER: hrms_admin
-#       POSTGRES_PASSWORD: hrms_password
-#       POSTGRES_DB: hrms_db
-#     ports:
-#       - "5433:5432"
-#     volumes:
-#       - hrms_pgdata:/var/lib/postgresql/data
-#     healthcheck:
-#       test: ["CMD-SHELL", "pg_isready -U hrms_admin -d hrms_db"]
-#       interval: 5s
-#       timeout: 5s
-#       retries: 10
-
-#   api:
-#     build:
-#       context: ./backend
-#       dockerfile: Dockerfile
-#     container_name: hrms-api
-#     restart: unless-stopped
-#     env_file:
-#       - ./backend/.env
-#     environment:
-#       DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
-#     ports:
-#       - "4000:4000"
-#     depends_on:
-#       db:
-#         condition: service_healthy
-#     command: sh -c "npx prisma migrate deploy && npm run prisma:seed && node dist/index.js"
-
-# volumes:
-#   hrms_pgdata:
-
-
-
-version: "3.9"
-
 services:
 
+  # PostgreSQL
   db:
     image: postgres:16-alpine
     container_name: hrms-postgres
@@ -63,6 +19,7 @@ services:
       timeout: 5s
       retries: 10
 
+  # Backend API
   api:
     build:
       context: ./backend
@@ -73,13 +30,39 @@ services:
       - ./backend/.env
     environment:
       DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
+      NODE_ENV: production
     ports:
       - "4000:4000"
     depends_on:
       db:
         condition: service_healthy
-    command: sh -c "npx prisma migrate deploy && npm run prisma:seed && node dist/index.js"
+    command: >
+      sh -c "npx prisma migrate deploy &&
+             npm run prisma:seed &&
+             node dist/index.js"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 40s
 
+  # Frontend (Vite build -> Nginx on port 3000)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:4000/api
+    container_name: hrms-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # MinIO (S3-compatible object storage)
   minio:
     image: minio/minio:latest
     container_name: hrms-minio

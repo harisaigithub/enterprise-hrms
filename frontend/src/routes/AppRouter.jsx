@@ -1,4 +1,4 @@
-﻿/**
+/**
  * AppRouter — All 23 HRMS module routes with React Router v7.
  * All module pages are lazily loaded for performance.
  * The layout route (MainLayout) wraps all authenticated pages.
@@ -7,6 +7,7 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Spinner from "../components/shared/Spinner";
+import ErrorBoundary from "../components/shared/ErrorBoundary";
 import RequireAuth from "../components/auth/RequireAuth";
 import DashboardRouter from "./DashboardRouter";
 
@@ -54,8 +55,9 @@ function Loading() {
 export default function AppRouter() {
   return (
     <BrowserRouter>
-      <Suspense fallback={<Loading />}>
-        <Routes>
+      <ErrorBoundary>
+        <Suspense fallback={<Loading />}>
+          <Routes>
           {/* Public */}
           <Route path="/login" element={<Login />} />
           <Route path="/careers" element={<CandidatePortal />} />
@@ -79,34 +81,35 @@ export default function AppRouter() {
           <Route path="/performance" element={<RequireAuth><Performance /></RequireAuth>} />
 
           {/* Talent */}
-          <Route path="/recruitment"         element={<RequireAuth permission="recruitment:read"><Recruitment /></RequireAuth>} />
-          <Route path="/onboarding"          element={<RequireAuth><Onboarding /></RequireAuth>} />
-          <Route path="/lms"                 element={<RequireAuth><LMS /></RequireAuth>} />
+          <Route path="/recruitment" element={<RequireAuth permission="recruitment:read"><Recruitment /></RequireAuth>} />
+          <Route path="/onboarding"  element={<RequireAuth permission="onboarding:read"><Onboarding /></RequireAuth>} />
+          <Route path="/lms"         element={<RequireAuth permission="lms:read"><LMS /></RequireAuth>} />
 
           {/* Operations */}
-          <Route path="/assets" element={<RequireAuth><Assets /></RequireAuth>} />
-          <Route path="/tasks" element={<RequireAuth><Tasks /></RequireAuth>} />
-          <Route path="/expenses" element={<RequireAuth><Expenses /></RequireAuth>} />
-          <Route path="/travel" element={<RequireAuth><Travel /></RequireAuth>} />
+          <Route path="/assets"   element={<RequireAuth permission="assets:read"><Assets /></RequireAuth>} />
+          <Route path="/tasks"    element={<RequireAuth permission="tasks:read"><Tasks /></RequireAuth>} />
+          <Route path="/expenses" element={<RequireAuth permission="expenses:read"><Expenses /></RequireAuth>} />
+          <Route path="/travel"   element={<RequireAuth permission="travel:read"><Travel /></RequireAuth>} />
 
           {/* Employee */}
-          <Route path="/ess" element={<RequireAuth><ESS /></RequireAuth>} />
-          <Route path="/helpdesk" element={<RequireAuth><Helpdesk /></RequireAuth>} />
-          <Route path="/policies" element={<RequireAuth><Policies /></RequireAuth>} />
+          <Route path="/ess"      element={<RequireAuth permission="ess:read"><ESS /></RequireAuth>} />
+          <Route path="/helpdesk" element={<RequireAuth permission="helpdesk:read"><Helpdesk /></RequireAuth>} />
+          <Route path="/policies" element={<RequireAuth permission="policies:read"><Policies /></RequireAuth>} />
 
-          {/* Admin */}
-          <Route path="/separation" element={<RequireAuth><Separation /></RequireAuth>} />
-          <Route path="/org-management" element={<RequireAuth><OrgManagement /></RequireAuth>} />
-          <Route path="/workflows" element={<RequireAuth><WorkflowEngine /></RequireAuth>} />
-          <Route path="/reports" element={<RequireAuth><Reports /></RequireAuth>} />
-          <Route path="/notifications" element={<RequireAuth><Notifications /></RequireAuth>} />
-          <Route path="/compliance" element={<RequireAuth><Compliance /></RequireAuth>} />
-          <Route path="/security" element={<RequireAuth><SecurityAdmin /></RequireAuth>} />
+          {/* Admin / Governance */}
+          <Route path="/separation"     element={<RequireAuth permission="separation:read"><Separation /></RequireAuth>} />
+          <Route path="/org-management" element={<RequireAuth permission="orgmanagement:read"><OrgManagement /></RequireAuth>} />
+          <Route path="/workflows"      element={<RequireAuth permission="workflows:read"><WorkflowEngine /></RequireAuth>} />
+          <Route path="/reports"        element={<RequireAuth permission="reports:read"><Reports /></RequireAuth>} />
+          <Route path="/notifications"  element={<RequireAuth permission="notifications:read"><Notifications /></RequireAuth>} />
+          <Route path="/compliance"     element={<RequireAuth permission="compliance:read"><Compliance /></RequireAuth>} />
+          <Route path="/security"       element={<RequireAuth permission="security:read"><SecurityAdmin /></RequireAuth>} />
 
           {/* Fallback — redirect unknown routes to dashboard */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
-    </BrowserRouter>
-  );
+    </ErrorBoundary>
+  </BrowserRouter>
+);
 }

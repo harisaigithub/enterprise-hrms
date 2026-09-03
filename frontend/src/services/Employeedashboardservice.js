@@ -7,7 +7,7 @@
 import {
   attendanceToday, leaveBalanceSummary, payslipStatus, upcomingHolidays,
   activeAnnouncements, upcomingBirthdays, selfAssessment, complianceCourses,
-} from "../mock/EmployeeDashboard";
+} from "../mock/employeeDashboard";
 
 function delay(value, ms = 400) {
   return new Promise((resolve) => setTimeout(() => resolve({ data: value }), ms));
