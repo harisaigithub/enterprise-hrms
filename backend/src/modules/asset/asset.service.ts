@@ -401,7 +401,7 @@ export async function fulfillRequest(
     --------------------------------------------- */
 
     const result = await prisma.$transaction(
-        async (tx) => {
+        async (tx: any) => {
             const updatedAsset =
                 await tx.asset.update({
                     where: {
@@ -615,7 +615,7 @@ export async function returnAsset(
             ? AssetReturnCondition.DAMAGED
             : AssetReturnCondition.GOOD;
 
-    return prisma.$transaction(async (tx) => {
+    return prisma.$transaction(async (tx: any) => {
         const updated =
             await tx.asset.update({
                 where: {

@@ -15,8 +15,9 @@ import axios from "axios";
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "/api",
-  timeout: 15000,
-  // headers: { "Content-Type": "application/json" },
+  // 30 s: generous enough for cold-start Docker containers and heavy DB queries.
+  // If the backend is genuinely down, users see a friendly message rather than a hang.
+  timeout: 30000,
 });
 
 // ── Request interceptor ─────────────────────────────────────────────────────
@@ -71,13 +72,20 @@ api.interceptors.response.use(
       }
     }
 
-    // Do NOT expose raw stack traces — re-throw a clean object
+    // Do NOT expose raw stack traces — re-throw a clean, user-friendly object.
+    const isTimeout = error.code === "ECONNABORTED" || error.message?.includes("timeout");
+    const isNetwork = error.code === "ERR_NETWORK" || error.message === "Network Error";
+
     return Promise.reject({
       status: error.response?.status || 0,
       message:
         error.response?.data?.message ||
+        (isTimeout ? "Request timed out — the server is taking too long. Please try again." : null) ||
+        (isNetwork ? "Cannot reach the server. Check your connection or try again shortly." : null) ||
         error.message ||
         "An unexpected error occurred. Please try again.",
+      isTimeout,
+      isNetwork,
     });
   }
 );

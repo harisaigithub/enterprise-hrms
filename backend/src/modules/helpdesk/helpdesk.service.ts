@@ -187,7 +187,7 @@ export async function reopenTicket(id: string, reason: string, actor?: AccessTok
   if (ticket.requesterId !== requesterId) throw AppError.forbidden("Only the requester can reopen this ticket");
   if (ticket.status !== "Resolved" || !ticket.resolvedAt) throw AppError.conflict("Only resolved tickets can be reopened");
   if (Date.now() > ticket.resolvedAt.getTime() + REOPEN_WINDOW_MS) throw AppError.conflict("The 3-day reopen window has expired");
-  const updated = await prisma.$transaction(async (tx) => {
+  const updated = await prisma.$transaction(async (tx: any) => {
     await tx.helpdeskComment.create({ data: { ticketId: id, authorId: requesterId, message: reason.trim() } });
     // Keep the previous resolution details as history. A later resolution will
     // replace them with the newest resolution while the reopen reason remains

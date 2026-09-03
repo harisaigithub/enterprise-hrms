@@ -1,25 +1,28 @@
-﻿/**
- * Notifications Page � Module 23
- * Tabs: Inbox (in-app bell/history + preferences), History (full dispatch
- * log), Admin: Templates (author + linting), Admin: Channels (integrations
- * + outage simulation).
+/**
+ * Notifications Page — Module 23
+ * Tabs:
+ *   - Inbox (in-app bell/history + preferences)
+ *   - History (full dispatch log)
+ *   - Admin: Templates (author + linting) [Admin / HR only]
+ *   - Admin: Channels (integrations + outage simulation) [Admin / HR only]
  */
 
 import { useState, useEffect } from "react";
-import { Bell, CheckCheck, Send, AlertTriangle, ShieldAlert, Wifi, WifiOff, Plus, Lock } from "lucide-react";
+import { Bell, CheckCheck, Send, AlertTriangle, ShieldAlert, Wifi, WifiOff, Plus, Lock, UserCheck } from "lucide-react";
 import MainLayout from "../../components/layout/MainLayout";
 import PageHeader from "../../components/shared/PageHeader";
 import StatusBadge from "../../components/shared/StatusBadge";
 import Spinner from "../../components/shared/Spinner";
 import EmptyState from "../../components/shared/EmptyState";
 import Modal from "../../components/shared/Modal";
+import { useAuth } from "../../context/AuthContext";
 import {
   getInboxNotifications, markAsRead, markAllRead, getNotificationHistory,
   getUserPreferences, updateUserPreference,
   getTemplates, getMergeFieldCatalog, lintTemplateBody, saveTemplate,
   getChannelIntegrations, simulateChannelOutage, dispatchNotification,
 } from "../../services/notificationService";
-import { CHANNELS, NOTIFICATION_CATEGORIES, SECURITY_CRITICAL_CATEGORIES, CURRENT_USER } from "../../mock/notifications";
+import { CHANNELS, NOTIFICATION_CATEGORIES, SECURITY_CRITICAL_CATEGORIES } from "../../mock/notifications";
 
 const classificationColor = { L1: "#64748b", L2: "#0284c7", L3: "#d97706", L4: "#dc2626" };
 const fmtDateTime = (d) => new Date(d).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -27,25 +30,27 @@ const fmtDateTime = (d) => new Date(d).toLocaleString("en-IN", { day: "2-digit",
 const statusMeta = {
   Delivered: { color: "#16a34a", bg: "#f0fdf4" },
   Retrying: { color: "#d97706", bg: "#fffbeb" },
-  "Failed � see in-app": { color: "#dc2626", bg: "#fef2f2" },
+  "Failed — see in-app": { color: "#dc2626", bg: "#fef2f2" },
   Failed: { color: "#dc2626", bg: "#fef2f2" },
   Active: { color: "#16a34a", bg: "#f0fdf4" },
-  "Blocked � failed linting": { color: "#dc2626", bg: "#fef2f2" },
+  "Blocked — failed linting": { color: "#dc2626", bg: "#fef2f2" },
   Connected: { color: "#16a34a", bg: "#f0fdf4" },
   Down: { color: "#dc2626", bg: "#fef2f2" },
   "Not Configured": { color: "#64748b", bg: "#f8fafc" },
 };
 
-function InboxTab() {
+function InboxTab({ user }) {
   const [items, setItems] = useState([]);
   const [prefs, setPrefs] = useState({});
   const [loading, setLoading] = useState(true);
 
-  const load = () => Promise.all([getInboxNotifications(CURRENT_USER.id), getUserPreferences()])
+  const userId = user?.id || "EMP001";
+
+  const load = () => Promise.all([getInboxNotifications(userId), getUserPreferences()])
     .then(([iRes, pRes]) => { setItems(iRes.data); setPrefs(pRes.data); })
     .finally(() => setLoading(false));
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [userId]);
 
   const togglePref = async (category, channel) => {
     const current = prefs[category] || [];
@@ -61,7 +66,7 @@ function InboxTab() {
       <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
           <p style={{ fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Inbox</p>
-          <button onClick={async () => { await markAllRead(CURRENT_USER.id); load(); }}
+          <button onClick={async () => { await markAllRead(userId); load(); }}
             style={{ display: "flex", alignItems: "center", gap: "5px", background: "none", border: "none", color: "var(--primary)", fontWeight: 600, fontSize: "12px", cursor: "pointer" }}>
             <CheckCheck size={13} /> Mark all read
           </button>
@@ -94,23 +99,22 @@ function InboxTab() {
               <div key={cat}>
                 <p style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--text)", marginBottom: "5px", display: "flex", alignItems: "center", gap: "5px" }}>
                   {cat}
-                  {isSecurity && <ShieldAlert size={12} style={{ color: "var(--red)" }} title="Security-critical � always includes Email" />}
+                  {isSecurity && <ShieldAlert size={12} style={{ color: "var(--red)" }} title="Security-critical — always includes Email" />}
                 </p>
                 <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                   {CHANNELS.filter((c) => c !== "In-app").map((c) => {
-                    const active = (prefs[cat] || []).includes(c);
-                    const forcedByEmail = isSecurity && c === "Email";
+                    const active = (prefs[cat] || []).includes(c) || (isSecurity && c === "Email");
+                    const disabled = isSecurity && c === "Email";
                     return (
-                      <button key={c} onClick={() => !forcedByEmail && togglePref(cat, c)} disabled={forcedByEmail}
-                        title={forcedByEmail ? "Security-critical � cannot be turned off" : ""}
+                      <button key={c} disabled={disabled} onClick={() => togglePref(cat, c)}
                         style={{
                           padding: "3px 9px", borderRadius: "99px", fontSize: "11px", fontWeight: 600,
-                          border: active || forcedByEmail ? "1px solid var(--primary)" : "1px solid var(--border)",
-                          background: active || forcedByEmail ? "var(--primary)" : "var(--card)",
-                          color: active || forcedByEmail ? "#fff" : "var(--subtext)",
-                          cursor: forcedByEmail ? "not-allowed" : "pointer", opacity: forcedByEmail ? 0.85 : 1,
+                          border: active ? "1px solid var(--primary)" : "1px solid var(--border)",
+                          background: active ? "var(--primary-light)" : "var(--background)",
+                          color: active ? "var(--primary)" : "var(--subtext)",
+                          cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.7 : 1,
                         }}>
-                        {c}{forcedByEmail && " ??"}
+                        {c}
                       </button>
                     );
                   })}
@@ -119,17 +123,17 @@ function InboxTab() {
             );
           })}
         </div>
-        <p style={{ fontSize: "10.5px", color: "var(--subtext)", marginTop: "12px" }}>In-app is always delivered regardless of preference � it's the guaranteed fallback if every other channel fails.</p>
       </div>
     </div>
   );
 }
 
-function HistoryTab() {
+function HistoryTab({ user }) {
   const [log, setLog] = useState([]);
   const [loading, setLoading] = useState(true);
+  const userId = user?.id || "EMP001";
 
-  useEffect(() => { getNotificationHistory(CURRENT_USER.id).then((res) => { setLog(res.data); setLoading(false); }); }, []);
+  useEffect(() => { getNotificationHistory(userId).then((res) => { setLog(res.data); setLoading(false); }); }, [userId]);
 
   if (loading) return <Spinner />;
   if (log.length === 0) return <EmptyState title="No notification history yet" subtitle="Dispatch attempts will show up here." />;
@@ -146,15 +150,20 @@ function HistoryTab() {
             </tr>
           </thead>
           <tbody>
-            {log.map((l, i) => {
-              const meta = statusMeta[l.status] || statusMeta.Delivered;
+            {log.map((entry) => {
+              const meta = statusMeta[entry.status] || { color: "var(--text)", bg: "var(--background)" };
               return (
-                <tr key={l.id} style={{ borderBottom: i < log.length - 1 ? "1px solid var(--border)" : "none" }}>
-                  <td style={{ padding: "13px 16px", fontSize: "13px", color: "var(--text)" }}>{l.category}</td>
-                  <td style={{ padding: "13px 16px", fontSize: "13px", color: "var(--subtext)" }}>{l.channel}</td>
-                  <td style={{ padding: "13px 16px", fontSize: "12.5px", color: "var(--subtext)" }}>{l.attempt}</td>
-                  <td style={{ padding: "13px 16px" }}><StatusBadge label={l.status} color={meta.color} bg={meta.bg} /></td>
-                  <td style={{ padding: "13px 16px", fontSize: "12px", color: "var(--subtext)", whiteSpace: "nowrap" }}>{fmtDateTime(l.timestamp)}</td>
+                <tr key={entry.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                  <td style={{ padding: "12px 16px", fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>{entry.category}</td>
+                  <td style={{ padding: "12px 16px", fontSize: "13px", color: "var(--label)" }}>{entry.channel}</td>
+                  <td style={{ padding: "12px 16px", fontSize: "12px", color: "var(--subtext)" }}>
+                    {entry.attempt}/{entry.maxAttempts}
+                    {entry.lastError && <span title={entry.lastError} style={{ color: "var(--red)", marginLeft: "5px", cursor: "help" }}>⚠</span>}
+                  </td>
+                  <td style={{ padding: "12px 16px" }}>
+                    <StatusBadge label={entry.status} color={meta.color} bg={meta.bg} />
+                  </td>
+                  <td style={{ padding: "12px 16px", fontSize: "12px", color: "var(--subtext)" }}>{fmtDateTime(entry.timestamp)}</td>
                 </tr>
               );
             })}
@@ -165,96 +174,139 @@ function HistoryTab() {
   );
 }
 
-function NewTemplateModal({ isOpen, onClose, onSaved }) {
-  const [form, setForm] = useState({ name: "", category: NOTIFICATION_CATEGORIES[0], body: "" });
-  const [catalog, setCatalog] = useState([]);
+function TemplateModal({ isOpen, onClose, onSaved }) {
+  const [catalog, setCatalog] = useState({});
+  const [formData, setFormData] = useState({
+    name: "", category: "Leave", channel: "Email",
+    subject: "", body: "", classification: "L2",
+  });
+  const [lintErrors, setLintErrors] = useState([]);
   const [saving, setSaving] = useState(false);
-  const [apiError, setApiError] = useState("");
 
-  useEffect(() => { getMergeFieldCatalog().then((res) => setCatalog(res.data)); }, []);
-
-  const lint = lintTemplateBody(form.body);
-
-  const submit = async () => {
-    if (!form.name.trim() || !form.body.trim()) return;
-    setSaving(true);
-    setApiError("");
-    try {
-      await saveTemplate({ ...form, createdBy: "Priya Iyer (HR)" });
-      onSaved();
-      onClose();
-      setForm({ name: "", category: NOTIFICATION_CATEGORIES[0], body: "" });
-    } catch (err) {
-      setApiError(err.message);
-    } finally {
-      setSaving(false);
+  useEffect(() => {
+    if (isOpen) {
+      getMergeFieldCatalog().then((res) => setCatalog(res.data));
+      setFormData({ name: "", category: "Leave", channel: "Email", subject: "", body: "", classification: "L2" });
+      setLintErrors([]);
     }
+  }, [isOpen]);
+
+  const handleBodyChange = async (val) => {
+    setFormData((f) => ({ ...f, body: val }));
+    const lint = await lintTemplateBody(val, formData.classification);
+    setLintErrors(lint.errors || []);
   };
 
+  const handleClassificationChange = async (val) => {
+    setFormData((f) => ({ ...f, classification: val }));
+    const lint = await lintTemplateBody(formData.body, val);
+    setLintErrors(lint.errors || []);
+  };
+
+  const insertMerge = (field) => {
+    const next = formData.body + ` {{${field}}}`;
+    handleBodyChange(next);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    const lint = await lintTemplateBody(formData.body, formData.classification);
+    if (!lint.valid) {
+      setLintErrors(lint.errors);
+      setSaving(false);
+      return;
+    }
+    const res = await saveTemplate(formData);
+    setSaving(false);
+    onSaved(res.data);
+    onClose();
+  };
+
+  const allowedFields = catalog[formData.classification] || [];
+
   return (
-    <Modal isOpen={isOpen} title="New Template" onClose={onClose}>
+    <Modal isOpen={isOpen} onClose={onClose} title="New Notification Template">
       <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-          <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Name *</label>
-          <input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-            style={{ height: "38px", padding: "0 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontSize: "13.5px" }} />
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-          <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Category</label>
-          <select value={form.category} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}
-            style={{ height: "38px", padding: "0 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontSize: "13.5px" }}>
-            {NOTIFICATION_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-          <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Body * � use {"{{fieldId}}"} for merge fields</label>
-          <textarea value={form.body} onChange={(e) => setForm((p) => ({ ...p, body: e.target.value }))} rows={4}
-            style={{ width: "100%", padding: "10px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontSize: "13.5px", fontFamily: "inherit", resize: "vertical" }} />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+          <div>
+            <label style={{ fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase" }}>Template Name</label>
+            <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="e.g. Leave Approval" style={{ width: "100%", height: "36px", marginTop: "4px", padding: "0 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "var(--card)", color: "var(--text)" }} />
+          </div>
+          <div>
+            <label style={{ fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase" }}>Category</label>
+            <select value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+              style={{ width: "100%", height: "36px", marginTop: "4px", padding: "0 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "var(--card)", color: "var(--text)" }}>
+              {NOTIFICATION_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
         </div>
 
-        {lint.fields.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            <p style={{ fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Merge Fields Detected</p>
-            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-              {lint.fields.map((f) => {
-                const def = catalog.find((c) => c.id === f);
-                const bad = !def || def.classification === "L3" || def.classification === "L4";
-                return (
-                  <span key={f} style={{ fontSize: "11px", fontWeight: 600, padding: "3px 9px", borderRadius: "99px", background: bad ? "#fef2f2" : "#f0fdf4", color: bad ? "var(--red)" : "var(--green)", display: "flex", alignItems: "center", gap: "4px" }}>
-                    {bad && <Lock size={10} />} {f} {def && <span style={{ opacity: 0.7 }}>({def.classification})</span>}
-                  </span>
-                );
-              })}
-            </div>
-            {!lint.passed && (
-              <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "var(--radius-sm)", padding: "10px 12px", display: "flex", gap: "7px", alignItems: "flex-start" }}>
-                <AlertTriangle size={13} style={{ color: "var(--red)", flexShrink: 0, marginTop: "1px" }} />
-                <div>
-                  {lint.violations.map((v) => (
-                    <p key={v.field} style={{ fontSize: "12px", color: "#991b1b" }}>{`{{${v.field}}}`} � {v.reason}</p>
-                  ))}
-                </div>
-              </div>
-            )}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+          <div>
+            <label style={{ fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase" }}>Channel</label>
+            <select value={formData.channel} onChange={(e) => setFormData({ ...formData, channel: e.target.value })}
+              style={{ width: "100%", height: "36px", marginTop: "4px", padding: "0 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "var(--card)", color: "var(--text)" }}>
+              {CHANNELS.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase" }}>Data Classification</label>
+            <select value={formData.classification} onChange={(e) => handleClassificationChange(e.target.value)}
+              style={{ width: "100%", height: "36px", marginTop: "4px", padding: "0 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "var(--card)", color: "var(--text)" }}>
+              <option value="L1">L1 — Public</option>
+              <option value="L2">L2 — Internal</option>
+              <option value="L3">L3 — Confidential (PII)</option>
+              <option value="L4">L4 — Restricted (Financial)</option>
+            </select>
+          </div>
+        </div>
+
+        {formData.channel === "Email" && (
+          <div>
+            <label style={{ fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase" }}>Subject Line</label>
+            <input type="text" value={formData.subject} onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+              placeholder="e.g. Action Required: Leave Request Submitted" style={{ width: "100%", height: "36px", marginTop: "4px", padding: "0 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "var(--card)", color: "var(--text)" }} />
           </div>
         )}
 
-        {apiError && <p style={{ fontSize: "12px", color: "var(--red)" }}>{apiError}</p>}
+        <div>
+          <label style={{ fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase" }}>Body</label>
+          <textarea value={formData.body} onChange={(e) => handleBodyChange(e.target.value)} rows={4}
+            placeholder="Type message text and insert merge tags..."
+            style={{ width: "100%", marginTop: "4px", padding: "10px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "var(--card)", color: "var(--text)", fontSize: "13px", resize: "vertical" }} />
+        </div>
 
-        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-          <button onClick={onClose} style={{ padding: "9px 20px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "none", color: "var(--label)", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>Cancel</button>
-          <button
-            id="save-template-btn"
-            onClick={submit}
-            disabled={saving || !lint.passed || !form.name.trim() || !form.body.trim()}
-            style={{
-              padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)",
-              background: lint.passed ? "var(--primary)" : "var(--border)",
-              color: lint.passed ? "#fff" : "var(--subtext)",
-              fontWeight: 600, fontSize: "13px",
-              cursor: saving || !lint.passed ? "not-allowed" : "pointer",
-            }}>
-            {saving ? "Saving�" : "Save Template"}
+        <div>
+          <p style={{ fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", marginBottom: "6px" }}>
+            Available Merge Fields ({formData.classification})
+          </p>
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+            {allowedFields.map((f) => (
+              <button key={f} type="button" onClick={() => insertMerge(f)}
+                style={{ padding: "3px 8px", background: "var(--primary-light)", border: "1px solid var(--border-focus)", borderRadius: "var(--radius-sm)", color: "var(--primary)", fontSize: "11px", fontWeight: 600, cursor: "pointer" }}>
+                +{f}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {lintErrors.length > 0 && (
+          <div style={{ background: "var(--red-light)", border: "1px solid rgba(220,38,38,0.3)", borderRadius: "var(--radius-sm)", padding: "10px 12px" }}>
+            <p style={{ fontSize: "12px", fontWeight: 700, color: "var(--red)", display: "flex", alignItems: "center", gap: "5px", marginBottom: "4px" }}>
+              <AlertTriangle size={13} /> Lint Errors (Saving Blocked)
+            </p>
+            {lintErrors.map((err, i) => (
+              <p key={i} style={{ fontSize: "11.5px", color: "var(--red)", marginLeft: "18px" }}>• {err}</p>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "6px" }}>
+          <button onClick={onClose} style={{ padding: "8px 14px", background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontSize: "13px", cursor: "pointer" }}>Cancel</button>
+          <button onClick={handleSave} disabled={saving || lintErrors.length > 0 || !formData.name || !formData.body}
+            style={{ padding: "8px 16px", background: lintErrors.length > 0 ? "var(--subtext)" : "var(--primary)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", fontSize: "13px", fontWeight: 700, cursor: lintErrors.length > 0 ? "not-allowed" : "pointer" }}>
+            {saving ? "Saving..." : "Save Template"}
           </button>
         </div>
       </div>
@@ -262,7 +314,7 @@ function NewTemplateModal({ isOpen, onClose, onSaved }) {
   );
 }
 
-function TemplatesTab({ onDispatchResult }) {
+function TemplatesTab({ user, onDispatchResult }) {
   const [templates, setTemplates] = useState([]);
   const [showNew, setShowNew] = useState(false);
   const [sendingId, setSendingId] = useState(null);
@@ -272,8 +324,9 @@ function TemplatesTab({ onDispatchResult }) {
 
   const sendTest = async (t) => {
     setSendingId(t.id);
+    const userName = `${user?.firstName || 'Current'} ${user?.lastName || 'User'}`;
     const result = await dispatchNotification(t.id, {
-      employeeName: CURRENT_USER.name, leaveType: "Casual Leave", leaveDates: "12�13 Aug",
+      employeeName: userName, leaveType: "Casual Leave", leaveDates: "12–13 Aug",
       ticketId: "TCK-0001", policyTitle: "Code of Conduct", payslipMonth: "July 2026",
       payslipLink: "[view payslip]", courseName: "POSH Awareness", dueDate: "05 Aug",
       deviceInfo: "Chrome / Windows", loginTime: fmtDateTime(new Date().toISOString()),
@@ -284,100 +337,99 @@ function TemplatesTab({ onDispatchResult }) {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "12px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+        <p style={{ fontSize: "13px", color: "var(--subtext)" }}>
+          Templates enforce classification-based merge-tag linting. Templates with lint errors cannot be dispatched.
+        </p>
         <button onClick={() => setShowNew(true)}
-          style={{ display: "flex", alignItems: "center", gap: "6px", padding: "9px 16px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>
-          <Plus size={16} /> New Template
+          style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>
+          <Plus size={14} /> New Template
         </button>
       </div>
-      <div style={{ background: "var(--card)", borderRadius: "var(--radius-lg)", border: "1px solid var(--border)", boxShadow: "var(--shadow-sm)", overflow: "hidden" }}>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ background: "var(--background)", borderBottom: "1px solid var(--border)" }}>
-                {["Template", "Category", "Body", "Status", "Actions"].map((h) => (
-                  <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.5px" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {templates.map((t, i) => {
-                const meta = statusMeta[t.status] || statusMeta.Active;
-                const blocked = t.status !== "Active";
-                return (
-                  <tr key={t.id} style={{ borderBottom: i < templates.length - 1 ? "1px solid var(--border)" : "none" }}>
-                    <td style={{ padding: "13px 16px", fontSize: "13.5px", fontWeight: 600, color: "var(--text)" }}>
-                      {t.name} {SECURITY_CRITICAL_CATEGORIES.includes(t.category) && <ShieldAlert size={12} style={{ color: "var(--red)", display: "inline", marginLeft: "4px", verticalAlign: "-1px" }} />}
-                    </td>
-                    <td style={{ padding: "13px 16px", fontSize: "13px", color: "var(--subtext)" }}>{t.category}</td>
-                    <td style={{ padding: "13px 16px", fontSize: "12.5px", color: "var(--subtext)", maxWidth: "280px", fontFamily: "monospace" }}>{t.body}</td>
-                    <td style={{ padding: "13px 16px" }}><StatusBadge label={t.status} color={meta.color} bg={meta.bg} /></td>
-                    <td style={{ padding: "13px 16px", whiteSpace: "nowrap" }}>
-                      <button onClick={() => sendTest(t)} disabled={blocked || sendingId === t.id}
-                        title={blocked ? "Blocked templates cannot be sent" : ""}
-                        style={{ display: "flex", alignItems: "center", gap: "5px", padding: "6px 12px", background: blocked ? "var(--border)" : "var(--primary-light)", color: blocked ? "var(--subtext)" : "var(--primary)", border: "none", borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: "12px", cursor: blocked ? "not-allowed" : "pointer" }}>
-                        <Send size={12} /> {sendingId === t.id ? "Sending�" : "Send Test"}
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+        {templates.map((t) => (
+          <div key={t.id} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px" }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>{t.name}</span>
+                <span style={{ fontSize: "10px", fontWeight: 700, padding: "1px 6px", borderRadius: "4px", background: classificationColor[t.classification] + "18", color: classificationColor[t.classification] }}>
+                  {t.classification}
+                </span>
+                <span style={{ fontSize: "11px", color: "var(--subtext)" }}>• {t.channel}</span>
+                <span style={{ fontSize: "11px", color: "var(--subtext)" }}>• {t.category}</span>
+              </div>
+              <p style={{ fontSize: "12.5px", color: "var(--subtext)", fontFamily: "monospace", background: "var(--background)", padding: "4px 8px", borderRadius: "4px", whiteSpace: "pre-wrap" }}>
+                {t.body}
+              </p>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+              <button onClick={() => sendTest(t)} disabled={sendingId === t.id}
+                style={{ display: "flex", alignItems: "center", gap: "5px", padding: "6px 12px", background: "var(--primary-light)", color: "var(--primary)", border: "1px solid var(--border-focus)", borderRadius: "var(--radius-sm)", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>
+                <Send size={12} /> {sendingId === t.id ? "Sending..." : "Test Dispatch"}
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
-      <NewTemplateModal isOpen={showNew} onClose={() => setShowNew(false)} onSaved={load} />
+
+      <TemplateModal isOpen={showNew} onClose={() => setShowNew(false)} onSaved={() => load()} />
     </div>
   );
 }
 
 function ChannelsTab() {
-  const [integrations, setIntegrations] = useState([]);
+  const [channels, setChannels] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const load = () => getChannelIntegrations().then((res) => setIntegrations(res.data));
+  const load = () => getChannelIntegrations().then((res) => { setChannels(res.data); setLoading(false); });
   useEffect(() => { load(); }, []);
 
+  const toggleOutage = async (channelName) => {
+    await simulateChannelOutage(channelName);
+    load();
+  };
+
+  if (loading) return <Spinner />;
+
   return (
-    <div style={{ background: "var(--card)", borderRadius: "var(--radius-lg)", border: "1px solid var(--border)", boxShadow: "var(--shadow-sm)", overflow: "hidden" }}>
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ background: "var(--background)", borderBottom: "1px solid var(--border)" }}>
-              {["Channel", "Status", "Last Checked", "Actions"].map((h) => (
-                <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.5px" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {integrations.map((c, i) => {
-              const meta = statusMeta[c.status];
-              const isDown = c.status === "Down";
-              const canToggle = c.channel !== "In-app" && c.status !== "Not Configured";
-              return (
-                <tr key={c.channel} style={{ borderBottom: i < integrations.length - 1 ? "1px solid var(--border)" : "none" }}>
-                  <td style={{ padding: "13px 16px", fontSize: "13.5px", fontWeight: 600, color: "var(--text)", display: "flex", alignItems: "center", gap: "7px" }}>
-                    {c.status === "Connected" ? <Wifi size={13} style={{ color: "var(--green)" }} /> : <WifiOff size={13} style={{ color: "var(--subtext)" }} />}
-                    {c.channel}
-                  </td>
-                  <td style={{ padding: "13px 16px" }}><StatusBadge label={c.status} color={meta.color} bg={meta.bg} /></td>
-                  <td style={{ padding: "13px 16px", fontSize: "12px", color: "var(--subtext)" }}>{c.lastChecked ? fmtDateTime(c.lastChecked) : "�"}</td>
-                  <td style={{ padding: "13px 16px" }}>
-                    {canToggle && (
-                      <button onClick={async () => { await simulateChannelOutage(c.channel, !isDown); load(); }}
-                        style={{ padding: "6px 12px", background: isDown ? "var(--green-light)" : "var(--red-light)", color: isDown ? "var(--green)" : "var(--red)", border: "none", borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: "12px", cursor: "pointer" }}>
-                        {isDown ? "Restore" : "Simulate Outage"}
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      <p style={{ fontSize: "11px", color: "var(--subtext)", padding: "12px 16px" }}>
-        Toggle a channel to "Down", then send a test notification from the Templates tab whose preference includes that channel � watch it retry and fall back to In-app.
+    <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+      <p style={{ fontSize: "13px", color: "var(--subtext)" }}>
+        Channel integration statuses and outage simulation. If an external channel is Down, notifications will auto-fallback to In-app.
       </p>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "14px" }}>
+        {channels.map((ch) => {
+          const isDown = ch.status === "Down";
+          const isConfigured = ch.status !== "Not Configured";
+          return (
+            <div key={ch.name} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "16px 18px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                <p style={{ fontSize: "15px", fontWeight: 700, color: "var(--text)" }}>{ch.name}</p>
+                <StatusBadge label={ch.status} color={statusMeta[ch.status]?.color} bg={statusMeta[ch.status]?.bg} />
+              </div>
+              <p style={{ fontSize: "12px", color: "var(--subtext)", marginBottom: "4px" }}>Provider: {ch.provider}</p>
+              <p style={{ fontSize: "12px", color: "var(--subtext)", marginBottom: "12px" }}>
+                Success Rate: <strong>{ch.successRate}%</strong> • Avg Latency: <strong>{ch.avgLatencyMs}ms</strong>
+              </p>
+
+              {isConfigured && (
+                <button onClick={() => toggleOutage(ch.name)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "5px", padding: "6px 12px",
+                    background: isDown ? "var(--green-light)" : "var(--red-light)",
+                    color: isDown ? "var(--green)" : "var(--red)",
+                    border: `1px solid ${isDown ? "var(--green)" : "var(--red)"}40`,
+                    borderRadius: "var(--radius-sm)", fontSize: "12px", fontWeight: 700, cursor: "pointer",
+                  }}>
+                  {isDown ? <Wifi size={13} /> : <WifiOff size={13} />}
+                  {isDown ? "Restore Service" : "Simulate Outage"}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -385,69 +437,59 @@ function ChannelsTab() {
 function DispatchResultPanel({ result, onClose }) {
   if (!result) return null;
   return (
-    <div style={{ background: "var(--card)", borderRadius: "var(--radius-lg)", border: "1px solid var(--primary)", boxShadow: "var(--shadow-md)", padding: "16px 18px", marginBottom: "16px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-        <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--text)" }}>Dispatch trail � {result.category}</p>
-        <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--subtext)", cursor: "pointer", fontSize: "12px" }}>Dismiss</button>
-      </div>
-      {result.bypassedOptOut && (
-        <p style={{ fontSize: "12px", color: "var(--red)", marginBottom: "8px", display: "flex", alignItems: "center", gap: "5px" }}>
-          <ShieldAlert size={13} /> Security-critical � Email was sent despite the recipient's preference being fully opted out.
+    <div style={{ background: result.success ? "#f0fdf4" : "#fef2f2", border: `1px solid ${result.success ? "#bbf7d0" : "#fecaca"}`, borderRadius: "var(--radius-md)", padding: "14px 18px", marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+      <div>
+        <p style={{ fontSize: "13.5px", fontWeight: 700, color: result.success ? "#16a34a" : "#dc2626" }}>
+          {result.success ? "✓ Notification Dispatched Successfully" : "✗ Dispatch Failed"}
         </p>
-      )}
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-        {result.results.map((r) => (
-          <div key={r.channel} style={{ fontSize: "12.5px" }}>
-            <span style={{ fontWeight: 700, color: "var(--text)" }}>{r.channel}: </span>
-            {r.trail.map((t, i) => (
-              <span key={i} style={{ color: t.status === "Delivered" ? "var(--green)" : "var(--red)" }}>
-                {i > 0 && " ? "}attempt {t.attempt} {t.status.toLowerCase()}{t.backoffSeconds ? ` (backoff ${t.backoffSeconds}s)` : ""}
-              </span>
-            ))}
-            {" � "}
-            <span style={{ fontWeight: 600, color: r.finalStatus === "Delivered" ? "var(--green)" : "var(--red)" }}>{r.finalStatus}</span>
-          </div>
-        ))}
+        <p style={{ fontSize: "12px", color: "var(--text)", marginTop: "3px" }}>
+          Channel: <strong>{result.channel}</strong> {result.fallbackUsed && <span style={{ color: "#d97706" }}>(Fell back to In-App)</span>} • Message: "{result.deliveredBody}"
+        </p>
       </div>
+      <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--subtext)", padding: "2px" }}>✕</button>
     </div>
   );
 }
 
 export default function Notifications() {
+  const { user, role, permissions } = useAuth();
   const [tab, setTab] = useState("inbox");
-  const [role, setRole] = useState("Employee");
   const [dispatchResult, setDispatchResult] = useState(null);
+
+  const isAdminOrHr = ["ADMIN", "HR"].includes(role?.toUpperCase()) || permissions?.includes("notifications:write");
 
   const tabs = [
     { id: "inbox", label: "Inbox" },
     { id: "history", label: "History" },
-    ...(role === "Admin" ? [{ id: "templates", label: "Admin: Templates" }, { id: "channels", label: "Admin: Channels" }] : []),
+    ...(isAdminOrHr ? [{ id: "templates", label: "Admin: Templates" }, { id: "channels", label: "Admin: Channels" }] : []),
   ];
 
   return (
     <MainLayout>
       <div style={{ maxWidth: "1480px", margin: "0 auto" }}>
-        <PageHeader title="Notifications" subtitle="In-app inbox, history, and (Admin) templates & channel integrations" />
+        <PageHeader
+          title="Notifications & Alerts"
+          subtitle={`Logged in as ${user?.firstName || "Current"} ${user?.lastName || "User"} (${role || "Employee"}) — View notifications and channel delivery logs`}
+        />
 
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px", padding: "8px 12px", background: "#fffbeb", border: "1px dashed #d97706", borderRadius: "var(--radius-sm)", width: "fit-content" }}>
-          <span style={{ fontSize: "11px", fontWeight: 700, color: "#d97706" }}>VIEWING AS</span>
-          {["Employee", "Admin"].map((r) => (
-            <button key={r} onClick={() => { setRole(r); setTab("inbox"); }}
-              style={{ padding: "4px 10px", fontSize: "12px", fontWeight: 600, borderRadius: "99px", cursor: "pointer", border: role === r ? "1px solid var(--primary)" : "1px solid var(--border)", background: role === r ? "var(--primary)" : "var(--card)", color: role === r ? "#fff" : "var(--text)" }}>
-              {r}
-            </button>
-          ))}
-        </div>
-
+        {/* Tab Navigation */}
         <div style={{ display: "flex", gap: "4px", marginBottom: "16px", borderBottom: "1px solid var(--border)" }}>
           {tabs.map((t) => (
-            <button key={t.id} onClick={() => setTab(t.id)}
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
               style={{
-                padding: "10px 18px", background: "none", border: "none",
+                padding: "10px 18px",
+                background: "none",
+                border: "none",
                 borderBottom: tab === t.id ? "2px solid var(--primary)" : "2px solid transparent",
                 color: tab === t.id ? "var(--primary)" : "var(--subtext)",
-                fontWeight: tab === t.id ? 700 : 500, fontSize: "13.5px", cursor: "pointer", marginBottom: "-1px",
-              }}>
+                fontWeight: tab === t.id ? 700 : 500,
+                fontSize: "13.5px",
+                cursor: "pointer",
+                marginBottom: "-1px",
+              }}
+            >
               {t.label}
             </button>
           ))}
@@ -455,9 +497,9 @@ export default function Notifications() {
 
         {tab === "templates" && <DispatchResultPanel result={dispatchResult} onClose={() => setDispatchResult(null)} />}
 
-        {tab === "inbox" && <InboxTab />}
-        {tab === "history" && <HistoryTab />}
-        {tab === "templates" && <TemplatesTab onDispatchResult={setDispatchResult} />}
+        {tab === "inbox" && <InboxTab user={user} />}
+        {tab === "history" && <HistoryTab user={user} />}
+        {tab === "templates" && <TemplatesTab user={user} onDispatchResult={setDispatchResult} />}
         {tab === "channels" && <ChannelsTab />}
       </div>
     </MainLayout>

@@ -15,7 +15,7 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSearch } from "../../context/SearchContext";
 import { useAuth } from "../../context/AuthContext";
-import { RAW_INBOX } from "../../mock/Notifications";
+import { RAW_INBOX } from "../../mock/notifications";
 
 /* ─── Constants ──────────────────────────────────────── */
 const TYPE_COLOR = {

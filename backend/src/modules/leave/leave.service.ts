@@ -194,7 +194,7 @@ export async function approveLeave(requestId: string, approverEmployeeId: string
   }
 
   const days = countWeekdays(request.startDate, request.endDate);
-  const updated = await prisma.$transaction(async (tx) => {
+  const updated = await prisma.$transaction(async (tx: any) => {
     const year = request.startDate.getUTCFullYear();
     const updatedReq = await tx.leaveRequest.update({
       where: { id: request.id },

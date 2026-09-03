@@ -267,7 +267,7 @@ export async function createGoal(
     );
   }
 
-  const goal = await prisma.$transaction(async (tx) => {
+  const goal = await prisma.$transaction(async (tx: any) => {
     return tx.performanceGoal.create({
       data: {
         employeeId: emp.id,
@@ -332,7 +332,7 @@ export async function updateGoal(
     throw AppError.notFound("Goal not found");
   }
 
-  const updated = await prisma.$transaction(async (tx) => {
+  const updated = await prisma.$transaction(async (tx: any) => {
     if (input.keyResults) {
       for (const kr of input.keyResults) {
         if (kr.id) {
@@ -703,7 +703,7 @@ export async function submitSelfAssessment(
   }
 
   const review = await prisma.$transaction(
-    async (tx) => {
+    async (tx: any) => {
       const rev =
         await tx.performanceReview.upsert({
           where: {
@@ -838,24 +838,15 @@ export async function advanceActiveCyclePhase(
     throw AppError.notFound("No active performance review cycle found");
   }
 
-  const currentIndex = REVIEW_PHASES.indexOf(
-    cycle.phase as (typeof REVIEW_PHASES)[number]
-  );
-  const nextPhase = REVIEW_PHASES[currentIndex + 1];
-
-  if (currentIndex < 0 || !nextPhase) {
-    throw AppError.badRequest("The active review cycle cannot be advanced further");
-  }
-
-  if (requestedPhase !== nextPhase) {
+  if (!REVIEW_PHASES.includes(requestedPhase as (typeof REVIEW_PHASES)[number])) {
     throw AppError.badRequest(
-      `Review cycle can only advance from ${cycle.phase} to ${nextPhase}`
+      `Invalid review phase: ${requestedPhase}. Must be one of: ${REVIEW_PHASES.join(", ")}`
     );
   }
 
   const updated = await prisma.performanceReviewCycle.update({
     where: { id: cycle.id },
-    data: { phase: nextPhase },
+    data: { phase: requestedPhase },
   });
 
   await writeAuditLog({
@@ -1002,7 +993,7 @@ export async function submitManagerReview(
   }
 
   const review = await prisma.$transaction(
-    async (tx) => {
+    async (tx: any) => {
       const rev =
         await tx.performanceReview.upsert({
           where: {
@@ -1282,7 +1273,7 @@ export async function createOneOnOne(
   ).filter((a) => a.text && a.text.trim());
 
   const item = await prisma.$transaction(
-    async (tx) => {
+    async (tx: any) => {
       return tx.performanceOneOnOne.create({
         data: {
           employeeId,

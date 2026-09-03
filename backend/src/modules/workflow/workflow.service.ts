@@ -365,7 +365,7 @@ export async function actOnStep(
   }
 
   const now = new Date();
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     // Atomic first-action-wins: only a still-Pending row can be claimed.
     const claimed = await tx.workflowInstanceStep.updateMany({
       where: { id: step.id, status: "Pending" },

@@ -1,6 +1,6 @@
 ﻿/**
- * Security & Administration Page � Module 25
- * Tabs: Users & Roles � Authentication & Access � Encryption & Backup � Audit Log
+ * Security & Administration Page — Module 25
+ * Tabs: Users & Roles • Authentication & Access • Encryption & Backup • Audit Log
  */
 
 import { useState, useEffect } from "react";
@@ -56,7 +56,7 @@ import {
 import { PERMISSION_CATALOG, MFA_RESTRICTED_ROLE_IDS, userStatusMeta, severityMeta } from "../../mock/security";
 
 const ME_NAME = "Matsya Singh";
-const fmtDateTime = (d) => (d ? new Date(d).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "�");
+const fmtDateTime = (d) => (d ? new Date(d).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : " — ");
 
 /* ---------------------------------- shared bits ---------------------------------- */
 
@@ -176,7 +176,7 @@ function CreateUserModal({ isOpen, onClose, roles, onSaved }) {
         <p style={{ fontSize: "11px", color: "var(--subtext)", margin: 0 }}>Activation notification will be sent to the user; this action is itself audit-logged.</p>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Creating�" : "Create User"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Creating..." : "Create User"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -209,7 +209,7 @@ function BreakGlassModal({ isOpen, onClose, onUsed }) {
         <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
           <AlertTriangle size={16} style={{ color: "var(--red)", marginTop: "2px", flexShrink: 0 }} />
           <p style={{ fontSize: "12.5px", color: "var(--subtext)", margin: 0 }}>
-            Use only if SSO/IdP is unreachable. This action is always logged as critical severity and triggers a security alert � it can never be used silently.
+            Use only if SSO/IdP is unreachable. This action is always logged as critical severity and triggers a security alert  —  it can never be used silently.
           </p>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
@@ -219,7 +219,7 @@ function BreakGlassModal({ isOpen, onClose, onUsed }) {
         {error && <p style={{ fontSize: "12px", color: "var(--red)" }}>{error}</p>}
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <DangerButton type="submit" disabled={saving || !justification.trim()}>{saving ? "Logging in�" : "Use Break-Glass Access"}</DangerButton>
+          <DangerButton type="submit" disabled={saving || !justification.trim()}>{saving ? "Logging in..." : "Use Break-Glass Access"}</DangerButton>
         </div>
       </form>
     </Modal>
@@ -267,10 +267,10 @@ function UsersPanel({ users, roles, sessions, onUserUpdated, onUserAdded, onBrea
                 <p style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)", display: "flex", alignItems: "center", gap: "6px" }}>
                   {u.name}{u.isBreakGlass && <ShieldAlert size={13} style={{ color: "var(--red)" }} />}
                 </p>
-                <p style={{ fontSize: "12px", color: "var(--subtext)" }}>{u.email} � {roleName(u.roleIds)}</p>
+                <p style={{ fontSize: "12px", color: "var(--subtext)" }}>{u.email} • {roleName(u.roleIds)}</p>
                 <p style={{ fontSize: "11px", color: "var(--subtext)" }}>
-                  MFA: {u.mfaEnabled ? "On" : "Off"} � {sessionCount(u.id)} active session(s) � last login {fmtDateTime(u.lastLogin)}
-                  {u.forcePasswordResetPending && " � reset pending"}
+                  MFA: {u.mfaEnabled ? "On" : "Off"} • {sessionCount(u.id)} active session(s) • last login {fmtDateTime(u.lastLogin)}
+                  {u.forcePasswordResetPending && " • reset pending"}
                 </p>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -314,7 +314,7 @@ function GrantPermissionModal({ isOpen, onClose, role, onSaved }) {
   if (!role) return null;
 
   return (
-    <Modal isOpen={isOpen} title={`Grant Permission � ${role.name}`} onClose={onClose}>
+    <Modal isOpen={isOpen} title={`Grant Permission — ${role.name}`} onClose={onClose}>
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           {fieldLabel("Permission *")}
@@ -326,7 +326,7 @@ function GrantPermissionModal({ isOpen, onClose, role, onSaved }) {
         <p style={{ fontSize: "11px", color: "var(--subtext)", margin: 0 }}>This grant is an explicit, logged action.</p>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving || !permission}>{saving ? "Granting�" : "Grant"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving || !permission}>{saving ? "Granting..." : "Grant"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -357,12 +357,12 @@ function MfaExceptionModal({ isOpen, onClose, role, onSaved }) {
   if (!role) return null;
 
   return (
-    <Modal isOpen={isOpen} title={`Disable MFA � ${role.name}`} onClose={onClose}>
+    <Modal isOpen={isOpen} title={`Disable MFA — ${role.name}`} onClose={onClose}>
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
           <AlertTriangle size={16} style={{ color: "#d97706", marginTop: "2px", flexShrink: 0 }} />
           <p style={{ fontSize: "12.5px", color: "var(--subtext)", margin: 0 }}>
-            {role.name} is a restricted role � MFA cannot be disabled without a documented, logged exception.
+            {role.name} is a restricted role — MFA cannot be disabled without a documented, logged exception.
           </p>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
@@ -376,7 +376,7 @@ function MfaExceptionModal({ isOpen, onClose, role, onSaved }) {
         {error && <p style={{ fontSize: "12px", color: "var(--red)" }}>{error}</p>}
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving�" : "Log Exception & Disable"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving..." : "Log Exception & Disable"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -431,7 +431,7 @@ function RolesPanel({ roles, onRoleUpdated, onRoleAdded }) {
 
       <div style={{ ...cardStyle, padding: "14px 18px", marginBottom: "14px", display: "flex", gap: "10px" }}>
         <input placeholder="New custom role name (starts with zero permissions)" value={newRoleName} onChange={(e) => setNewRoleName(e.target.value)} style={inputStyle()} />
-        <PrimaryButton onClick={handleCreateRole} disabled={creating || !newRoleName.trim()} style={{ whiteSpace: "nowrap" }}>{creating ? "Creating�" : "+ Custom Role"}</PrimaryButton>
+        <PrimaryButton onClick={handleCreateRole} disabled={creating || !newRoleName.trim()} style={{ whiteSpace: "nowrap" }}>{creating ? "Creating — " : "+ Custom Role"}</PrimaryButton>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "14px" }}>
@@ -445,7 +445,7 @@ function RolesPanel({ roles, onRoleUpdated, onRoleAdded }) {
             </div>
             {role.mfaException && (
               <p style={{ fontSize: "10.5px", color: "#d97706", marginBottom: "8px" }}>
-                MFA exception on file: "{role.mfaException.reason}" � approved by {role.mfaException.approvedBy}
+                MFA exception on file: "{role.mfaException.reason}" — approved by {role.mfaException.approvedBy}
               </p>
             )}
             <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "10px" }}>
@@ -503,7 +503,7 @@ function AuthAccessTab({ config, onConfigUpdated }) {
       <div style={{ ...cardStyle, padding: "18px 20px" }}>
         <h3 style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)", marginBottom: "12px" }}>Single Sign-On</h3>
         <p style={{ fontSize: "12.5px", color: "var(--subtext)" }}>
-          {config.ssoConfig.enabled ? `Enabled � ${config.ssoConfig.provider}` : "Disabled"} � metadata: {config.ssoConfig.metadataUrl}
+          {config.ssoConfig.enabled ? `Enabled (${config.ssoConfig.provider})` : "Disabled"} • metadata: {config.ssoConfig.metadataUrl}
         </p>
         <p style={{ fontSize: "11px", color: "var(--subtext)", marginTop: "4px" }}>Last synced {config.ssoConfig.lastSyncedAt}</p>
       </div>
@@ -521,24 +521,24 @@ function AuthAccessTab({ config, onConfigUpdated }) {
           </div>
         </div>
         <p style={{ fontSize: "11.5px", color: "var(--subtext)", marginBottom: "12px" }}>
-          Requires uppercase: {config.passwordPolicy.requireUpper ? "Yes" : "No"} � number: {config.passwordPolicy.requireNumber ? "Yes" : "No"} � symbol: {config.passwordPolicy.requireSymbol ? "Yes" : "No"}
+          Requires uppercase: {config.passwordPolicy.requireUpper ? "Yes" : "No"} • number: {config.passwordPolicy.requireNumber ? "Yes" : "No"}  —  symbol: {config.passwordPolicy.requireSymbol ? "Yes" : "No"}
         </p>
-        <PrimaryButton onClick={handleSavePolicy} disabled={savingPolicy} style={{ padding: "7px 14px", fontSize: "12px" }}>{savingPolicy ? "Saving�" : "Save Policy"}</PrimaryButton>
+        <PrimaryButton onClick={handleSavePolicy} disabled={savingPolicy} style={{ padding: "7px 14px", fontSize: "12px" }}>{savingPolicy ? "Saving — " : "Save Policy"}</PrimaryButton>
       </div>
 
       <div style={{ ...cardStyle, padding: "18px 20px" }}>
-        <h3 style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)", marginBottom: "12px" }}>IP Restrictions � {config.ipRestrictions[0]?.action}</h3>
+        <h3 style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)", marginBottom: "12px" }}>IP Restrictions  —  {config.ipRestrictions[0]?.action}</h3>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px", marginBottom: "12px" }}>
           {fieldLabel("Allowed CIDR ranges (comma-separated)")}
           <input value={cidrs} onChange={(e) => setCidrs(e.target.value)} style={inputStyle()} />
         </div>
-        <PrimaryButton onClick={handleSaveIp} disabled={savingIp} style={{ padding: "7px 14px", fontSize: "12px" }}>{savingIp ? "Saving�" : "Save Restriction"}</PrimaryButton>
+        <PrimaryButton onClick={handleSaveIp} disabled={savingIp} style={{ padding: "7px 14px", fontSize: "12px" }}>{savingIp ? "Saving — " : "Save Restriction"}</PrimaryButton>
       </div>
 
       <div style={{ ...cardStyle, padding: "18px 20px" }}>
         <h3 style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--text)", marginBottom: "8px" }}>Session Policy</h3>
         <p style={{ fontSize: "12.5px", color: "var(--subtext)" }}>
-          Token lifetime: {config.sessionPolicy.tokenLifetimeMinutes} minutes � Max concurrent sessions: {config.sessionPolicy.maxConcurrentSessions}
+          Token lifetime: {config.sessionPolicy.tokenLifetimeMinutes} minutes • Max concurrent sessions: {config.sessionPolicy.maxConcurrentSessions}
         </p>
       </div>
     </div>
@@ -572,7 +572,7 @@ function RequestRestoreModal({ isOpen, onClose, onSaved }) {
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Requesting�" : "Request Restore"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Requesting..." : "Request Restore"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -610,9 +610,9 @@ function EncryptionBackupTab({ kmsConfig, backupJobs, restoreRequests, onKmsUpda
           <KeyRound size={15} /> Encryption Key Management
         </h3>
         <p style={{ fontSize: "12.5px", color: "var(--subtext)", marginBottom: "10px" }}>
-          Provider: {kmsConfig.provider} � Rotation every {kmsConfig.keyRotationDays} days � Last rotated {kmsConfig.lastRotatedAt}
+          Provider: {kmsConfig.provider} • Rotation every {kmsConfig.keyRotationDays} days • Last rotated {kmsConfig.lastRotatedAt}
         </p>
-        <PrimaryButton onClick={handleRotate} disabled={rotating} style={{ padding: "7px 14px", fontSize: "12px" }}>{rotating ? "Rotating�" : "Rotate Key Now"}</PrimaryButton>
+        <PrimaryButton onClick={handleRotate} disabled={rotating} style={{ padding: "7px 14px", fontSize: "12px" }}>{rotating ? "Rotating — " : "Rotate Key Now"}</PrimaryButton>
       </div>
 
       <div style={{ ...cardStyle, padding: "18px 20px" }}>
@@ -622,11 +622,11 @@ function EncryptionBackupTab({ kmsConfig, backupJobs, restoreRequests, onKmsUpda
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
           {backupJobs.map((b) => (
             <p key={b.id} style={{ fontSize: "12px", color: "var(--subtext)" }}>
-              {fmtDateTime(b.startedAt)} � <strong>{b.status}</strong>{b.sizeMB ? ` � ${b.sizeMB.toLocaleString("en-IN")} MB` : ""} � encrypted
+              {fmtDateTime(b.startedAt)} • <strong>{b.status}</strong>{b.sizeMB ? ` • ${b.sizeMB.toLocaleString("en-IN")} MB` : ""}  —  encrypted
             </p>
           ))}
         </div>
-        <p style={{ fontSize: "11px", color: "var(--subtext)", marginTop: "10px", fontStyle: "italic" }}>Backup contents are never available for direct plaintext download � restore is the only retrieval path.</p>
+        <p style={{ fontSize: "11px", color: "var(--subtext)", marginTop: "10px", fontStyle: "italic" }}>Backup contents are never available for direct plaintext download  —  restore is the only retrieval path.</p>
       </div>
 
       <div style={{ ...cardStyle, padding: "18px 20px" }}>
@@ -638,7 +638,7 @@ function EncryptionBackupTab({ kmsConfig, backupJobs, restoreRequests, onKmsUpda
           {restoreRequests.map((r) => (
             <div key={r.id} style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "12px 14px" }}>
               <p style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--text)" }}>{r.reason}</p>
-              <p style={{ fontSize: "11.5px", color: "var(--subtext)" }}>Requested by {r.requestedBy} � {r.status}</p>
+              <p style={{ fontSize: "11.5px", color: "var(--subtext)" }}>Requested by {r.requestedBy} • {r.status}</p>
               {r.approvals.length > 0 && (
                 <p style={{ fontSize: "11px", color: "var(--subtext)" }}>Approved by: {r.approvals.map((a) => a.by).join(", ")}</p>
               )}
@@ -648,7 +648,7 @@ function EncryptionBackupTab({ kmsConfig, backupJobs, restoreRequests, onKmsUpda
                   <PrimaryButton onClick={() => handleApprove(r.id)} disabled={!approverName.trim()} style={{ padding: "7px 14px", fontSize: "12px" }}>Approve</PrimaryButton>
                 </div>
               )}
-              {r.status === "Approved � Ready to Execute" && (
+              {r.status === "Approved — Ready to Execute" && (
                 <PrimaryButton onClick={() => handleExecute(r.id)} style={{ padding: "7px 14px", fontSize: "12px", marginTop: "8px" }}>Execute Restore</PrimaryButton>
               )}
               {r.status === "Restored" && (
@@ -682,14 +682,14 @@ function AuditLogTab({ entries, onRefresh }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
         <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Audit Log</h2>
         <SecondaryButton onClick={handleVerify} disabled={verifying} style={{ padding: "7px 14px", fontSize: "12px" }}>
-          {verifying ? "Verifying�" : "Verify Chain Integrity"}
+          {verifying ? "Verifying..." : "Verify Chain Integrity"}
         </SecondaryButton>
       </div>
 
       {verifyResult && (
         <div style={{ ...cardStyle, padding: "12px 16px", marginBottom: "14px", background: verifyResult.valid ? "#f0fdf4" : "#fef2f2", border: `1px solid ${verifyResult.valid ? "#bbf7d0" : "#fecaca"}` }}>
           <p style={{ fontSize: "12.5px", fontWeight: 600, color: verifyResult.valid ? "#166534" : "var(--red)" }}>
-            {verifyResult.valid ? "? Chain is intact � no tampering detected." : `? Chain integrity broken at entry ${verifyResult.brokenAtId}.`}
+            {verifyResult.valid ? "✓ Chain is intact — no tampering detected." : `✕ Chain integrity broken at entry ${verifyResult.brokenAtId}.`}
           </p>
         </div>
       )}
@@ -707,7 +707,7 @@ function AuditLogTab({ entries, onRefresh }) {
                   <StatusBadge label={e.severity} color={meta.color} bg={meta.bg} />
                 </div>
                 <p style={{ fontSize: "12px", color: "var(--subtext)" }}>{e.details}</p>
-                <p style={{ fontSize: "11px", color: "var(--subtext)", marginTop: "4px" }}>{e.actor} � {e.category} � {fmtDateTime(e.timestamp)} � hash {e.hash}</p>
+                <p style={{ fontSize: "11px", color: "var(--subtext)", marginTop: "4px" }}>{e.actor} • {e.category} • {fmtDateTime(e.timestamp)}  —  hash {e.hash}</p>
               </div>
             );
           })}
@@ -817,7 +817,7 @@ export default function Security() {
           <div style={{ ...cardStyle, padding: "12px 16px", marginBottom: "16px", background: "#fef2f2", border: "1px solid #fecaca", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <ShieldAlert size={16} style={{ color: "var(--red)" }} />
-              <span style={{ fontSize: "12.5px", color: "#991b1b", fontWeight: 600 }}>Security alert: break-glass access was just used � {breakGlassAlert.details}</span>
+              <span style={{ fontSize: "12.5px", color: "#991b1b", fontWeight: 600 }}>Security alert: break-glass access was just used  —  {breakGlassAlert.details}</span>
             </div>
             <button onClick={() => setBreakGlassAlert(null)} style={{ fontSize: "12px", color: "#991b1b", border: "none", background: "none", cursor: "pointer", fontWeight: 700 }}>Dismiss</button>
           </div>

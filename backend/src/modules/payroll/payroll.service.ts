@@ -113,7 +113,7 @@ export async function processPayrollRun(id: string, actorEmployeeId?: string) {
 
   const valid = slipData.filter((s): s is NonNullable<typeof s> => s !== null);
 
-  const updated = await prisma.$transaction(async (tx) => {
+  const updated = await prisma.$transaction(async (tx: any) => {
     await tx.payslip.deleteMany({ where: { payrollRunId: run.id } });
     for (const slip of valid) {
       await tx.payslip.create({

@@ -27,8 +27,8 @@ import {
   getAcknowledgements,
   getAllAcknowledgements,
   acknowledgePolicy,
-} from "../../services/Policyservice";
-import { policyStatusMeta, ackStatusMeta } from "../../mock/Policies";
+} from "../../services/policyService";
+import { policyStatusMeta, ackStatusMeta } from "../../mock/policies";
 const fmtDate = (d) => (d ? new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "-");
 
 const formatDevice = (userAgent = "") => {
