@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Plus,
   CalendarDays,
@@ -562,17 +563,25 @@ function AnnualHolidayCalendar() {
 // ─── Main Page ───────────────────────────────────────────────────────────────
 export default function Leave() {
   const { user, permissions } = useAuth();
+  const [searchParams] = useSearchParams();
   const [pageTab, setPageTab] = useState("leaves"); // "leaves" | "holidays"
   const [balances, setBalances] = useState([]);
   const [requests, setRequests] = useState([]);
   const [leaveTypes, setLeaveTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showApply, setShowApply] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState(() => searchParams.get("statusFilter") || "");
   const [selectedBalanceId, setSelectedBalanceId] = useState(null);
   const [decision, setDecision] = useState({ request: null, action: "" });
   const canApprove = permissions.includes("leave:approve");
   const canApply = permissions.includes("leave:write");
+
+  useEffect(() => {
+    const param = searchParams.get("statusFilter");
+    if (param !== null) {
+      setStatusFilter(param);
+    }
+  }, [searchParams]);
 
   const loadData = useCallback(async () => {
     const [balRes, reqRes, ltRes] = await Promise.all([

@@ -174,3 +174,172 @@ cost: Number((Number(run.grossPayroll) / 10000000).toFixed(2)),
     productivity: { tasksCompletedRate, avgCycleTimeDays: 3.2 },
   };
 }
+
+export async function managerDashboard(userId: string, employeeId?: string, _role?: string) {
+  const manager = await prisma.employee.findFirst({
+    where: {
+      OR: [
+        ...(employeeId ? [{ id: employeeId }] : []),
+        { userId },
+      ],
+      status: "Active",
+    },
+    select: {
+      id: true,
+      employeeCode: true,
+      firstName: true,
+      lastName: true,
+      department: { select: { id: true, name: true } },
+      designation: { select: { title: true } },
+    },
+  });
+
+  if (!manager) {
+    throw AppError.forbidden("Account is not linked to an active employee record");
+  }
+
+  const today = startOfToday();
+
+  // Query direct reports (Active employees where reportingManagerId == manager.id)
+  const directReports = await prisma.employee.findMany({
+    where: {
+      reportingManagerId: manager.id,
+      status: "Active",
+    },
+    select: {
+      id: true,
+      employeeCode: true,
+      firstName: true,
+      lastName: true,
+      designation: { select: { title: true } },
+      department: { select: { name: true } },
+    },
+    orderBy: { firstName: "asc" },
+  });
+
+  const reportIds = directReports.map((r) => r.id);
+
+  // Today's punches for direct reports
+  const punches = await prisma.attendancePunch.findMany({
+    where: {
+      employeeId: { in: reportIds },
+      punchDate: today,
+    },
+    select: {
+      employeeId: true,
+      punchIn: true,
+      punchOut: true,
+      status: true,
+    },
+  });
+
+  const punchByEmp: Record<string, (typeof punches)[number]> = {};
+  for (const p of punches) {
+    punchByEmp[p.employeeId] = p;
+  }
+
+  // Approved leaves covering today for direct reports
+  const activeLeavesToday = await prisma.leaveRequest.findMany({
+    where: {
+      employeeId: { in: reportIds },
+      status: "Approved",
+      startDate: { lte: today },
+      endDate: { gte: today },
+    },
+    include: {
+      leaveType: { select: { name: true } },
+    },
+  });
+
+  const leaveByEmp: Record<string, (typeof activeLeavesToday)[number]> = {};
+  for (const l of activeLeavesToday) {
+    leaveByEmp[l.employeeId] = l;
+  }
+
+  // Pending leave requests submitted by direct reports awaiting this manager's approval
+  const pendingLeaveRequests = await prisma.leaveRequest.findMany({
+    where: {
+      employeeId: { in: reportIds },
+      status: "Pending",
+    },
+    include: {
+      employee: { select: { employeeCode: true, firstName: true, lastName: true } },
+      leaveType: { select: { name: true } },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+  });
+
+  let presentCount = 0;
+  let onLeaveCount = 0;
+
+  const directReportsWithStatus = directReports.map((emp) => {
+    const punch = punchByEmp[emp.id];
+    const leave = leaveByEmp[emp.id];
+
+    let statusToday: "Present" | "On Leave" | "Not Checked In" = "Not Checked In";
+    let punchInTime: string | null = null;
+    let details: string | null = null;
+
+    if (punch?.punchIn) {
+      statusToday = "Present";
+      presentCount++;
+      punchInTime = punch.punchIn.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+    } else if (leave) {
+      statusToday = "On Leave";
+      onLeaveCount++;
+      details = leave.leaveType.name;
+    }
+
+    return {
+      id: emp.id,
+      employeeCode: emp.employeeCode,
+      name: `${emp.firstName} ${emp.lastName}`,
+      designation: emp.designation?.title || "Team Member",
+      department: emp.department?.name || "",
+      statusToday,
+      punchInTime,
+      details,
+    };
+  });
+
+  const teamSize = directReports.length;
+  const notCheckedInCount = Math.max(0, teamSize - presentCount - onLeaveCount);
+  const pendingCount = pendingLeaveRequests.length;
+
+  const breakdown = [
+    { type: "Leave", count: pendingCount },
+    { type: "Expense", count: 0 },
+  ];
+
+  return {
+    manager: {
+      id: manager.id,
+      code: manager.employeeCode,
+      name: `${manager.firstName} ${manager.lastName}`,
+      department: manager.department?.name || "",
+      designation: manager.designation?.title || "Manager",
+    },
+    teamSize,
+    presentToday: presentCount,
+    onLeaveToday: onLeaveCount,
+    notCheckedInToday: notCheckedInCount,
+    attendanceRate: teamSize > 0 ? Math.round((presentCount / teamSize) * 100) : 0,
+    pendingApprovals: {
+      pendingCount,
+      breakdown,
+      recentRequests: pendingLeaveRequests.map((req) => ({
+        id: req.id,
+        employeeCode: req.employee.employeeCode,
+        employeeName: `${req.employee.firstName} ${req.employee.lastName}`,
+        leaveType: req.leaveType.name,
+        startDate: req.startDate.toISOString().slice(0, 10),
+        endDate: req.endDate.toISOString().slice(0, 10),
+        reason: req.reason || "No reason specified",
+        createdAt: req.createdAt.toISOString(),
+      })),
+    },
+    directReports: directReportsWithStatus,
+  };
+}
+
