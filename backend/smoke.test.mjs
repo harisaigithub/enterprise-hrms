@@ -1,5 +1,8 @@
 const BASE = "http://localhost:4000/api";
+const SMOKE_ADMIN_PASSWORD = process.env.SMOKE_ADMIN_PASSWORD;
 let failures = 0;
+
+if (!SMOKE_ADMIN_PASSWORD) throw new Error("SMOKE_ADMIN_PASSWORD is required to run authenticated smoke tests");
 
 async function call(path, opts = {}) {
   const res = await fetch(BASE + path, {
@@ -18,7 +21,7 @@ function check(name, cond, extra = "") {
 (async () => {
   const login = await call("/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email: "robert.king@company.com", password: "Password@123" }),
+    body: JSON.stringify({ email: "robert.king@company.com", password: SMOKE_ADMIN_PASSWORD }),
   });
   check("login admin", login.status === 200 && login.body?.data?.token, JSON.stringify(login.body));
   const token = login.body?.data?.token;

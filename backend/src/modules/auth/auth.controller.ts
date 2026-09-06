@@ -28,6 +28,16 @@ export const changePassword = asyncHandler(async (req: Request, res: Response) =
   sendSuccess(res, { message: "Password changed successfully. Please log in again." });
 });
 
+export const requestPasswordSetup = asyncHandler(async (req: Request, res: Response) => {
+  await authService.requestPasswordSetup(req.body.email);
+  sendSuccess(res, { message: "If an active account exists, a password setup link has been sent." });
+});
+
+export const setPassword = asyncHandler(async (req: Request, res: Response) => {
+  await authService.setPasswordWithToken(req.body.token, req.body.newPassword);
+  sendSuccess(res, { message: "Password set successfully. You can now sign in." });
+});
+
 export const me = asyncHandler(async (req: Request, res: Response) => {
   if (!req.auth) throw AppError.unauthorized();
   const user = await prisma.user.findUnique({

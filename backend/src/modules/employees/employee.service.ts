@@ -5,6 +5,10 @@ import { hashPassword } from "../../lib/password";
 import { writeAuditLog } from "../../services/audit.service";
 import { serializeEmployeeList } from "../../serializers/employee.serializer";
 import { parsePagination } from "../../lib/utils";
+import crypto from "node:crypto";
+import { createPasswordSetupToken } from "../auth/auth.service";
+import { sendPasswordSetupEmail } from "../auth/passwordSetupEmail.service";
+import { env } from "../../config/env";
 
 const EMPLOYEE_INCLUDE = {
   department: true,
@@ -96,7 +100,6 @@ export interface CreateEmployeeInput {
   gender?: string;
   dob?: string;
   status?: string;
-  password?: string;
 }
 
 function toOptionalDate(value?: string): Date | null {
@@ -161,7 +164,7 @@ export async function createEmployee(input: CreateEmployeeInput) {
     const user = await prisma.user.create({
       data: {
         email,
-        passwordHash: await hashPassword(input.password ?? "Welcome@123"),
+        passwordHash: await hashPassword(crypto.randomBytes(48).toString("base64url")),
         role: { connect: { name: "EMPLOYEE" } },
       },
     });
@@ -194,6 +197,11 @@ export async function createEmployee(input: CreateEmployeeInput) {
     entityId: emp.id,
     newValue: { employeeCode: emp.employeeCode, firstName: emp.firstName, lastName: emp.lastName },
   });
+
+  if (userId) {
+    const token = await createPasswordSetupToken(userId);
+    await sendPasswordSetupEmail(email, `${emp.firstName} ${emp.lastName}`.trim(), `${env.PASSWORD_SETUP_URL}?token=${encodeURIComponent(token)}`);
+  }
 
   return { data: serializeEmployeeList([emp])[0] };
 }

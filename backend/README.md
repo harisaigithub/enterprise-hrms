@@ -40,9 +40,9 @@ npm run dev
 
 Health check: `GET http://localhost:4000/api/health`
 
-## Demo logins
+## Seeded development accounts
 
-All seeded users share the password `Password@123`:
+Set a non-default `SEED_DEFAULT_PASSWORD` in your local `.env` before running the seed. Passwords are never stored in source code or printed by the seed command.
 
 | Role     | Email                    | Name          |
 | -------- | ------------------------ | ------------- |

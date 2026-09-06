@@ -6,6 +6,7 @@ import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../lib
 import { randomToken, sha256 } from "../../lib/crypto";
 import { writeAuditLog } from "../../services/audit.service";
 import { env } from "../../config/env";
+import { sendPasswordSetupEmail } from "./passwordSetupEmail.service";
 
 const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days (spec §23)
 
@@ -13,6 +14,51 @@ const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days (spec §23)
 const failedLogins = new Map<string, { count: number; lockedUntil: number | null }>();
 const MAX_FAILED = 5;
 const LOCKOUT_MS = 15 * 60 * 1000; // 15 min (spec §23)
+const PASSWORD_TOKEN_TTL_MS = 60 * 60 * 1000;
+
+function validateNewPassword(password: string): void {
+  if (password.length < 12 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+    throw AppError.badRequest("Password must be at least 12 characters and include uppercase, lowercase, number and symbol");
+  }
+}
+
+export async function createPasswordSetupToken(userId: string): Promise<string> {
+  const token = randomToken();
+  await prisma.$transaction([
+    prisma.passwordSetupToken.updateMany({ where: { userId, usedAt: null }, data: { usedAt: new Date() } }),
+    prisma.passwordSetupToken.create({ data: { userId, tokenHash: sha256(token), expiresAt: new Date(Date.now() + PASSWORD_TOKEN_TTL_MS) } }),
+  ]);
+  return token;
+}
+
+export async function requestPasswordSetup(email: string): Promise<void> {
+  const normalized = email.trim().toLowerCase();
+  const user = await prisma.user.findUnique({ where: { email: normalized }, include: { employee: true } });
+  if (!user || !user.isActive) return;
+  const token = await createPasswordSetupToken(user.id);
+  const name = user.employee ? `${user.employee.firstName} ${user.employee.lastName}`.trim() : "User";
+  await sendPasswordSetupEmail(user.email, name, `${env.PASSWORD_SETUP_URL}?token=${encodeURIComponent(token)}`);
+}
+
+export async function setPasswordWithToken(token: string, newPassword: string): Promise<void> {
+  validateNewPassword(newPassword);
+  const record = await prisma.passwordSetupToken.findUnique({ where: { tokenHash: sha256(token) } });
+  if (!record || record.usedAt || record.expiresAt <= new Date()) {
+    throw AppError.badRequest("Password setup link is invalid or has expired");
+  }
+  const user = await prisma.user.findUnique({ where: { id: record.userId } });
+  if (!user || !user.isActive) throw AppError.badRequest("Password setup link is invalid or has expired");
+  if (await verifyPassword(newPassword, user.passwordHash)) {
+    throw AppError.badRequest("New password must be different from the current password");
+  }
+  const passwordHash = await hashPassword(newPassword);
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: user.id }, data: { passwordHash } }),
+    prisma.passwordSetupToken.updateMany({ where: { userId: user.id, usedAt: null }, data: { usedAt: new Date() } }),
+    prisma.refreshToken.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } }),
+  ]);
+  writeAuditLog({ action: "UPDATE", entityType: "User", entityId: user.id, newValue: { passwordSetupCompleted: true } });
+}
 
 function isLocked(email: string): boolean {
   const entry = failedLogins.get(email);
@@ -209,9 +255,8 @@ export async function changePassword(userId: string, currentPassword: string, ne
   if (!(await verifyPassword(currentPassword, user.passwordHash))) {
     throw AppError.unauthorized("Current password is incorrect");
   }
-  if (newPassword.length < 8) {
-    throw AppError.badRequest("New password must be at least 8 characters");
-  }
+  validateNewPassword(newPassword);
+  if (await verifyPassword(newPassword, user.passwordHash)) throw AppError.badRequest("New password must be different from the current password");
   const hash = await hashPassword(newPassword);
   await prisma.user.update({ where: { id: userId }, data: { passwordHash: hash } });
   // Invalidate all existing refresh tokens after password change (spec §23).

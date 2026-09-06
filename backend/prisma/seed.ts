@@ -425,7 +425,11 @@ async function main() {
 
   // Users + Employees
   const empByCode = new Map<string, string>(); // code -> employee PK
-  const passwordHash = await hashPassword("Password@123");
+  const seedPassword = process.env.SEED_DEFAULT_PASSWORD;
+  if (!seedPassword || seedPassword.length < 12) {
+    throw new Error("SEED_DEFAULT_PASSWORD must be configured with at least 12 characters before seeding");
+  }
+  const passwordHash = await hashPassword(seedPassword);
 
   for (const e of EMPLOYEES) {
     const user = await prisma.user.create({
@@ -1448,8 +1452,8 @@ async function main() {
       netSettlement: 109000,
     },
   });
-  console.log("🔑 Login credentials (all): email from list below / Password@123");
-  console.log("   ADMIN  → rajesh.menon@company.com (Rajesh Menon, CEO) [alias: robert.king@company.com]");
+  console.log("✅ Demo accounts created. Password loaded securely from SEED_DEFAULT_PASSWORD.");
+  console.log("   ADMIN  → robert.king@company.com (Robert King, CEO)");
   console.log("   HR     → sunita.reddy@company.com (Sunita Reddy, HR Manager)");
   console.log("   MANAGER→ anjali.desai@company.com (Anjali Desai, Engineering Manager)");
   console.log("   EMP    → matsya.singh@company.com (Matsya Singh, Senior Software Engineer)");

@@ -1,7 +1,7 @@
-﻿// Sign-in page — supports both email/password and role-based quick access.
+﻿// Sign-in page — email and password only; no credentials are embedded in the client.
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { useAuth, DEMO_ACCOUNTS } from "../../context/AuthContext";
+import { useAuth } from "../../context/AuthContext";
 import Spinner from "../../components/shared/Spinner";
 
 /* ─── Feature bullets shown on the left panel ───────── */
@@ -25,12 +25,12 @@ export default function Login() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const submit = async (e, creds) => {
+  const submit = async (e) => {
     e?.preventDefault();
     setError("");
     setBusy(true);
     try {
-      await login(creds?.email || email, creds?.password || password);
+      await login(email, password);
       navigate(from, { replace: true });
     } catch (err) {
       setError(err.message || "Login failed. Check your credentials.");
@@ -255,57 +255,9 @@ export default function Login() {
               </button>
             </form>
 
-            {/* ── Quick sign-in ── */}
-            <div style={{ marginTop: "28px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
-                <div style={{ flex: 1, height: "1px", background: "#dde5ee" }} />
-                <span style={{ fontSize: "10.5px", fontWeight: 700, color: "#8ba3b8", textTransform: "uppercase", letterSpacing: "0.6px", whiteSpace: "nowrap" }}>
-                  Quick Sign-In
-                </span>
-                <div style={{ flex: 1, height: "1px", background: "#dde5ee" }} />
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-                {DEMO_ACCOUNTS.map((acc) => (
-                  <button
-                    key={acc.label}
-                    type="button"
-                    disabled={busy}
-                    onClick={() => submit(null, acc)}
-                    style={{
-                      padding: "10px 8px",
-                      border: "1.5px solid #dde5ee",
-                      borderRadius: "10px",
-                      background: "#f8fafc",
-                      color: "#3d5a70",
-                      fontSize: "12.5px", fontWeight: 600,
-                      cursor: busy ? "not-allowed" : "pointer",
-                      transition: "border-color 0.15s, background 0.15s, color 0.15s, box-shadow 0.15s",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = "#0f766e";
-                      e.currentTarget.style.background = "#f0fdfa";
-                      e.currentTarget.style.color = "#0f766e";
-                      e.currentTarget.style.boxShadow = "0 2px 8px rgba(15,118,110,0.12)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = "#dde5ee";
-                      e.currentTarget.style.background = "#f8fafc";
-                      e.currentTarget.style.color = "#3d5a70";
-                      e.currentTarget.style.boxShadow = "none";
-                    }}
-                  >
-                    Continue as {acc.label}
-                  </button>
-                ))}
-              </div>
-
-              <p style={{ fontSize: "11px", color: "#8ba3b8", marginTop: "12px", textAlign: "center" }}>
-                Use your assigned credentials or select a role above to explore.
-                <br />
-                Use <span style={{ fontWeight: "bold" }}>Password@123</span> as password to login.
-              </p>
-            </div>
+            <p style={{ fontSize: "11px", color: "#8ba3b8", marginTop: "20px", textAlign: "center" }}>
+              Use only the credentials assigned to your work account.
+            </p>
           </div>
         </div>
       </div>

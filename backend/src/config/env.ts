@@ -23,6 +23,7 @@ const envSchema = z.object({
   SMTP_PASS: z.string().default(""),
   SMTP_FROM_NAME: z.string().trim().default("Proteccio HRMS"),
   SMTP_FROM_EMAIL: z.string().trim().default(""),
+  PASSWORD_SETUP_URL: z.string().url().default("http://localhost:5173/set-password"),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -4,6 +4,8 @@ import { AppError } from "../../lib/errors";
 import { hashPassword } from "../../lib/password";
 import { env } from "../../config/env";
 import { sendOfferInvitationEmail } from "./offerInvitationEmail.service";
+import { createPasswordSetupToken } from "../auth/auth.service";
+import { sendPasswordSetupEmail } from "../auth/passwordSetupEmail.service";
 
 const sha256 = (value: string) => crypto.createHash("sha256").update(value).digest("hex");
 
@@ -269,13 +271,9 @@ export async function createEmployeeAccount(applicationId: string) {
         nextNumber
     ).padStart(3, "0")}`;
 
-    const temporaryPassword = `Welcome@${crypto.randomInt(
-        1000,
-        9999
-    )}`;
-
-    const passwordHash =
-        await hashPassword(temporaryPassword);
+    // Store an unusable random bootstrap secret. The employee chooses their
+    // actual password through a single-use email link; plaintext is never returned.
+    const passwordHash = await hashPassword(crypto.randomBytes(48).toString("base64url"));
 
     const joiningDate =
         application.offer.joiningDate || new Date();
@@ -486,14 +484,20 @@ export async function createEmployeeAccount(applicationId: string) {
         }
     );
 
+    const setupToken = await createPasswordSetupToken(result.employee.userId!);
+    const setupDelivery = await sendPasswordSetupEmail(
+        email,
+        `${result.employee.firstName} ${result.employee.lastName}`.trim(),
+        `${env.PASSWORD_SETUP_URL}?token=${encodeURIComponent(setupToken)}`
+    );
+
     return {
         employee: result.employee,
 
         onboarding: result.onboarding,
 
         loginEmail: email,
-
-        temporaryPassword,
+        passwordSetupDelivery: setupDelivery,
     };
 }
 
