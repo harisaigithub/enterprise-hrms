@@ -1,7 +1,7 @@
-﻿import { TrendingUp } from "lucide-react";
+import { TrendingUp } from "lucide-react";
 import DashboardWidgetCard from "./DashboardWidgetCard";
 import { useDashboardWidget } from "../../hooks/useDashboardWidget";
-import { getAnalyticsSnapshot } from "../../services/adminDashboardService";
+import { getAnalyticsSnapshot } from "../../services/Admindashboardservice";
 
 export default function PayrollCostTrendWidget() {
   const { data, loading, error, retry } = useDashboardWidget(getAnalyticsSnapshot);
@@ -18,7 +18,7 @@ export default function PayrollCostTrendWidget() {
           </div>
         ))}
       </div>
-      <p style={{ fontSize: "10.5px", color: "var(--subtext)", marginTop: "4px" }}>₹ crore / month</p>
+      <p style={{ fontSize: "10.5px", color: "var(--subtext)", marginTop: "4px" }}>? crore / month</p>
     </DashboardWidgetCard>
   );
 }

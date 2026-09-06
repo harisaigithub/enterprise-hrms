@@ -1,8 +1,8 @@
-﻿import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Filter } from "lucide-react";
 import DashboardWidgetCard from "./DashboardWidgetCard";
 import { useDashboardWidget } from "../../hooks/useDashboardWidget";
-import { getAnalyticsSnapshot } from "../../services/adminDashboardService";
+import { getAnalyticsSnapshot } from "../../services/Admindashboardservice";
 
 export default function HiringFunnelWidget() {
   const navigate = useNavigate();

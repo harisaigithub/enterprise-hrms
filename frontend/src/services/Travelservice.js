@@ -15,7 +15,7 @@ import {
   _resolveSettlementBalance,
   _closeZeroBalanceSettlement,
   _getMaskedPassportRef,
-} from "../mock/travel";
+} from "../mock/Travel";
 
 const resolve = (data, ms = 350) => new Promise((res) => setTimeout(() => res({ data }), ms));
 

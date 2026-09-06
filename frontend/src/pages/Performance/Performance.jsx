@@ -51,7 +51,7 @@ import {
   getAdminEmployeePerformanceDetail,
   rejectManagerGoal,
 } from "../../services/performanceService";
-import { goalStatusMeta, reviewPhaseMeta, feedbackTypeMeta, colleagues, _getReviewCycle } from "../../mock/performance";
+import { goalStatusMeta, reviewPhaseMeta, feedbackTypeMeta, colleagues, _getReviewCycle } from "../../mock/Performance";
 
 
 function getCurrentEmployeeCode() {

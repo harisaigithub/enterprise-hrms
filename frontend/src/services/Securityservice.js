@@ -32,7 +32,7 @@ import {
   _recordFailedLogin,
   _getAuditLog,
   _verifyAuditChain,
-} from "../mock/security";
+} from "../mock/Security";
 
 const resolve = (data, ms = 350) => new Promise((res) => setTimeout(() => res({ data }), ms));
 

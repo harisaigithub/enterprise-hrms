@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Organization Management Page  •  Module 20
  * Tabs: Structure  •  Locations  •  Cost Centers  •  Designations & Grades  •  Reporting Structure
  */
@@ -40,8 +40,8 @@ import {
   updateReportingManager,
   bulkReassignDepartment,
   getAuditLog,
-} from "../../services/orgManagementService";
-import { statusMeta } from "../../mock/orgManagement";
+} from "../../services/Orgmanagementservice";
+import { statusMeta } from "../../mock/Orgmanagement";
 
 /* ---------------------------------- shared bits ---------------------------------- */
 

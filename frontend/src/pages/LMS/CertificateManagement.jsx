@@ -20,7 +20,7 @@ import {
     downloadCertificate,
     revokeCertificate,
     verifyCertificateById,
-} from "../../services/lmsService";
+} from "../../services/Lmsservice";
 
 import { saveBlobAsFile } from "../../utils/certificateDownload";
 

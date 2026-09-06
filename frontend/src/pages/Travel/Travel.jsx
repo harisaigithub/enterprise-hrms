@@ -34,8 +34,8 @@ import {
   resolveSettlementBalance,
   closeZeroBalanceSettlement,
   getMaskedPassportRef,
-} from "../../services/travelService";
-import { TRAVEL_MODES, requestStatusMeta, travelPolicy, employeeGradeDirectory } from "../../mock/travel";
+} from "../../services/Travelservice";
+import { TRAVEL_MODES, requestStatusMeta, travelPolicy, employeeGradeDirectory } from "../../mock/Travel";
 
 const ME = { id: "EMP001", name: "Matsya Singh", grade: "L4" };
 const fmtDate = (d) => new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });

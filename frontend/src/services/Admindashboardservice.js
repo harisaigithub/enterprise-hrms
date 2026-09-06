@@ -3,7 +3,7 @@
  * Fetches live analytics metrics from /api/dashboard/admin with offline fallback.
  */
 import api from "./api";
-import { analyticsSnapshot } from "../mock/adminDashboard";
+import { analyticsSnapshot } from "../mock/Admindashboard";
 
 export const getAnalyticsSnapshot = async () => {
   try {

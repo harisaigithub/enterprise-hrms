@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { ClipboardList, ArrowUpRight } from "lucide-react";
 import DashboardWidgetCard from "./DashboardWidgetCard";
 import { useDashboardWidget } from "../../hooks/useDashboardWidget";
-import { getTeamApprovalsCount } from "../../services/managerDashboardService";
+import { getTeamApprovalsCount } from "../../services/Managerdashboardservice";
 
 export default function TeamApprovalsWidget() {
   const navigate = useNavigate();

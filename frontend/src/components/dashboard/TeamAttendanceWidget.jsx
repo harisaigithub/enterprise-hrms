@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { Users } from "lucide-react";
 import DashboardWidgetCard from "./DashboardWidgetCard";
 import { useDashboardWidget } from "../../hooks/useDashboardWidget";
-import { getTeamAttendanceSummary } from "../../services/managerDashboardService";
+import { getTeamAttendanceSummary } from "../../services/Managerdashboardservice";
 
 export default function TeamAttendanceWidget() {
   const navigate = useNavigate();

@@ -28,8 +28,8 @@ import EmptyState from "../../components/shared/EmptyState";
 import Modal from "../../components/shared/Modal";
 import {
   getMyExpenseClaims, getPendingApprovals, submitExpenseClaim, approveClaim, rejectClaim,
-} from "../../services/expenseService";
-import { EXPENSE_CATEGORIES, EXPENSE_POLICY, expenseStatusMeta, LOCKED_STATUSES } from "../../mock/expenses";
+} from "../../services/Expenseservice";
+import { EXPENSE_CATEGORIES, EXPENSE_POLICY, expenseStatusMeta, LOCKED_STATUSES } from "../../mock/Expenses";
 import { useAuth } from "../../context/AuthContext";
 
 const fmtDate = (d) => new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });

@@ -6,7 +6,7 @@
 import {
   EXPENSE_POLICY, SUBMISSION_WINDOW_DAYS, LOCKED_STATUSES,
   RAW_CLAIMS, generateClaimId,
-} from "../mock/expenses";
+} from "../mock/Expenses";
 
 const DELAY = 350;
 

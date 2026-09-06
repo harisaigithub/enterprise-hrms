@@ -1,7 +1,7 @@
-﻿import { Building2 } from "lucide-react";
+import { Building2 } from "lucide-react";
 import DashboardWidgetCard from "./DashboardWidgetCard";
 import { useDashboardWidget } from "../../hooks/useDashboardWidget";
-import { getAnalyticsSnapshot } from "../../services/adminDashboardService";
+import { getAnalyticsSnapshot } from "../../services/Admindashboardservice";
 
 export default function DepartmentPerformanceWidget() {
   const { data, loading, error, retry } = useDashboardWidget(getAnalyticsSnapshot);

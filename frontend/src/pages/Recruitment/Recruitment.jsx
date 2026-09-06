@@ -34,10 +34,10 @@ import {
   getOffers,
   createOffer,
   updateOfferStatus,
-} from "../../services/recruitmentService";
+} from "../../services/Recruitmentservice";
 
 import { getEmployees } from "../../services/employeeService";
-import { getDepartments, getGrades } from "../../services/orgManagementService";
+import { getDepartments, getGrades } from "../../services/Orgmanagementservice";
 import CandidateLifecycleTab from "./CandidateLifecycleTab";
 
 const requisitionStatusMeta = {

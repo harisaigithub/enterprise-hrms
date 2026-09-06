@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Users2, ExternalLink, Search, CheckCircle2, Clock, CalendarOff } from "lucide-react";
 import { useDashboardWidget } from "../../hooks/useDashboardWidget";
-import { getDirectReportsList } from "../../services/managerDashboardService";
+import { getDirectReportsList } from "../../services/Managerdashboardservice";
 
 const STATUS_CONFIG = {
   Present: {

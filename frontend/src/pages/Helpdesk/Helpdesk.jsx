@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Helpdesk Page - Module 17
  * Tabs: My Tickets (raise + track), Agent Queue (resolve).
  * SLA escalation and reopen-window auto-close are computed live by the
@@ -17,8 +17,8 @@ import { useAuth } from "../../context/AuthContext";
 import {
   getMyTickets, getAgentQueue, getAllQueueNames, raiseTicket, resolveTicket, reopenTicket,
   addTicketComment, assignTicket, updateTicketStatus,
-} from "../../services/helpdeskService";
-import { TICKET_CATEGORIES, ticketStatusMeta } from "../../mock/helpdesk";
+} from "../../services/Helpdeskservice";
+import { TICKET_CATEGORIES, ticketStatusMeta } from "../../mock/Helpdesk";
 
 const fmtDateTime = (d) => new Date(d).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 const cleanText = (value) => typeof value === "string" ? value.replaceAll(" • ", "-") : value;

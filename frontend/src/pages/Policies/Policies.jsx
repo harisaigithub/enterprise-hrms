@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Policy Management Page - Module 18
  * Tabs: Policy Library - My Acknowledgements - Compliance Dashboard
  */
@@ -27,8 +27,8 @@ import {
   getAcknowledgements,
   getAllAcknowledgements,
   acknowledgePolicy,
-} from "../../services/policyService";
-import { policyStatusMeta, ackStatusMeta } from "../../mock/policies";
+} from "../../services/Policyservice";
+import { policyStatusMeta, ackStatusMeta } from "../../mock/Policies";
 const fmtDate = (d) => (d ? new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "-");
 
 const formatDevice = (userAgent = "") => {

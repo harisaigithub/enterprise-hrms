@@ -12,7 +12,7 @@ import {
   clearRecordLegalHold, getCaseDetail, getCaseSummaries, getComplianceAuditLog,
   getDashboardSummary, getObligations, getRetentionRecords, markObligationFiled,
   queryAuditFeed, runRetentionJob,
-} from "../../services/complianceService";
+} from "../../services/Complianceservice";
 
 const CATEGORIES = ["PF Filing", "ESI Filing", "TDS Filing", "POSH Training Review", "Policy Acknowledgement Review", "Other Statutory"];
 const statusMeta = {

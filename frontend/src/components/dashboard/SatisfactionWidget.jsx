@@ -1,7 +1,7 @@
-﻿import { Smile } from "lucide-react";
+import { Smile } from "lucide-react";
 import DashboardWidgetCard from "./DashboardWidgetCard";
 import { useDashboardWidget } from "../../hooks/useDashboardWidget";
-import { getAnalyticsSnapshot } from "../../services/adminDashboardService";
+import { getAnalyticsSnapshot } from "../../services/Admindashboardservice";
 
 export default function SatisfactionWidget() {
   const { data, loading, error, retry } = useDashboardWidget(getAnalyticsSnapshot);

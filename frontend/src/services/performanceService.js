@@ -5,7 +5,7 @@
  */
 
 import api from "./api";
-import { _getReviewCycle, _advanceReviewCyclePhase } from "../mock/performance";
+import { _getReviewCycle, _advanceReviewCyclePhase } from "../mock/Performance";
 
 export const getGoals = async (employeeId) => {
   const res = await api.get("/performance/goals", { params: { employeeId } });
