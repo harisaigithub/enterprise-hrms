@@ -423,8 +423,6 @@ export class OrganizationManagementService {
                 },
             });
 
-            console.log("✅ Grades fetched:", grades.length);
-
             return grades.map((grade) => ({
                 id: grade.id,
                 code: grade.code,

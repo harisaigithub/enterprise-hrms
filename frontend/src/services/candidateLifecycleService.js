@@ -8,7 +8,22 @@ export const getPublicJobs = async () => publicCall(() => publicApi.get("/candid
 export const submitCandidateApplication = async (payload) => publicCall(() => publicApi.post("/candidate-lifecycle/applications", payload));
 export const getCandidatePortal = async (token) => publicCall(() => publicApi.get(`/candidate-lifecycle/portal/${token}`));
 export const decideCandidateOffer = async (token, decision) => publicCall(() => publicApi.post(`/candidate-lifecycle/portal/${token}/decision`, { decision }));
-export const uploadCandidateDocument = async (token, payload) => publicCall(() => publicApi.post(`/candidate-lifecycle/portal/${token}/documents`, payload));
+export async function uploadCandidateDocument(
+  token,
+  { documentType, file }
+) {
+  const formData = new FormData();
+
+  formData.append("documentType", documentType);
+  formData.append("file", file);
+
+  const response = await api.post(
+    `/candidate-lifecycle/portal/${token}/documents`,
+    formData
+  );
+
+  return response.data;
+}
 export const getLifecycleApplications = async () => (await api.get("/candidate-lifecycle/applications")).data;
 export const firstApproveApplication = async (id, notes = "") => (await api.post(`/candidate-lifecycle/applications/${id}/first-approval`, { notes })).data;
 export const secondApproveApplication = async (id, payload) => (await api.post(`/candidate-lifecycle/applications/${id}/second-approval`, payload)).data;

@@ -4,6 +4,12 @@ import { AppError } from "../../lib/errors";
 import { hashPassword } from "../../lib/password";
 import { env } from "../../config/env";
 import { sendOfferInvitationEmail } from "./offerInvitationEmail.service";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
+
+import minioClient, {
+  MINIO_BUCKET,
+} from "../../config/minio";
 
 const sha256 = (value: string) => crypto.createHash("sha256").update(value).digest("hex");
 
@@ -93,17 +99,87 @@ export async function decideOffer(token: string, decision: "Accepted" | "Decline
   });
 }
 
-export async function uploadDocument(token: string, input: any) {
+export async function uploadDocument(
+  token: string,
+  input: {
+    documentType: string;
+    file: Express.Multer.File;
+  }
+) {
   const offer = await findValidOffer(token);
-  if (offer.status !== "Accepted") throw AppError.badRequest("Accept the offer before uploading documents");
+
+  if (offer.status !== "Accepted") {
+    throw AppError.badRequest(
+      "Accept the offer before uploading documents"
+    );
+  }
+
+  const allowedTypes = [
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+  ];
+
+  if (!allowedTypes.includes(input.file.mimetype)) {
+    throw AppError.badRequest(
+      "Only PDF, JPG and PNG files are allowed"
+    );
+  }
+
+  if (input.file.size > 5 * 1024 * 1024) {
+    throw AppError.badRequest(
+      "Document size must be less than 5 MB"
+    );
+  }
+
+  const extension = path.extname(
+    input.file.originalname
+  );
+
+  const objectName =
+    `candidate/documents/${randomUUID()}${extension}`;
+
+  await minioClient.putObject(
+    MINIO_BUCKET,
+    objectName,
+    input.file.buffer,
+    input.file.size,
+    {
+      "Content-Type": input.file.mimetype,
+    }
+  );
+
+  /*
+   * IMPORTANT:
+   * Do NOT store MinIO's internal object name
+   * as a browser URL.
+   *
+   * Store our backend file route.
+   */
+  const fileUrl =
+    `/uploads/candidate/${objectName
+      .replace("candidate/documents/", "")}`;
+
   return prisma.$transaction(async (tx: any) => {
-    const document = await tx.candidateDocument.create({ data: {
-      applicationId: offer.applicationId,
-      documentType: input.documentType,
-      fileName: input.fileName,
-      fileUrl: input.fileUrl,
-    } });
-    await tx.application.update({ where: { id: offer.applicationId }, data: { approvalStatus: "Document Verification" } });
+    const document =
+      await tx.candidateDocument.create({
+        data: {
+          applicationId: offer.applicationId,
+          documentType: input.documentType,
+          fileName: input.file.originalname,
+          fileUrl,
+        },
+      });
+
+    await tx.application.update({
+      where: {
+        id: offer.applicationId,
+      },
+      data: {
+        approvalStatus: "Document Verification",
+      },
+    });
+
     return document;
   });
 }

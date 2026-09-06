@@ -232,11 +232,6 @@ function VideoViewer({ content }) {
                         "VIDEO PLAYBACK ERROR:",
                         e.currentTarget.error
                     );
-
-                    console.log(
-                        "VIDEO URL:",
-                        videoUrl
-                    );
                 }}
             >
                 <source src={videoUrl} />

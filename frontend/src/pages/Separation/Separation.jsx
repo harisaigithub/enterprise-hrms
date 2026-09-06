@@ -225,11 +225,6 @@ function InitiateSeparationModal({
           status: "Active",
         });
 
-        console.log(
-          "EMPLOYEE API RESPONSE:",
-          response
-        );
-
         if (mounted) {
           setEmployees(response?.data || []);
         }
@@ -333,11 +328,6 @@ function InitiateSeparationModal({
           noticePeriodDays || 0
         ),
       };
-
-      console.log(
-        "SEPARATION PAYLOAD:",
-        separation
-      );
 
       const response =
         await initiateSeparation(
