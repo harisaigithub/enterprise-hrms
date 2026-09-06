@@ -42,6 +42,7 @@ import {
   applyLeave,
   approveLeave,
   rejectLeave,
+  uploadLeaveDocument,
 } from "../../services/leaveService";
 import { useAuth } from "../../context/AuthContext";
 import { leaveStatusMeta } from "../../mock/leave";
@@ -169,6 +170,7 @@ function ApplyLeaveModal({ isOpen, onClose, leaveTypes, employeeId, onSaved }) {
     startDate: "",
     endDate: "",
     reason: "",
+    document: null,
     documentName: "",
     documentSize: "",
   });
@@ -203,18 +205,60 @@ function ApplyLeaveModal({ isOpen, onClose, leaveTypes, employeeId, onSaved }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     if (!validate()) return;
+
     setSaving(true);
+
     try {
+      let documentData = null;
+
+      // 1. Upload document to MinIO
+      if (form.document) {
+        const uploadResponse =
+          await uploadLeaveDocument(
+            form.document
+          );
+
+        documentData = uploadResponse.data;
+      }
+
+      // 2. Create leave request
       await applyLeave({
-        ...form,
         employeeId,
-        days: daysBetween(),
-        documentName: form.documentName || (requiresMedicalDoc ? "Medical_Prescription_Cert.pdf" : null),
+
+        leaveTypeId: form.leaveTypeId,
+        startDate: form.startDate,
+        endDate: form.endDate,
+        reason: form.reason,
+
+        documentName:
+          documentData?.documentName || null,
+
+        documentUrl:
+          documentData?.documentUrl || null,
+
+        documentMimeType:
+          documentData?.documentMimeType || null,
+
+        documentSize:
+          documentData?.documentSize || null,
       });
-      setForm({ leaveTypeId: "", startDate: "", endDate: "", reason: "", documentName: "", documentSize: "" });
+
+      setForm({
+        leaveTypeId: "",
+        startDate: "",
+        endDate: "",
+        reason: "",
+        document: null,
+        documentName: "",
+        documentSize: "",
+      });
+
       onClose();
+
       await onSaved?.();
+
     } finally {
       setSaving(false);
     }
@@ -276,14 +320,16 @@ function ApplyLeaveModal({ isOpen, onClose, leaveTypes, employeeId, onSaved }) {
               type="file"
               accept=".pdf,.jpg,.jpeg,.png"
               onChange={(e) => {
-                const file = e.target.files[0];
-                if (file) {
-                  setForm((p) => ({
-                    ...p,
-                    documentName: file.name,
-                    documentSize: `${(file.size / 1024).toFixed(1)} KB`,
-                  }));
-                }
+                const file = e.target.files?.[0];
+
+                if (!file) return;
+
+                setForm((p) => ({
+                  ...p,
+                  document: file,
+                  documentName: file.name,
+                  documentSize: `${(file.size / 1024).toFixed(1)} KB`,
+                }));
               }}
               style={{ fontSize: "12.5px", color: "var(--text)", marginTop: "6px" }}
             />
@@ -764,19 +810,34 @@ export default function Leave() {
                             <td style={{ padding: "13px 16px", fontSize: "13.5px", color: "var(--text)", textAlign: "center" }}>{req.days}</td>
                             <td style={{ padding: "13px 16px", fontSize: "13px", color: "var(--subtext)", maxWidth: "220px" }}>
                               <p style={{ margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{req.reason}</p>
-                              {isSickOrMedical && (
+                              {isSickOrMedical && req.documentUrl && (
                                 <button
                                   type="button"
-                                  onClick={() => alert(`Medical Certificate Attached for ${req.employeeName}:\nDocument: ${req.documentName || "Doctor_Prescription_Medical_Cert.pdf"}\nStatus: Verified Medical Document`)}
+                                  onClick={() => {
+                                    const apiUrl = import.meta.env.VITE_API_URL.replace(/\/api\/?$/, "");
+
+                                    window.open(
+                                      `${apiUrl}${req.documentUrl}`,
+                                      "_blank"
+                                    );
+                                  }}
                                   style={{
-                                    display: "inline-flex", alignItems: "center", gap: "4px",
-                                    padding: "2px 7px", background: "var(--primary-light)",
-                                    color: "var(--primary)", border: "1px solid rgba(15,118,110,0.2)",
-                                    borderRadius: "4px", fontSize: "11px", fontWeight: 600, cursor: "pointer",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "4px",
+                                    padding: "2px 7px",
+                                    background: "var(--primary-light)",
+                                    color: "var(--primary)",
+                                    border: "1px solid rgba(15,118,110,0.2)",
+                                    borderRadius: "4px",
+                                    fontSize: "11px",
+                                    fontWeight: 600,
+                                    cursor: "pointer",
                                     marginTop: "4px",
                                   }}
                                 >
-                                  <Paperclip size={11} /> {req.documentName || "Medical_Cert.pdf"}
+                                  <Paperclip size={11} />
+                                  {req.documentName || "View Document"}
                                 </button>
                               )}
                             </td>

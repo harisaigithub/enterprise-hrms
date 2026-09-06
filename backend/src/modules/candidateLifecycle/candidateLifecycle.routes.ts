@@ -5,6 +5,7 @@ import { validate } from "../../middlewares/validate";
 import { authenticate } from "../../middlewares/auth";
 import { requireRole } from "../../middlewares/rbac";
 import * as controller from "./candidateLifecycle.controller";
+import { candidateUpload } from "./candidateLifecycle.controller";
 
 const router = Router();
 const uuid = z.string().uuid();
@@ -17,10 +18,23 @@ router.post("/applications", publicLimiter, validate({ body: z.object({
 }) }), controller.apply);
 router.get("/portal/:token", publicLimiter, controller.portal);
 router.post("/portal/:token/decision", publicLimiter, validate({ body: z.object({ decision: z.enum(["Accepted", "Declined"]) }) }), controller.decide);
-router.post("/portal/:token/documents", publicLimiter, validate({ body: z.object({
-  documentType: z.enum(["Identity Proof", "Address Proof", "Education Certificate", "Tax Document", "Other"]),
-  fileName: z.string().min(1).max(255), fileUrl: z.string().min(1).max(900000),
-}) }), controller.uploadDocument);
+router.post(
+  "/portal/:token/documents",
+  publicLimiter,
+  candidateUpload.single("file"),
+  validate({
+    body: z.object({
+      documentType: z.enum([
+        "Identity Proof",
+        "Address Proof",
+        "Education Certificate",
+        "Tax Document",
+        "Other",
+      ]),
+    }),
+  }),
+  controller.uploadDocument
+);
 
 router.use(authenticate);
 router.get("/applications", requireRole("HR", "ADMIN"), controller.listApplications);

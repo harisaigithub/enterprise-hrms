@@ -4,6 +4,9 @@ import { validate } from "../../middlewares/validate";
 import { authenticate } from "../../middlewares/auth";
 import { requirePermission } from "../../middlewares/rbac";
 import * as leaveController from "./leave.controller";
+import {
+  leaveDocumentUpload,
+} from "../../middlewares/leaveUpload";
 
 const router = Router();
 
@@ -23,6 +26,11 @@ const applyBodySchema = z.object({
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "startDate must be YYYY-MM-DD"),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "endDate must be YYYY-MM-DD"),
   reason: z.string().max(1000).optional(),
+
+  documentName: z.string().max(255).optional(),
+  documentUrl: z.string().max(1000).optional(),
+  documentMimeType: z.string().max(100).optional(),
+  documentSize: z.number().int().positive().optional(),
 });
 
 const approvalBodySchema = z.object({
@@ -41,6 +49,14 @@ router.get("/balance", authenticate, requirePermission("leave:read"), validate({
 
 // GET /api/leave/requests — leave:read
 router.get("/requests", authenticate, requirePermission("leave:read"), validate({ query: requestsQuerySchema }), leaveController.listRequests);
+
+router.post(
+  "/document",
+  authenticate,
+  requirePermission("leave:write"),
+  leaveDocumentUpload.single("file"),
+  leaveController.uploadDocument
+);
 
 // POST /api/leave/apply — leave:write
 router.post("/apply", authenticate, requirePermission("leave:write"), validate({ body: applyBodySchema }), leaveController.apply);

@@ -463,6 +463,12 @@ model LeaveRequest {
   approvedBy  String?   @map("approved_by") @db.Uuid
   approvedOn  DateTime? @map("approved_on") @db.Date
   comments    String?
+
+  documentName     String? @map("document_name") @db.VarChar(255)
+  documentUrl      String? @map("document_url") @db.Text
+  documentMimeType String? @map("document_mime_type") @db.VarChar(100)
+  documentSize     Int?    @map("document_size")
+
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
 
   employee  Employee  @relation("LeaveRequestsSubmitted", fields: [employeeId], references: [id], onDelete: Cascade)
