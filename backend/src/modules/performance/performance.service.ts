@@ -1244,25 +1244,32 @@ export async function createOneOnOne(
     );
   }
 
+  /*
+   * Determine employee / manager roles:
+   * If the partner is the current user's reporting manager, current is the
+   * employee and partner is the manager.
+   * If the current user is the partner's reporting manager, current is the
+   * manager and partner is the employee.
+   * Otherwise (peer 1:1), store the creator as the "employee" slot and the
+   * partner as the "manager" slot — the labels are just for storage ordering.
+   */
   const isPartnerManager =
     current.reportingManagerId === partner.id;
 
-  const isPartnerDirectReport =
+  const isCurrentManager =
     partner.reportingManagerId === current.id;
-
-  if (!isPartnerManager && !isPartnerDirectReport) {
-    throw AppError.forbidden(
-      "1:1 notes can only be created between an employee and their direct manager"
-    );
-  }
 
   const employeeId = isPartnerManager
     ? current.id
-    : partner.id;
+    : isCurrentManager
+      ? partner.id
+      : current.id;
 
   const managerId = isPartnerManager
     ? partner.id
-    : current.id;
+    : isCurrentManager
+      ? current.id
+      : partner.id;
 
   const validAgenda = (input.agenda || []).filter(
     (a) => a && a.trim()

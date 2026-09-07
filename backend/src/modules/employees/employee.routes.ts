@@ -60,4 +60,10 @@ router.put("/:id", authenticate, requirePermission("employees:write"), validate(
 // DELETE /api/employees/:id — employees:delete (Admin only in frontend matrix)
 router.delete("/:id", authenticate, requirePermission("employees:delete"), employeeController.remove);
 
+// GET /api/employees/:id/salary — employees:read (HR can view salary structure)
+router.get("/:id/salary", authenticate, requirePermission("employees:read"), employeeController.getSalary);
+
+// PUT /api/employees/:id/salary — employees:write (HR can set/update salary structure)
+router.put("/:id/salary", authenticate, requirePermission("employees:write"), employeeController.upsertSalary);
+
 export default router;

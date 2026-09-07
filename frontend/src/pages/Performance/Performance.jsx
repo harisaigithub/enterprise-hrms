@@ -52,6 +52,7 @@ import {
   rejectManagerGoal,
 } from "../../services/performanceService";
 import { goalStatusMeta, reviewPhaseMeta, feedbackTypeMeta, colleagues, _getReviewCycle } from "../../mock/performance";
+import { getEmployees } from "../../services/employeeService";
 
 
 function getCurrentEmployeeCode() {
@@ -1911,9 +1912,8 @@ function FeedbackTab({ feedback, goals, onFeedbackAdded, organizationView }) {
 
 function AddNoteModal({ isOpen, onClose, onSaved }) {
   const currentEmployeeCode = getCurrentEmployeeCode();
-  const availableColleagues = colleagues.filter(
-    (colleague) => colleague.id !== currentEmployeeCode
-  );
+  const [employees, setEmployees] = useState([]);
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [withEmployeeCode, setWithEmployeeCode] = useState("");
   const [date, setDate] = useState("");
   const [agendaText, setAgendaText] = useState("");
@@ -1921,6 +1921,34 @@ function AddNoteModal({ isOpen, onClose, onSaved }) {
   const [actionItems, setActionItems] = useState([{ text: "" }]);
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+
+  // Compute today's date in YYYY-MM-DD (local time) to use as the min date
+  const todayStr = new Date().toLocaleDateString("en-CA"); // en-CA gives YYYY-MM-DD
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setLoadingEmployees(true);
+    getEmployees({ status: "Active", limit: 200 })
+      .then((res) => {
+        const list = res.data || [];
+        setEmployees(
+          list
+            .filter((e) => e.id !== currentEmployeeCode)
+            .map((e) => ({
+              id: e.id,
+              name: `${e.firstName} ${e.lastName}`,
+              role: e.designation || e.department || "",
+            }))
+        );
+      })
+      .catch(() => {
+        // fallback to mock colleagues on error
+        setEmployees(
+          colleagues.filter((c) => c.id !== currentEmployeeCode)
+        );
+      })
+      .finally(() => setLoadingEmployees(false));
+  }, [isOpen]);
 
   const updateAI = (i, value) => setActionItems((prev) => prev.map((a, idx) => (idx === i ? { text: value } : a)));
   const addAI = () => setActionItems((prev) => [...prev, { text: "" }]);
@@ -1968,17 +1996,17 @@ function AddNoteModal({ isOpen, onClose, onSaved }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
             {fieldLabel("With")}
-            <select value={withEmployeeCode} onChange={(e) => setWithEmployeeCode(e.target.value)} style={inputStyle(errors.withEmployeeCode)}>
-              <option value="">Select employee or manager</option>
-              {availableColleagues.map((colleague) => (
-                <option key={colleague.id} value={colleague.id}>{colleague.name} - {colleague.role}</option>
+            <select value={withEmployeeCode} onChange={(e) => setWithEmployeeCode(e.target.value)} style={inputStyle(errors.withEmployeeCode)} disabled={loadingEmployees}>
+              <option value="">{loadingEmployees ? "Loading..." : "Select employee or manager"}</option>
+              {employees.map((emp) => (
+                <option key={emp.id} value={emp.id}>{emp.name} - {emp.role}</option>
               ))}
             </select>
             {errors.withEmployeeCode && <span style={{ fontSize: "11px", color: "var(--red)" }}>{errors.withEmployeeCode}</span>}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
             {fieldLabel("Date *")}
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={inputStyle(errors.date)} />
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} min={todayStr} style={inputStyle(errors.date)} />
             {errors.date && <span style={{ fontSize: "11px", color: "var(--red)" }}>{errors.date}</span>}
           </div>
         </div>
