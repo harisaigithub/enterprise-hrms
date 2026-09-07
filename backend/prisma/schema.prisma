@@ -233,6 +233,7 @@ model Employee {
   leaveRequests     LeaveRequest[]     @relation("LeaveRequestsSubmitted")
   approvedLeaves    LeaveRequest[]     @relation("LeaveRequestsApproved")
   attendancePunches AttendancePunch[]
+  attendanceBreaks  AttendanceBreak[]
   salaryStructures  SalaryStructure[]
   payslips          Payslip[]
   approvedRuns      PayrollRun[]       @relation("PayrollRunApprovedBy")
@@ -510,6 +511,21 @@ model AttendancePunch {
   @@map("attendance_punches")
 }
 
+
+model AttendanceBreak {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId      String    @map("employee_id") @db.Uuid
+  breakType       String    @default("Short Break") @map("break_type") @db.VarChar(40)
+  startedAt       DateTime  @default(now()) @map("started_at") @db.Timestamp(6)
+  endedAt         DateTime? @map("ended_at") @db.Timestamp(6)
+  durationMinutes Int?      @map("duration_minutes")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, startedAt])
+  @@map("attendance_breaks")
+}
 // ── Payroll (Module 7) ─────────────────────────────────────────────────────
 
 model SalaryStructure {
