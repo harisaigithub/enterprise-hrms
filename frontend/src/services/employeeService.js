@@ -31,3 +31,13 @@ export const deleteEmployee = async (id) => {
   const res = await api.delete(`/employees/${id}`);
   return res.data;
 };
+
+export const getEmployeeSalary = async (id) => {
+  const res = await api.get(`/employees/${id}/salary`);
+  return res.data;
+};
+
+export const upsertEmployeeSalary = async (id, payload) => {
+  const res = await api.put(`/employees/${id}/salary`, payload);
+  return res.data;
+};

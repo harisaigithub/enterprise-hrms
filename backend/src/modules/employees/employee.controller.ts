@@ -52,3 +52,16 @@ export const remove = asyncHandler(async (req: Request, res: Response) => {
   const result = await employeeService.deleteEmployee(pk);
   sendSuccess(res, result.data);
 });
+
+export const getSalary = asyncHandler(async (req: Request, res: Response) => {
+  const pk = await resolveEmployeeId(req.params.id);
+  const result = await employeeService.getSalaryStructure(pk);
+  sendSuccess(res, result.data);
+});
+
+export const upsertSalary = asyncHandler(async (req: Request, res: Response) => {
+  const pk = await resolveEmployeeId(req.params.id);
+  const result = await employeeService.upsertSalaryStructure(pk, req.body, req.auth?.sub);
+  sendSuccess(res, result.data);
+});
+
