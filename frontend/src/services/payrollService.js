@@ -10,8 +10,15 @@ export const getPayrollRuns = async () => {
   return res.data;
 };
 
-export const getPayslips = async (employeeId = "EMP001") => {
-  const res = await api.get("/payroll/payslips", { params: { employeeId } });
+export const getPayslips = async (employeeId) => {
+  if (!employeeId) {
+    throw new Error("Employee ID is required.");
+  }
+
+  const res = await api.get("/payroll/payslips", {
+    params: { employeeId },
+  });
+
   return res.data;
 };
 
