@@ -19,6 +19,13 @@ model Company {
   id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name               String   @db.VarChar(150)
   registrationNumber String?  @map("registration_number") @db.VarChar(50)
+
+  // Sensitive company identifiers — encrypted at rest
+  cin                String?  @db.Text
+  gstin              String?  @db.Text
+  pfRegistration     String?  @map("pf_registration") @db.Text
+  esicRegistration   String?  @map("esic_registration") @db.Text
+
   country            String   @default("India") @db.VarChar(50)
   currency           String   @default("INR") @db.VarChar(10)
   isActive           Boolean  @default(true) @map("is_active")
@@ -206,6 +213,14 @@ model Employee {
   personalEmail      String?   @map("personal_email") @db.VarChar(150)
   personalMobile     String?   @map("personal_mobile") @db.VarChar(20)
   address            String?
+
+  uan         String? @db.Text
+  pan         String? @db.Text
+  bankName    String? @map("bank_name") @db.VarChar(120)
+  bankAccount String? @map("bank_account") @db.Text
+  ifsc        String? @db.VarChar(20)
+  pfAccount   String? @map("pf_account") @db.Text
+
   departmentId       String?   @map("department_id") @db.Uuid
   designationId      String?   @map("designation_id") @db.Uuid
   locationId         String?   @map("location_id") @db.Uuid
