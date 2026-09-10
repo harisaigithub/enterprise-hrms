@@ -26,275 +26,275 @@ const router = Router();
 
 /** ============ CLAIM ROUTES ============ */
 
-// GET /api/expense/claims — expense:read
+// GET /api/expense/claims ï¿½ expense:read
 router.get(
   "/claims",
   authenticate,
-  requirePermission("expense:read"),
+  requirePermission("expenses:read"),
   validate({ query: listClaimsQuerySchema }),
   expenseController.listClaims
 );
 
-// POST /api/expense/claims — expense:write (create draft)
+// POST /api/expense/claims ï¿½ expense:write (create draft)
 router.post(
   "/claims",
   authenticate,
-  requirePermission("expense:write"),
+  requirePermission("expenses:write"),
   validate({ body: createClaimBodySchema }),
   expenseController.createDraftClaim
 );
 
-// GET /api/expense/claims/:id — expense:read
+// GET /api/expense/claims/:id ï¿½ expense:read
 router.get(
   "/claims/:id",
   authenticate,
-  requirePermission("expense:read"),
+  requirePermission("expenses:read"),
   validate({ params: claimIdParamSchema }),
   expenseController.getClaim
 );
 
-// DELETE /api/expense/claims/:id — expense:write (delete draft)
+// DELETE /api/expense/claims/:id ï¿½ expense:write (delete draft)
 router.delete(
   "/claims/:id",
   authenticate,
-  requirePermission("expense:write"),
+  requirePermission("expenses:write"),
   validate({ params: claimIdParamSchema }),
   expenseController.deleteDraftClaim
 );
 
-// POST /api/expense/claims/:id/submit — expense:write
+// POST /api/expense/claims/:id/submit ï¿½ expense:write
 router.post(
   "/claims/:id/submit",
   authenticate,
-  requirePermission("expense:write"),
+  requirePermission("expenses:write"),
   validate({ params: claimIdParamSchema, body: submitClaimBodySchema }),
   expenseController.submitClaim
 );
 
-// POST /api/expense/claims/:id/cancel — expense:write
+// POST /api/expense/claims/:id/cancel ï¿½ expense:write
 router.post(
   "/claims/:id/cancel",
   authenticate,
-  requirePermission("expense:write"),
+  requirePermission("expenses:write"),
   validate({ params: claimIdParamSchema }),
   expenseController.cancelClaim
 );
 
-// PUT /api/expense/claims/:id/approve — expense:approve
+// PUT /api/expense/claims/:id/approve ï¿½ expense:approve
 router.put(
   "/claims/:id/approve",
   authenticate,
-  requirePermission("expense:approve"),
+  requirePermission("expenses:approve"),
   validate({ params: claimIdParamSchema, body: approveClaimBodySchema }),
   expenseController.approveClaim
 );
 
-// PUT /api/expense/claims/:id/reject — expense:approve
+// PUT /api/expense/claims/:id/reject ï¿½ expense:approve
 router.put(
   "/claims/:id/reject",
   authenticate,
-  requirePermission("expense:approve"),
+  requirePermission("expenses:approve"),
   validate({ params: claimIdParamSchema, body: rejectClaimBodySchema }),
   expenseController.rejectClaim
 );
 
-// GET /api/expense/claims/:id/history — expense:read
+// GET /api/expense/claims/:id/history ï¿½ expense:read
 router.get(
   "/claims/:id/history",
   authenticate,
-  requirePermission("expense:read"),
+  requirePermission("expenses:read"),
   validate({ params: claimIdParamSchema }),
   expenseController.getClaimHistory
 );
 
 /** ============ POLICY ROUTES ============ */
 
-// GET /api/expense/policies — expense:read
+// GET /api/expense/policies ï¿½ expense:read
 router.get(
   "/policies",
   authenticate,
-  requirePermission("expense:read"),
+  requirePermission("expenses:read"),
   expenseController.listPolicies
 );
 
-// GET /api/expense/policies/limits — expense:read
+// GET /api/expense/policies/limits ï¿½ expense:read
 router.get(
   "/policies/limits",
   authenticate,
-  requirePermission("expense:read"),
+  requirePermission("expenses:read"),
   expenseController.getPolicyLimits
 );
 
-// GET /api/expense/policies/:category — expense:read
+// GET /api/expense/policies/:category ï¿½ expense:read
 router.get(
   "/policies/:category",
   authenticate,
-  requirePermission("expense:read"),
+  requirePermission("expenses:read"),
   expenseController.getPolicy
 );
 
-// POST /api/expense/policies — expense:manage (admin/finance)
+// POST /api/expense/policies ï¿½ expense:manage (admin/finance)
 router.post(
   "/policies",
   authenticate,
-  requirePermission("expense:manage"),
+  requirePermission("expenses:manage"),
   validate({ body: policyBodySchema }),
   expenseController.upsertPolicy
 );
 
-// PUT /api/expense/policies/:category — expense:manage
+// PUT /api/expense/policies/:category ï¿½ expense:manage
 router.put(
   "/policies/:category",
   authenticate,
-  requirePermission("expense:manage"),
+  requirePermission("expenses:manage"),
   validate({ body: policyBodySchema }),
   expenseController.upsertPolicy
 );
 
-// DELETE /api/expense/policies/:category — expense:manage
+// DELETE /api/expense/policies/:category ï¿½ expense:manage
 router.delete(
   "/policies/:category",
   authenticate,
-  requirePermission("expense:manage"),
+  requirePermission("expenses:manage"),
   expenseController.deletePolicy
 );
 
-// POST /api/expense/policies/validate — expense:read (dry-run)
+// POST /api/expense/policies/validate ï¿½ expense:read (dry-run)
 router.post(
   "/policies/validate",
   authenticate,
-  requirePermission("expense:read"),
+  requirePermission("expenses:read"),
   validate({ body: validatePolicyBodySchema }),
   expenseController.validatePolicy
 );
 
 /** ============ DUPLICATE DETECTION ============ */
 
-// POST /api/expense/duplicates/check — expense:read
+// POST /api/expense/duplicates/check ï¿½ expense:read
 router.post(
   "/duplicates/check",
   authenticate,
-  requirePermission("expense:read"),
+  requirePermission("expenses:read"),
   validate({ body: duplicateCheckBodySchema }),
   expenseController.checkDuplicates
 );
 
 /** ============ RECEIPT ROUTES ============ */
 
-// POST /api/expense/receipts/upload-url — expense:write
+// POST /api/expense/receipts/upload-url ï¿½ expense:write
 router.post(
   "/receipts/upload-url",
   authenticate,
-  requirePermission("expense:write"),
+  requirePermission("expenses:write"),
   validate({ body: receiptUploadUrlBodySchema }),
   expenseController.getUploadUrl
 );
 
-// POST /api/expense/receipts/complete — expense:write
+// POST /api/expense/receipts/complete ï¿½ expense:write
 router.post(
   "/receipts/complete",
   authenticate,
-  requirePermission("expense:write"),
+  requirePermission("expenses:write"),
   expenseController.completeUpload
 );
 
-// GET /api/expense/receipts/:receiptId/download — expense:read
+// GET /api/expense/receipts/:receiptId/download ï¿½ expense:read
 router.get(
   "/receipts/:receiptId/download",
   authenticate,
-  requirePermission("expense:read"),
+  requirePermission("expenses:read"),
   validate({ params: receiptIdParamSchema }),
   expenseController.getDownloadUrl
 );
 
-// GET /api/expense/receipts/:receiptId — expense:read
+// GET /api/expense/receipts/:receiptId ï¿½ expense:read
 router.get(
   "/receipts/:receiptId",
   authenticate,
-  requirePermission("expense:read"),
+  requirePermission("expenses:read"),
   validate({ params: receiptIdParamSchema }),
   expenseController.getReceiptMeta
 );
 
-// DELETE /api/expense/receipts/:receiptId — expense:write
+// DELETE /api/expense/receipts/:receiptId ï¿½ expense:write
 router.delete(
   "/receipts/:receiptId",
   authenticate,
-  requirePermission("expense:write"),
+  requirePermission("expenses:write"),
   validate({ params: receiptIdParamSchema }),
   expenseController.deleteReceipt
 );
 
 /** ============ CORRECTING ENTRIES ============ */
 
-// POST /api/expense/correcting-entries — expense:write
+// POST /api/expense/correcting-entries ï¿½ expense:write
 router.post(
   "/correcting-entries",
   authenticate,
-  requirePermission("expense:write"),
+  requirePermission("expenses:write"),
   validate({ body: correctingEntryBodySchema }),
   expenseController.createCorrectingEntry
 );
 
-// PUT /api/expense/correcting-entries/:entryId/approve — expense:approve
+// PUT /api/expense/correcting-entries/:entryId/approve ï¿½ expense:approve
 router.put(
   "/correcting-entries/:entryId/approve",
   authenticate,
-  requirePermission("expense:approve"),
+  requirePermission("expenses:approve"),
   validate({ params: correctingEntryIdParamSchema, body: approveCorrectingEntryBodySchema }),
   expenseController.approveCorrectingEntry
 );
 
-// PUT /api/expense/correcting-entries/:entryId/reject — expense:approve
+// PUT /api/expense/correcting-entries/:entryId/reject ï¿½ expense:approve
 router.put(
   "/correcting-entries/:entryId/reject",
   authenticate,
-  requirePermission("expense:approve"),
+  requirePermission("expenses:approve"),
   validate({ params: correctingEntryIdParamSchema, body: rejectCorrectingEntryBodySchema }),
   expenseController.rejectCorrectingEntry
 );
 
 /** ============ REIMBURSEMENT / PAYROLL INTEGRATION ============ */
 
-// POST /api/expense/claims/:id/queue-payroll — expense:approve (finance)
+// POST /api/expense/claims/:id/queue-payroll ï¿½ expense:approve (finance)
 router.post(
   "/claims/:id/queue-payroll",
   authenticate,
-  requirePermission("expense:approve"),
+  requirePermission("expenses:approve"),
   validate({ params: claimIdParamSchema }),
   expenseController.queueForPayroll
 );
 
-// GET /api/expense/reimbursements — expense:read
+// GET /api/expense/reimbursements ï¿½ expense:read
 router.get(
   "/reimbursements",
   authenticate,
-  requirePermission("expense:read"),
+  requirePermission("expenses:read"),
   expenseController.getReimbursementQueue
 );
 
-// POST /api/expense/claims/:id/mark-paid — expense:manage
+// POST /api/expense/claims/:id/mark-paid ï¿½ expense:manage
 router.post(
   "/claims/:id/mark-paid",
   authenticate,
-  requirePermission("expense:manage"),
+  requirePermission("expenses:manage"),
   validate({ params: claimIdParamSchema }),
   expenseController.markPaid
 );
 
-// GET /api/expense/employees/:employeeId/reimbursement-summary — expense:read
+// GET /api/expense/employees/:employeeId/reimbursement-summary ï¿½ expense:read
 router.get(
   "/employees/:employeeId/reimbursement-summary",
   authenticate,
-  requirePermission("expense:read"),
+  requirePermission("expenses:read"),
   expenseController.getEmployeeReimbursementSummary
 );
 
-// POST /api/expense/reimbursements/process-payroll — expense:manage (payroll admin)
+// POST /api/expense/reimbursements/process-payroll ï¿½ expense:manage (payroll admin)
 router.post(
   "/reimbursements/process-payroll",
   authenticate,
-  requirePermission("expense:manage"),
+  requirePermission("expenses:manage"),
   expenseController.processPayrollReimbursements
 );
 
