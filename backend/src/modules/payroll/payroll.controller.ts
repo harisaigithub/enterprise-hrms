@@ -25,6 +25,68 @@ export const payslipDetail = asyncHandler(async (req: Request, res: Response) =>
   sendSuccess(res, result.data);
 });
 
+export const printPayslip = asyncHandler(async (req: Request, res: Response) => {
+  const pdf = await payrollService.generatePayslipPdf(req.params.id);
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader(
+    "Content-Disposition",
+    `inline; filename="${pdf.fileName}"`
+  );
+
+  res.send(pdf.buffer);
+});
+
+export const printAnnualStatement =
+  asyncHandler(
+    async (
+      req: Request,
+      res: Response,
+    ) => {
+      const pdf =
+        await payrollService.generateAnnualStatementPdf(
+          req.auth?.employeeId,
+        );
+
+      res.setHeader(
+        "Content-Type",
+        "application/pdf",
+      );
+
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename="${pdf.fileName}"`,
+      );
+
+      res.send(pdf.buffer);
+    },
+  );
+
+export const printForm16 =
+  asyncHandler(
+    async (
+      req: Request,
+      res: Response,
+    ) => {
+      const pdf =
+        await payrollService.generateForm16Pdf(
+          req.auth?.employeeId,
+        );
+
+      res.setHeader(
+        "Content-Type",
+        "application/pdf",
+      );
+
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename="${pdf.fileName}"`,
+      );
+
+      res.send(pdf.buffer);
+    },
+  );
+
 export const process = asyncHandler(async (req: Request, res: Response) => {
   const result = await payrollService.processPayrollRun(req.params.id, req.auth?.employeeId);
   sendSuccess(res, result.data);

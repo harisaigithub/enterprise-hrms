@@ -29,7 +29,29 @@ router.post("/runs/:id/lock", authenticate, requirePermission("payroll:write"), 
 // GET /api/payroll/payslips — payroll:read
 router.get("/payslips", authenticate, requirePermission("payroll:read"), validate({ query: payslipQuerySchema }), payrollController.payslips);
 
+
 // GET /api/payroll/payslips/:id — payroll:read
 router.get("/payslips/:id", authenticate, requirePermission("payroll:read"), payrollController.payslipDetail);
+
+router.post(
+  "/payslips/:id/print",
+  authenticate,
+  requirePermission("payroll:read"),
+  payrollController.printPayslip
+);
+
+router.post(
+  "/annual-statement/print",
+  authenticate,
+  requirePermission("payroll:read"),
+  payrollController.printAnnualStatement,
+);
+
+router.post(
+  "/form16/print",
+  authenticate,
+  requirePermission("payroll:read"),
+  payrollController.printForm16,
+);
 
 export default router;

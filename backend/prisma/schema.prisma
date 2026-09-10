@@ -19,6 +19,13 @@ model Company {
   id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name               String   @db.VarChar(150)
   registrationNumber String?  @map("registration_number") @db.VarChar(50)
+
+  // Sensitive company identifiers — encrypted at rest
+  cin                String?  @db.Text
+  gstin              String?  @db.Text
+  pfRegistration     String?  @map("pf_registration") @db.Text
+  esicRegistration   String?  @map("esic_registration") @db.Text
+
   country            String   @default("India") @db.VarChar(50)
   currency           String   @default("INR") @db.VarChar(10)
   isActive           Boolean  @default(true) @map("is_active")
@@ -216,12 +223,6 @@ model Employee {
   personalMobile     String?   @map("personal_mobile") @db.VarChar(20)
   alternateMobile    String?   @map("alternate_mobile") @db.VarChar(20)
   address            String?
-  currentAddress     String?   @map("current_address") @db.Text
-  permanentAddress   String?   @map("permanent_address") @db.Text
-  city               String?   @db.VarChar(100)
-  state              String?   @db.VarChar(100)
-  country            String?   @default("India") @db.VarChar(100)
-  postalCode         String?   @map("postal_code") @db.VarChar(20)
   departmentId       String?   @map("department_id") @db.Uuid
   designationId      String?   @map("designation_id") @db.Uuid
   locationId         String?   @map("location_id") @db.Uuid
@@ -295,11 +296,6 @@ model Employee {
   assetHistory  AssetHistory[]
   separations   Separation[]
   alumni        Alumni[]
-  documents     EmployeeDocument[]
-  emergencyContacts EmployeeEmergencyContact[]
-  movements         EmployeeMovement[]
-  regularizationRequests AttendanceRegularization[]
-  requests          EmployeeRequest[]
 
   @@index([departmentId])
   @@index([designationId])
@@ -707,6 +703,7 @@ model WorkflowInstance {
   requester  Employee               @relation(fields: [requesterId], references: [id], onDelete: Restrict)
   steps      WorkflowInstanceStep[]
   events     WorkflowEvent[]
+  expenseClaims ExpenseClaim[] @relation("ExpenseClaimWorkflow")
 
   @@index([requesterId])
   @@index([status])
@@ -1852,108 +1849,4 @@ model Alumni {
 
   @@index([employeeId])
   @@map("alumni")
-}
-
-model EmployeeEmergencyContact {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  employeeId     String   @map("employee_id") @db.Uuid
-  name           String   @db.VarChar(120)
-  relationship   String   @db.VarChar(50)
-  primaryPhone   String   @map("primary_phone") @db.VarChar(30)
-  alternatePhone String?  @map("alternate_phone") @db.VarChar(30)
-  address        String?  @db.Text
-  isPrimary      Boolean  @default(true) @map("is_primary")
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(6)
-
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-
-  @@index([employeeId])
-  @@map("employee_emergency_contacts")
-}
-
-model EmployeeMovement {
-  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  employeeId       String   @map("employee_id") @db.Uuid
-  movementType     String   @map("movement_type") @db.VarChar(30)
-  oldDepartmentId  String?  @map("old_department_id") @db.Uuid
-  newDepartmentId  String?  @map("new_department_id") @db.Uuid
-  oldDesignationId String?  @map("old_designation_id") @db.Uuid
-  newDesignationId String?  @map("new_designation_id") @db.Uuid
-  oldLevel         String?  @map("old_level") @db.VarChar(20)
-  newLevel         String?  @map("new_level") @db.VarChar(20)
-  oldSalary        Decimal? @map("old_salary") @db.Decimal(15, 2)
-  newSalary        Decimal? @map("new_salary") @db.Decimal(15, 2)
-  oldManagerId     String?  @map("old_manager_id") @db.Uuid
-  newManagerId     String?  @map("new_manager_id") @db.Uuid
-  oldStatus        String?  @map("old_status") @db.VarChar(30)
-  newStatus        String?  @map("new_status") @db.VarChar(30)
-  effectiveDate    DateTime @map("effective_date") @db.Date
-  reason           String   @db.Text
-  requestedById    String?  @map("requested_by_id") @db.Uuid
-  approvedById     String?  @map("approved_by_id") @db.Uuid
-  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamp(6)
-
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-
-  @@index([employeeId])
-  @@index([effectiveDate])
-  @@map("employee_movements")
-}
-
-model Holiday {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name        String   @db.VarChar(150)
-  date        DateTime @db.Date
-  locationId  String?  @map("location_id") @db.Uuid
-  year        Int
-  isMandatory Boolean  @default(true) @map("is_mandatory")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
-
-  location Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
-
-  @@index([locationId])
-  @@index([date])
-  @@map("holidays")
-}
-
-model AttendanceRegularization {
-  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  employeeId        String    @map("employee_id") @db.Uuid
-  date              DateTime  @db.Date
-  originalStatus    String    @map("original_status") @db.VarChar(30)
-  requestedStatus   String    @map("requested_status") @db.VarChar(30)
-  requestedPunchIn  DateTime? @map("requested_punch_in") @db.Timestamp(6)
-  requestedPunchOut DateTime? @map("requested_punch_out") @db.Timestamp(6)
-  reason            String    @db.Text
-  status            String    @default("Pending") @db.VarChar(30)
-  approverId        String?   @map("approver_id") @db.Uuid
-  decisionNotes     String?   @map("decision_notes") @db.Text
-  decidedAt         DateTime? @map("decided_at") @db.Timestamp(6)
-  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
-
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-
-  @@index([employeeId])
-  @@index([date])
-  @@map("attendance_regularizations")
-}
-
-model EmployeeRequest {
-  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  employeeId    String    @map("employee_id") @db.Uuid
-  requestType   String    @map("request_type") @db.VarChar(50)
-  payload       Json      @db.JsonB
-  status        String    @default("Pending") @db.VarChar(30)
-  reason        String?   @db.Text
-  approverId    String?   @map("approver_id") @db.Uuid
-  decisionNotes String?   @map("decision_notes") @db.Text
-  decidedAt     DateTime? @map("decided_at") @db.Timestamp(6)
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
-
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-
-  @@index([employeeId])
-  @@index([requestType, status])
-  @@map("employee_requests")
 }

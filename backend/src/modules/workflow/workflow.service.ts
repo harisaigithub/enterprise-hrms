@@ -70,7 +70,7 @@ async function logEvent(instanceId: string, type: string, detail: string, actorN
   await prisma.workflowEvent.create({ data: { instanceId, type, detail, actorName } });
 }
 
-async function getInstance(id: string) {
+export async function getInstance(id: string) {
   const inst = await prisma.workflowInstance.findUnique({ where: { id }, include: INSTANCE_INCLUDE });
   if (!inst) throw AppError.notFound("Workflow instance not found");
   return { data: serializeInstance(inst) };

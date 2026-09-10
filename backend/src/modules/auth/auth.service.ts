@@ -105,10 +105,14 @@ export async function login(email: string, password: string, ip?: string) {
 
   const accessToken = signAccessToken({
     sub: account.user.id,
+    userId: account.user.id,
     role: account.roleName,
     permissions: account.permissions,
     employeeId: account.employee?.id,
     employeeCode: account.employee?.employeeCode,
+    firstName: account.employee?.firstName,
+    lastName: account.employee?.lastName,
+    name: account.employee ? `${account.employee.firstName} ${account.employee.lastName}` : undefined,
   });
 
   const refreshToken = await issueRefreshToken(account.user.id);
@@ -173,10 +177,14 @@ export async function refresh(refreshToken: string) {
 
   const accessToken = signAccessToken({
     sub: account.user.id,
+    userId: account.user.id,
     role: account.roleName,
     permissions: account.permissions,
     employeeId: account.employee?.id,
     employeeCode: account.employee?.employeeCode,
+    firstName: account.employee?.firstName,
+    lastName: account.employee?.lastName,
+    name: account.employee ? `${account.employee.firstName} ${account.employee.lastName}` : undefined,
   });
   const newRefreshToken = await issueRefreshToken(account.user.id);
 

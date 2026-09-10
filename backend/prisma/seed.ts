@@ -1,6 +1,7 @@
 /// <reference types="node" />
 import { PrismaClient, Prisma } from "@prisma/client";
 import { hashPassword } from "../src/lib/password";
+import { encryptPII } from "../src/lib/encryption";
 
 const prisma = new PrismaClient();
 
@@ -130,7 +131,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
 
     "workflows:read", "workflows:write", "workflows:approve",
     "notifications:read",
-],
+  ],
   MANAGER: [
     "dashboard:read",
     "employees:read",
@@ -649,6 +650,13 @@ async function main() {
         { name: "Finance Approval (over band only)", approverRule: "Named Role: Finance", slaHours: 24, parallelGroup: null, condition: { field: "amount", operator: ">", value: 2000000 } },
       ],
     },
+    {
+      requestType: "Expense Claim",
+      steps: [
+        { name: "Manager Review", approverRule: "Direct Reporting Manager", slaHours: 48, parallelGroup: null, condition: null },
+        { name: "Finance Review", approverRule: "Named Role: Finance", slaHours: 48, parallelGroup: null, condition: null },
+      ],
+    },
   ];
   for (const [i, def] of workflowDefs.entries()) {
     await prisma.workflowDefinition.create({
@@ -702,7 +710,7 @@ async function main() {
         create: [
           { text: "Reduce p95 latency on /employees endpoint to <200ms", progress: 70 },
           { text: "Add caching layer for payroll queries", progress: 40 },
-        ],
+      ],
       },
     },
   });
@@ -719,7 +727,7 @@ async function main() {
         create: [
           { text: "Weekly 1:1s with 2 mentees", progress: 85 },
           { text: "Pair on at least 4 features together", progress: 50 },
-        ],
+      ],
       },
     },
   });
@@ -736,7 +744,7 @@ async function main() {
         create: [
           { text: "Draft migration plan and get manager sign-off", progress: 100 },
           { text: "Migrate 3 services to the new pipeline", progress: 20 },
-        ],
+      ],
       },
     },
   });
@@ -754,7 +762,7 @@ async function main() {
         create: [
           { goalId: g1.id, rating: 4, comments: "Made strong progress on latency work; caching layer is in progress and on track." },
           { goalId: g2.id, rating: 5, comments: "Both mentees shipped their first independent features this quarter." },
-        ],
+      ],
       },
     },
   });
@@ -803,13 +811,13 @@ async function main() {
         create: [
           { itemText: "Migration plan review", orderIndex: 0 },
           { itemText: "Career growth check-in", orderIndex: 1 },
-        ],
+      ],
       },
       actionItems: {
         create: [
           { text: "Share migration doc with platform team", done: true },
           { text: "Look into staff-engineer track requirements", done: false },
-        ],
+      ],
       },
     },
   });
@@ -824,12 +832,12 @@ async function main() {
         create: [
           { itemText: "Q3 goal setting", orderIndex: 0 },
           { itemText: "Mentee pairing", orderIndex: 1 },
-        ],
+      ],
       },
       actionItems: {
         create: [
           { text: "Finalize Q3 OKRs", done: true },
-        ],
+      ],
       },
     },
   });
@@ -1298,7 +1306,7 @@ async function main() {
               acknowledgementDeadlineDays: 14,
               publishedAt: new Date("2026-01-01T00:00:00Z"),
             },
-          ],
+        ],
         },
       },
       include: { versions: true },
@@ -1448,6 +1456,51 @@ async function main() {
       netSettlement: 109000,
     },
   });
+
+  // ============================================================
+  // Test PII data for Payslip PDF
+  // ============================================================
+
+  const testCompany = await prisma.company.findFirst({
+    where: {
+      name: "Proteccio Technologies Pvt. Ltd.",
+    },
+  });
+
+  console.log("TEST COMPANY FOUND:", testCompany?.id);
+
+  if (!testCompany) {
+    throw new Error("Test company not found");
+  }
+
+  await prisma.company.update({
+    where: {
+      id: testCompany.id,
+    },
+    data: {
+      cin: encryptPII("U72900TG2023PTC123456"),
+      gstin: encryptPII("36AABCU9603R1ZP"),
+      pfRegistration: encryptPII("MHBAN0023450000"),
+      esicRegistration: encryptPII("31000123456789"),
+    },
+  });
+
+  console.log(" Company PII updated:", testCompany.id);
+
+  await prisma.employee.update({
+    where: {
+      employeeCode: "EMP001",
+    },
+    data: {
+      uan: encryptPII("100987654321"),
+      pan: encryptPII("ABCPM1234D"),
+      bankName: "HDFC Bank",
+      bankAccount: encryptPII("1234567894821"),
+      ifsc: "HDFC0001234",
+      pfAccount: encryptPII("MH/BAN/0123456/000/0000001"),
+    },
+  });
+
   console.log("🔑 Login credentials (all): email from list below / Password@123");
   console.log("   ADMIN  → rajesh.menon@company.com (Rajesh Menon, CEO) [alias: robert.king@company.com]");
   console.log("   HR     → sunita.reddy@company.com (Sunita Reddy, HR Manager)");

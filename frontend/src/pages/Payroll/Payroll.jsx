@@ -36,6 +36,7 @@ import StatusBadge from "../../components/shared/StatusBadge";
 import Spinner from "../../components/shared/Spinner";
 import EmptyState from "../../components/shared/EmptyState";
 import { useAuth } from "../../context/AuthContext";
+<<<<<<< HEAD
 import {
   getPayslips,
   getPayrollRuns,
@@ -43,6 +44,9 @@ import {
   approvePayrollRun,
   lockPayrollRun,
 } from "../../services/payrollService";
+=======
+import { getPayslips, getPayrollRuns, getPayslip, runPayroll, printPayslip, printAnnualStatement, printForm16  } from "../../services/payrollService";
+>>>>>>> d93447b1d439c5cc63a242d1d0f227c61fb70db0
 import { payrollStatusMeta, getUserPayslips, payrollRuns as mockPayrollRuns } from "../../mock/payroll";
 
 const fmt = (n) =>
@@ -145,7 +149,7 @@ function PayslipModal({ slip, onClose }) {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <button
-              onClick={() => window.print()}
+              onClick={() => printPayslip(slip.id)}
               title="Print payslip"
               style={{
                 display: "flex",
@@ -598,7 +602,7 @@ function YearlyPayrollView({ payslips, onViewSlip }) {
             <p style={{ fontSize: "12px", color: "var(--subtext)" }}>Detailed month-over-month earnings, deductions, and tax statement</p>
           </div>
           <button
-            onClick={() => window.print()}
+            onClick={() => printAnnualStatement()}
             style={{
               display: "flex",
               alignItems: "center",
@@ -715,7 +719,7 @@ function YearlyPayrollView({ payslips, onViewSlip }) {
         </div>
 
         <button
-          onClick={() => window.print()}
+          onClick={() => printForm16()}
           style={{
             display: "flex",
             alignItems: "center",
