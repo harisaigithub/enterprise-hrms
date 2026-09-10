@@ -813,6 +813,141 @@ export class OrganizationManagementService {
     // COMPANY MAPPER
     // =========================================================
 
+    // =========================================================
+    // UPDATE DESIGNATION & SOFT DEACTIVATION
+    // =========================================================
+
+    async updateDesignation(id: string, data: any) {
+        if (data.isActive === false) {
+            const count = await prisma.employee.count({
+                where: { designationId: id, status: "Active" },
+            });
+            if (count > 0) {
+                throw new Error(`Cannot deactivate designation because it is currently assigned to ${count} active employee(s).`);
+            }
+        }
+
+        const updated = await prisma.designation.update({
+            where: { id },
+            data: {
+                ...(data.title && { title: data.title.trim() }),
+                ...(data.grade !== undefined && { grade: data.grade?.trim() || null }),
+                ...(data.level !== undefined && { level: data.level }),
+                ...(data.departmentId !== undefined && { departmentId: data.departmentId }),
+                ...(data.description !== undefined && { description: data.description }),
+                ...(data.isActive !== undefined && { isActive: Boolean(data.isActive) }),
+            },
+        });
+
+        return {
+            id: updated.id,
+            title: updated.title,
+            grade: updated.grade,
+            level: updated.level,
+            isActive: updated.isActive,
+            status: updated.isActive ? "Active" : "Inactive",
+        };
+    }
+
+    // =========================================================
+    // DYNAMIC ORGANIZATION CHART
+    // =========================================================
+
+    async getOrganizationChart() {
+        const employees = await prisma.employee.findMany({
+            where: {
+                status: { notIn: ["Inactive", "Terminated"] },
+            },
+            select: {
+                id: true,
+                employeeCode: true,
+                firstName: true,
+                lastName: true,
+                avatarUrl: true,
+                reportingManagerId: true,
+                designation: { select: { title: true, level: true } },
+                department: { select: { name: true } },
+                location: { select: { name: true, city: true, state: true } },
+            },
+            orderBy: { firstName: "asc" },
+        });
+
+        const empMap = new Map<string, any>();
+        employees.forEach((emp) => {
+            empMap.set(emp.id, {
+                id: emp.id,
+                code: emp.employeeCode,
+                name: `${emp.firstName} ${emp.lastName}`.trim(),
+                designation: emp.designation?.title || "Team Member",
+                level: emp.designation?.level || "L3",
+                department: emp.department?.name || "General",
+                location: emp.location?.city ? `${emp.location.city}, ${emp.location.state || ""}` : (emp.location?.name || ""),
+                avatar: emp.avatarUrl || null,
+                managerId: emp.reportingManagerId,
+                directReportsCount: 0,
+                children: [],
+            });
+        });
+
+        const rootNodes: any[] = [];
+        empMap.forEach((node) => {
+            if (node.managerId && empMap.has(node.managerId)) {
+                const managerNode = empMap.get(node.managerId);
+                managerNode.children.push(node);
+                managerNode.directReportsCount += 1;
+            } else {
+                rootNodes.push(node);
+            }
+        });
+
+        return rootNodes;
+    }
+
+    // =========================================================
+    // LOCATION HOLIDAYS
+    // =========================================================
+
+    async getHolidays(year?: number, locationId?: string) {
+        const currentYear = year || new Date().getFullYear();
+        const where: any = { year: currentYear };
+        if (locationId) {
+            where.OR = [{ locationId }, { locationId: null }];
+        }
+        const holidays = await prisma.holiday.findMany({
+            where,
+            include: { location: { select: { name: true, city: true, state: true } } },
+            orderBy: { date: "asc" },
+        });
+        return holidays.map((h) => ({
+            id: h.id,
+            name: h.name,
+            date: h.date.toISOString().slice(0, 10),
+            year: h.year,
+            isMandatory: h.isMandatory,
+            locationId: h.locationId,
+            locationName: h.location ? (h.location.city ? `${h.location.city}, ${h.location.state || ""}` : h.location.name) : "All Locations",
+        }));
+    }
+
+    async addHoliday(data: { name: string; date: string; locationId?: string; isMandatory?: boolean }) {
+        const dateObj = new Date(data.date);
+        const holiday = await prisma.holiday.create({
+            data: {
+                name: data.name,
+                date: dateObj,
+                year: dateObj.getFullYear(),
+                locationId: data.locationId || null,
+                isMandatory: data.isMandatory ?? true,
+            },
+        });
+        return holiday;
+    }
+
+    async deleteHoliday(id: string) {
+        await prisma.holiday.delete({ where: { id } });
+        return { success: true };
+    }
+
     private mapCompany(company: any) {
         return {
             id: company.id,

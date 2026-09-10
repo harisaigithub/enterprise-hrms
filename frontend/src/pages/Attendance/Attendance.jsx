@@ -30,6 +30,7 @@ import PageHeader from "../../components/shared/PageHeader";
 import StatusBadge from "../../components/shared/StatusBadge";
 import Spinner from "../../components/shared/Spinner";
 import EmptyState from "../../components/shared/EmptyState";
+import Modal from "../../components/shared/Modal";
 import {
   getMyAttendance,
   getTeamSummary,
@@ -38,6 +39,11 @@ import {
   startBreak,
   endBreak,
 } from "../../services/attendanceService";
+import {
+  requestRegularization,
+  getRegularizations,
+  decideRegularization,
+} from "../../services/employeeService";
 import { useAuth } from "../../context/AuthContext";
 import { attendanceStatusMeta } from "../../mock/attendance";
 
@@ -624,6 +630,60 @@ export default function Attendance() {
     fetchAttendance();
   }, [fetchAttendance]);
 
+  // Regularization States
+  const isManagerOrHR = ["MANAGER", "HR", "ADMIN"].includes(user?.role);
+  const [activeAttendanceView, setActiveAttendanceView] = useState("my");
+  const [showRegularizeModal, setShowRegularizeModal] = useState(false);
+  const [regDate, setRegDate] = useState(getTodayDateStr());
+  const [regCheckIn, setRegCheckIn] = useState("09:30");
+  const [regCheckOut, setRegCheckOut] = useState("18:30");
+  const [regReason, setRegReason] = useState("");
+  const [submittingReg, setSubmittingReg] = useState(false);
+  const [regularizationsList, setRegularizationsList] = useState([]);
+
+  const loadRegularizations = useCallback(async () => {
+    try {
+      const res = await getRegularizations();
+      setRegularizationsList(res.data || []);
+    } catch (err) {
+      console.error("Failed to load regularizations:", err);
+    }
+  }, []);
+
+  const handleRegularizeSubmit = async (e) => {
+    e.preventDefault();
+    if (!regReason.trim()) {
+      alert("Please provide a reason for regularization");
+      return;
+    }
+    setSubmittingReg(true);
+    try {
+      await requestRegularization({
+        date: regDate,
+        punchIn: `${regDate}T${regCheckIn}:00Z`,
+        punchOut: `${regDate}T${regCheckOut}:00Z`,
+        reason: regReason.trim(),
+      });
+      setShowRegularizeModal(false);
+      setRegReason("");
+      alert("Regularization request submitted successfully for manager approval.");
+      fetchAttendance();
+    } catch (err) {
+      alert(err.message || "Failed to submit regularization");
+    } finally {
+      setSubmittingReg(false);
+    }
+  };
+
+  const handleDecideRegularization = async (id, status) => {
+    try {
+      await decideRegularization(id, { status });
+      loadRegularizations();
+    } catch (err) {
+      alert(err.message || "Failed to decide regularization");
+    }
+  };
+
   /* ── Check In Handler ── */
   const handleCheckIn = async () => {
     setActionLoading(true);
@@ -867,6 +927,26 @@ export default function Attendance() {
               <LogOut size={15} />
               {session.checkedOut ? "Checked Out" : "Check Out"}
             </button>
+
+            {/* 3. Regularize Punch Button */}
+            <button
+              onClick={() => setShowRegularizeModal(true)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "10px 16px",
+                background: "var(--card)",
+                color: "var(--primary)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-sm)",
+                fontWeight: 600,
+                fontSize: "13px",
+                cursor: "pointer",
+              }}
+            >
+              <Clock size={15} /> Regularize Punch
+            </button>
           </div>
         </div>
 
@@ -934,17 +1014,125 @@ export default function Attendance() {
           </div>
         )}
 
-        {/* ── Filter Bar: Month/Year Selector & Status Counters ── */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: "12px",
-            marginBottom: "16px",
-          }}
-        >
+        {/* ── Sub-tabs for Managers / HR ── */}
+        {isManagerOrHR && (
+          <div style={{ display: "flex", gap: "8px", marginBottom: "20px", borderBottom: "1px solid var(--border)", paddingBottom: "10px" }}>
+            <button
+              onClick={() => setActiveAttendanceView("my")}
+              style={{
+                padding: "8px 16px",
+                borderRadius: "var(--radius-sm)",
+                border: "none",
+                background: activeAttendanceView === "my" ? "var(--primary-light)" : "none",
+                color: activeAttendanceView === "my" ? "var(--primary)" : "var(--subtext)",
+                fontWeight: 700,
+                fontSize: "13px",
+                cursor: "pointer",
+              }}
+            >
+              My Attendance Log
+            </button>
+            <button
+              onClick={() => {
+                setActiveAttendanceView("team_regularization");
+                loadRegularizations();
+              }}
+              style={{
+                padding: "8px 16px",
+                borderRadius: "var(--radius-sm)",
+                border: "none",
+                background: activeAttendanceView === "team_regularization" ? "var(--primary-light)" : "none",
+                color: activeAttendanceView === "team_regularization" ? "var(--primary)" : "var(--subtext)",
+                fontWeight: 700,
+                fontSize: "13px",
+                cursor: "pointer",
+              }}
+            >
+              👥 Team Regularization Requests ({regularizationsList.length})
+            </button>
+          </div>
+        )}
+
+        {activeAttendanceView === "team_regularization" ? (
+          <div style={{ background: "var(--card)", borderRadius: "var(--radius-lg)", border: "1px solid var(--border)", boxShadow: "var(--shadow-sm)", overflow: "hidden" }}>
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
+              <h3 style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Team Regularization Requests</h3>
+              <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--subtext)" }}>Review and approve missed check-in and checkout punches</p>
+            </div>
+            {regularizationsList.length === 0 ? (
+              <EmptyState icon={Clock} title="No pending regularization requests" subtitle="Your direct reports have not submitted any pending regularization requests." />
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                  <thead>
+                    <tr style={{ background: "var(--background)", borderBottom: "1px solid var(--border)", textAlign: "left" }}>
+                      <th style={{ padding: "12px 16px", color: "var(--subtext)", fontWeight: 700 }}>Employee</th>
+                      <th style={{ padding: "12px 16px", color: "var(--subtext)", fontWeight: 700 }}>Date</th>
+                      <th style={{ padding: "12px 16px", color: "var(--subtext)", fontWeight: 700 }}>Adjusted In</th>
+                      <th style={{ padding: "12px 16px", color: "var(--subtext)", fontWeight: 700 }}>Adjusted Out</th>
+                      <th style={{ padding: "12px 16px", color: "var(--subtext)", fontWeight: 700 }}>Reason</th>
+                      <th style={{ padding: "12px 16px", color: "var(--subtext)", fontWeight: 700 }}>Status</th>
+                      <th style={{ padding: "12px 16px", color: "var(--subtext)", fontWeight: 700, textAlign: "right" }}>Decision</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {regularizationsList.map((reg) => (
+                      <tr key={reg.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                        <td style={{ padding: "12px 16px", fontWeight: 600 }}>
+                          {reg.employee ? `${reg.employee.firstName} ${reg.employee.lastName}` : "Employee"}
+                          <p style={{ margin: "2px 0 0", fontSize: "11px", color: "var(--subtext)" }}>{reg.employee?.employeeCode}</p>
+                        </td>
+                        <td style={{ padding: "12px 16px" }}>
+                          {new Date(reg.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                        </td>
+                        <td style={{ padding: "12px 16px", fontFamily: "monospace" }}>{reg.requestedPunchIn ? fmtTime(reg.requestedPunchIn) : "—"}</td>
+                        <td style={{ padding: "12px 16px", fontFamily: "monospace" }}>{reg.requestedPunchOut ? fmtTime(reg.requestedPunchOut) : "—"}</td>
+                        <td style={{ padding: "12px 16px", color: "var(--label)" }}>{reg.reason}</td>
+                        <td style={{ padding: "12px 16px" }}>
+                          <span style={{ fontSize: "11px", fontWeight: 700, padding: "2px 8px", borderRadius: "4px", background: reg.status === "Approved" ? "var(--green-light)" : reg.status === "Rejected" ? "var(--red-light)" : "#fffbeb", color: reg.status === "Approved" ? "var(--green)" : reg.status === "Rejected" ? "var(--red)" : "#d97706" }}>
+                            {reg.status}
+                          </span>
+                        </td>
+                        <td style={{ padding: "12px 16px", textAlign: "right" }}>
+                          {reg.status === "Pending" ? (
+                            <div style={{ display: "inline-flex", gap: "6px" }}>
+                              <button
+                                onClick={() => handleDecideRegularization(reg.id, "Approved")}
+                                style={{ padding: "5px 10px", background: "var(--green)", color: "#fff", border: "none", borderRadius: "4px", fontSize: "11.5px", fontWeight: 700, cursor: "pointer" }}
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleDecideRegularization(reg.id, "Rejected")}
+                                style={{ padding: "5px 10px", background: "var(--red)", color: "#fff", border: "none", borderRadius: "4px", fontSize: "11.5px", fontWeight: 700, cursor: "pointer" }}
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: "11px", color: "var(--subtext)" }}>Decided</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            {/* ── Filter Bar: Month/Year Selector & Status Counters ── */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: "12px",
+                marginBottom: "16px",
+              }}
+            >
           <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               <Calendar size={15} style={{ color: "var(--subtext)" }} />
@@ -1160,6 +1348,75 @@ export default function Attendance() {
             </div>
           )}
         </div>
+        </>
+      )}
+
+      {/* Modal: Request Regularization */}
+      {showRegularizeModal && (
+        <Modal isOpen={showRegularizeModal} title="Request Attendance Regularization" onClose={() => setShowRegularizeModal(false)} maxWidth="480px">
+          <form onSubmit={handleRegularizeSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Date to Regularize *</label>
+              <input
+                type="date"
+                required
+                value={regDate}
+                onChange={(e) => setRegDate(e.target.value)}
+                style={{ height: "36px", padding: "0 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontSize: "13px" }}
+              />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Actual Check-In *</label>
+                <input
+                  type="time"
+                  required
+                  value={regCheckIn}
+                  onChange={(e) => setRegCheckIn(e.target.value)}
+                  style={{ height: "36px", padding: "0 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontSize: "13px" }}
+                />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Actual Check-Out *</label>
+                <input
+                  type="time"
+                  required
+                  value={regCheckOut}
+                  onChange={(e) => setRegCheckOut(e.target.value)}
+                  style={{ height: "36px", padding: "0 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontSize: "13px" }}
+                />
+              </div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Reason for Regularization *</label>
+              <textarea
+                rows={3}
+                required
+                value={regReason}
+                onChange={(e) => setRegReason(e.target.value)}
+                placeholder="e.g. Biometric machine offline, work on client site, forgot to punch"
+                style={{ padding: "8px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontSize: "13px" }}
+              />
+            </div>
+            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "10px" }}>
+              <button
+                type="button"
+                onClick={() => setShowRegularizeModal(false)}
+                style={{ padding: "8px 16px", background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontSize: "13px", cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submittingReg}
+                style={{ padding: "8px 20px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
+              >
+                {submittingReg ? "Submitting…" : "Submit Request"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
       </div>
     </MainLayout>
   );

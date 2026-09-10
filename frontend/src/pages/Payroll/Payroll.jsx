@@ -28,6 +28,7 @@ import {
   Receipt,
   Layers,
   ChevronDown,
+  Lock,
 } from "lucide-react";
 import MainLayout from "../../components/layout/MainLayout";
 import PageHeader from "../../components/shared/PageHeader";
@@ -35,7 +36,13 @@ import StatusBadge from "../../components/shared/StatusBadge";
 import Spinner from "../../components/shared/Spinner";
 import EmptyState from "../../components/shared/EmptyState";
 import { useAuth } from "../../context/AuthContext";
-import { getPayslips, getPayrollRuns } from "../../services/payrollService";
+import {
+  getPayslips,
+  getPayrollRuns,
+  processPayrollRun,
+  approvePayrollRun,
+  lockPayrollRun,
+} from "../../services/payrollService";
 import { payrollStatusMeta, getUserPayslips, payrollRuns as mockPayrollRuns } from "../../mock/payroll";
 
 const fmt = (n) =>
@@ -906,8 +913,8 @@ export default function Payroll() {
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ background: "var(--background)", borderBottom: "1px solid var(--border)" }}>
-                    {["Run ID", "Period", "Employees", "Gross Payroll", "Total Deductions", "Net Disbursed", "Status"].map((h) => (
-                      <th key={h} style={{ padding: "12px 18px", fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase" }}>
+                    {["Run ID", "Period", "Employees", "Gross Payroll", "Total Deductions", "Net Disbursed", "Status", "Action"].map((h) => (
+                      <th key={h} style={{ padding: "12px 18px", fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", textAlign: h === "Action" ? "right" : "left" }}>
                         {h}
                       </th>
                     ))}
@@ -915,7 +922,11 @@ export default function Payroll() {
                 </thead>
                 <tbody>
                   {payrollRunsList.map((run) => {
-                    const meta = payrollStatusMeta[run.status] || payrollStatusMeta.Paid;
+                    const isLocked = run.status === "Locked";
+                    const meta = isLocked
+                      ? { label: "Locked", color: "#64748b", bg: "#f1f5f9" }
+                      : (payrollStatusMeta[run.status] || payrollStatusMeta.Paid);
+
                     return (
                       <tr key={run.id} style={{ borderBottom: "1px solid var(--border)" }}>
                         <td style={{ padding: "14px 18px", fontSize: "13px", fontFamily: "monospace", fontWeight: 600 }}>{run.id}</td>
@@ -926,6 +937,50 @@ export default function Payroll() {
                         <td style={{ padding: "14px 18px", fontSize: "13.5px", fontWeight: 700, color: "#16a34a", fontFamily: "monospace" }}>{fmt(run.netPayroll)}</td>
                         <td style={{ padding: "14px 18px" }}>
                           <StatusBadge label={meta.label} color={meta.color} bg={meta.bg} />
+                        </td>
+                        <td style={{ padding: "14px 18px", textAlign: "right" }}>
+                          {isLocked ? (
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "12px", color: "var(--subtext)", fontWeight: 600 }}>
+                              <Lock size={12} /> Locked & Immutable
+                            </span>
+                          ) : run.status === "Draft" ? (
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await processPayrollRun(run.id);
+                                  getPayrollRuns().then((res) => setPayrollRunsList(res.data || []));
+                                } catch (e) { alert(e.message || "Failed to process"); }
+                              }}
+                              style={{ padding: "6px 12px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
+                            >
+                              Process Run
+                            </button>
+                          ) : run.status === "Processing" ? (
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await approvePayrollRun(run.id);
+                                  getPayrollRuns().then((res) => setPayrollRunsList(res.data || []));
+                                } catch (e) { alert(e.message || "Failed to approve"); }
+                              }}
+                              style={{ padding: "6px 12px", background: "var(--green)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
+                            >
+                              Approve Run
+                            </button>
+                          ) : (
+                            <button
+                              onClick={async () => {
+                                if (!window.confirm(`Lock payroll run ${run.id}? Once locked, it cannot be modified.`)) return;
+                                try {
+                                  await lockPayrollRun(run.id);
+                                  getPayrollRuns().then((res) => setPayrollRunsList(res.data || []));
+                                } catch (e) { alert(e.message || "Failed to lock"); }
+                              }}
+                              style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "6px 12px", background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontSize: "12px", fontWeight: 700, color: "var(--subtext)", cursor: "pointer" }}
+                            >
+                              <Lock size={12} /> Lock Run
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );

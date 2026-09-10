@@ -231,31 +231,39 @@ export async function initiateSeparation(input: {
       await tx.separationClearance.createMany({
         data: [
           {
-            separationId:
-              createdSeparation.id,
-            item: "IT Asset Return",
-            owner: "IT",
+            separationId: createdSeparation.id,
+            item: "Manager Clearance",
+            owner: "Manager",
             status: "Pending",
           },
           {
-            separationId:
-              createdSeparation.id,
-            item: "Finance Clearance",
-            owner: "Finance",
-            status: "Pending",
-          },
-          {
-            separationId:
-              createdSeparation.id,
+            separationId: createdSeparation.id,
             item: "HR Clearance",
             owner: "HR",
             status: "Pending",
           },
           {
-            separationId:
-              createdSeparation.id,
-            item: "Manager Clearance",
-            owner: "Manager",
+            separationId: createdSeparation.id,
+            item: "IT System Access Revocation",
+            owner: "IT",
+            status: "Pending",
+          },
+          {
+            separationId: createdSeparation.id,
+            item: "Finance Clearance",
+            owner: "Finance",
+            status: "Pending",
+          },
+          {
+            separationId: createdSeparation.id,
+            item: "Asset Return Clearance",
+            owner: "IT",
+            status: "Pending",
+          },
+          {
+            separationId: createdSeparation.id,
+            item: "Document Clearance & ID Card Return",
+            owner: "HR",
             status: "Pending",
           },
         ],
@@ -663,6 +671,21 @@ export async function convertToAlumni(
     },
     data: {
       status: "Alumni",
+    },
+  });
+
+  const nextStatus = separation.type === "Termination" ? "Terminated" : "Inactive";
+  await prisma.employee.update({
+    where: { id: separation.employeeId },
+    data: { status: nextStatus },
+  });
+
+  await prisma.employeeMovement.create({
+    data: {
+      employeeId: separation.employeeId,
+      movementType: "Exit",
+      effectiveDate: separation.lastWorkingDay,
+      remarks: `Separation completed (${separation.type}) - Converted to Alumni`,
     },
   });
 

@@ -1,9 +1,9 @@
-﻿/**
+/**
  * Organization Management Page  •  Module 20
  * Tabs: Structure  •  Locations  •  Cost Centers  •  Designations & Grades  •  Reporting Structure
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Building2,
   MapPin,
@@ -14,6 +14,9 @@ import {
   AlertTriangle,
   History,
   ChevronRight,
+  Calendar,
+  Trash2,
+  User,
 } from "lucide-react";
 import MainLayout from "../../components/layout/MainLayout";
 import PageHeader from "../../components/shared/PageHeader";
@@ -41,6 +44,12 @@ import {
   bulkReassignDepartment,
   getAuditLog,
 } from "../../services/orgManagementService";
+import {
+  getOrgChart,
+  getHolidays,
+  createHoliday,
+  deleteHoliday,
+} from "../../services/employeeService";
 import { statusMeta } from "../../mock/orgManagement";
 
 /* ---------------------------------- shared bits ---------------------------------- */
@@ -961,6 +970,310 @@ function ReportingStructureTab({ roster, departments, auditLog, onManagerUpdated
   );
 }
 
+/* ---------------------------------- Org Chart Tab ---------------------------------- */
+
+function OrgChartNode({ node, level = 0 }) {
+  const [expanded, setExpanded] = useState(true);
+  const hasReports = node.directReports && node.directReports.length > 0;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", position: "relative" }}>
+      <div
+        style={{
+          background: level === 0 ? "var(--primary-light)" : "var(--card)",
+          borderRadius: "var(--radius)",
+          border: `1px solid ${level === 0 ? "var(--primary)" : "var(--border)"}`,
+          padding: "14px 18px",
+          minWidth: "240px",
+          maxWidth: "280px",
+          boxShadow: "var(--shadow-sm)",
+          display: "flex",
+          flexDirection: "column",
+          gap: "8px",
+          position: "relative",
+          zIndex: 2,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <img
+            src={node.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(node.name)}&background=0f766e&color=fff`}
+            alt={node.name}
+            style={{ width: "36px", height: "36px", borderRadius: "50%", objectFit: "cover" }}
+          />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ margin: 0, fontSize: "13px", fontWeight: 700, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {node.name}
+            </p>
+            <p style={{ margin: "2px 0 0", fontSize: "11px", color: "var(--subtext)" }}>
+              {node.employeeCode}
+            </p>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "11px" }}>
+          <span style={{ fontWeight: 600, color: "var(--primary)" }}>{node.designation}</span>
+          {node.level && (
+            <span style={{ fontWeight: 700, background: "var(--background)", padding: "1px 5px", borderRadius: "3px" }}>
+              {node.level}
+            </span>
+          )}
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid var(--border)", paddingTop: "6px" }}>
+          <span style={{ fontSize: "10.5px", color: "var(--subtext)" }}>{node.department}</span>
+          {hasReports && (
+            <button
+              onClick={() => setExpanded(!expanded)}
+              style={{
+                background: "var(--primary-light)",
+                color: "var(--primary)",
+                border: "none",
+                borderRadius: "10px",
+                fontSize: "10.5px",
+                fontWeight: 700,
+                padding: "2px 8px",
+                cursor: "pointer",
+              }}
+            >
+              {node.directReports.length} {expanded ? "▲ Hide" : "▼ Direct"}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {hasReports && expanded && (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: "16px", width: "100%" }}>
+          <div style={{ width: "2px", height: "16px", background: "var(--border)" }} />
+          <div style={{ display: "flex", gap: "20px", justifyContent: "center", flexWrap: "wrap", position: "relative", paddingTop: "12px" }}>
+            {node.directReports.map((report) => (
+              <OrgChartNode key={report.id} node={report} level={level + 1} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OrgChartTab() {
+  const [tree, setTree] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getOrgChart()
+      .then((res) => {
+        const roots = res?.roots || res?.data?.roots || (Array.isArray(res) ? res : res?.data || []);
+        setTree(roots);
+      })
+      .catch((err) => console.error("Failed to load org chart:", err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <Spinner />;
+  if (tree.length === 0) return <EmptyState icon={Network} title="No organization hierarchy found" subtitle="Assign reporting managers to employees to build the organizational tree." />;
+
+  return (
+    <div style={{ ...cardStyle, padding: "28px", overflowX: "auto" }}>
+      <div style={{ marginBottom: "20px", textAlign: "center" }}>
+        <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "var(--text)" }}>Corporate Reporting Hierarchy Tree</h3>
+        <p style={{ margin: "4px 0 0", fontSize: "12.5px", color: "var(--subtext)" }}>Visual mapping of executive leadership, department heads, and direct reports</p>
+      </div>
+      <div style={{ display: "flex", justifyContent: "center", gap: "30px", minWidth: "600px", paddingBottom: "30px" }}>
+        {tree.map((root) => (
+          <OrgChartNode key={root.id} node={root} level={0} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------------------------- Holiday Calendar Tab ---------------------------------- */
+
+function HolidayCalendarTab({ locations }) {
+  const [year, setYear] = useState(2026);
+  const [holidays, setHolidays] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [holidayName, setHolidayName] = useState("");
+  const [holidayDate, setHolidayDate] = useState("");
+  const [holidayLocationId, setHolidayLocationId] = useState("");
+  const [isOptional, setIsOptional] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const loadHolidays = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await getHolidays(year);
+      const list = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : []);
+      setHolidays(list);
+    } catch (err) {
+      console.error("Failed to load holidays:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [year]);
+
+  useEffect(() => {
+    loadHolidays();
+  }, [loadHolidays]);
+
+  const handleAddHoliday = async (e) => {
+    e.preventDefault();
+    if (!holidayName.trim() || !holidayDate) return;
+    setSaving(true);
+    try {
+      await createHoliday({
+        name: holidayName.trim(),
+        date: holidayDate,
+        locationId: holidayLocationId || undefined,
+        isOptional,
+      });
+      setShowAddModal(false);
+      setHolidayName("");
+      setHolidayDate("");
+      setHolidayLocationId("");
+      setIsOptional(false);
+      loadHolidays();
+    } catch (err) {
+      alert("Failed to add holiday");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteHoliday = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this holiday?")) return;
+    try {
+      await deleteHoliday(id);
+      loadHolidays();
+    } catch (err) {
+      alert("Failed to delete holiday");
+    }
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <select
+            value={year}
+            onChange={(e) => setYear(Number(e.target.value))}
+            style={{ height: "36px", padding: "0 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontSize: "13px", fontWeight: 700, background: "var(--card)" }}
+          >
+            <option value={2026}>Calendar Year 2026</option>
+            <option value={2025}>Calendar Year 2025</option>
+            <option value={2027}>Calendar Year 2027</option>
+          </select>
+          <span style={{ fontSize: "12.5px", color: "var(--subtext)" }}>{holidays.length} Corporate Holidays</span>
+        </div>
+        <PrimaryButton onClick={() => setShowAddModal(true)}>
+          <Plus size={14} /> Add Holiday
+        </PrimaryButton>
+      </div>
+
+      {loading ? (
+        <Spinner />
+      ) : holidays.length === 0 ? (
+        <EmptyState icon={Calendar} title="No holidays configured" subtitle="Configure public and statutory holidays for leave balance deductions." />
+      ) : (
+        <div style={{ ...cardStyle, overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+            <thead>
+              <tr style={{ background: "var(--background)", borderBottom: "1px solid var(--border)", textAlign: "left" }}>
+                <th style={{ padding: "12px 18px", color: "var(--subtext)", fontWeight: 700 }}>Date</th>
+                <th style={{ padding: "12px 18px", color: "var(--subtext)", fontWeight: 700 }}>Holiday Name</th>
+                <th style={{ padding: "12px 18px", color: "var(--subtext)", fontWeight: 700 }}>Applicable Hub</th>
+                <th style={{ padding: "12px 18px", color: "var(--subtext)", fontWeight: 700 }}>Type</th>
+                <th style={{ padding: "12px 18px", color: "var(--subtext)", fontWeight: 700, textAlign: "right" }}>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {holidays.map((h) => (
+                <tr key={h.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                  <td style={{ padding: "12px 18px", fontWeight: 600 }}>
+                    {new Date(h.date).toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}
+                  </td>
+                  <td style={{ padding: "12px 18px", fontWeight: 700, color: "var(--text)" }}>{h.name}</td>
+                  <td style={{ padding: "12px 18px", color: "var(--label)" }}>
+                    {h.location?.name || "All Hub Locations (National)"}
+                  </td>
+                  <td style={{ padding: "12px 18px" }}>
+                    <span style={{ fontSize: "11px", fontWeight: 700, padding: "2px 8px", borderRadius: "4px", background: h.isOptional ? "#fffbeb" : "var(--green-light)", color: h.isOptional ? "#d97706" : "var(--green)" }}>
+                      {h.isOptional ? "Optional / Restricted" : "Gazetted / Public"}
+                    </span>
+                  </td>
+                  <td style={{ padding: "12px 18px", textAlign: "right" }}>
+                    <button
+                      onClick={() => handleDeleteHoliday(h.id)}
+                      style={{ background: "none", border: "none", color: "var(--red)", cursor: "pointer", padding: "4px" }}
+                      title="Delete Holiday"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {showAddModal && (
+        <Modal isOpen={showAddModal} title="Add Public Holiday" onClose={() => setShowAddModal(false)} maxWidth="480px">
+          <form onSubmit={handleAddHoliday} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Holiday Name *</label>
+              <input
+                type="text"
+                required
+                value={holidayName}
+                onChange={(e) => setHolidayName(e.target.value)}
+                placeholder="e.g. Independence Day, Diwali"
+                style={inputStyle(false)}
+              />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Holiday Date *</label>
+              <input
+                type="date"
+                required
+                value={holidayDate}
+                onChange={(e) => setHolidayDate(e.target.value)}
+                style={inputStyle(false)}
+              />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Applicable Location Hub</label>
+              <select
+                value={holidayLocationId}
+                onChange={(e) => setHolidayLocationId(e.target.value)}
+                style={{ ...inputStyle(false), height: "38px" }}
+              >
+                <option value="">All Locations (National Holiday)</option>
+                {locations.map((loc) => (
+                  <option key={loc.id} value={loc.id}>{loc.name} ({loc.city || "Hub"})</option>
+                ))}
+              </select>
+            </div>
+            <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12.5px", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={isOptional}
+                onChange={(e) => setIsOptional(e.target.checked)}
+              />
+              Mark as Optional / Restricted Holiday
+            </label>
+            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "10px" }}>
+              <SecondaryButton type="button" onClick={() => setShowAddModal(false)}>Cancel</SecondaryButton>
+              <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving…" : "Save Holiday"}</PrimaryButton>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
 /* ---------------------------------- Page ---------------------------------- */
 
 const TABS = [
@@ -969,6 +1282,8 @@ const TABS = [
   { key: "costCenters", label: "Cost Centers", icon: Wallet },
   { key: "designationsGrades", label: "Designations & Grades", icon: BadgeCheck },
   { key: "reporting", label: "Reporting Structure", icon: Network },
+  { key: "orgChart", label: "Visual Org Chart", icon: Network },
+  { key: "holidays", label: "Holiday Calendar", icon: Calendar },
 ];
 
 export default function OrgManagement() {
@@ -1097,6 +1412,14 @@ export default function OrgManagement() {
             onManagerUpdated={handleManagerUpdated}
             onBulkReassigned={handleBulkReassigned}
           />
+        )}
+
+        {activeTab === "orgChart" && (
+          <OrgChartTab />
+        )}
+
+        {activeTab === "holidays" && (
+          <HolidayCalendarTab locations={locations} />
         )}
       </div>
     </MainLayout>

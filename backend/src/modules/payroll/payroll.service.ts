@@ -73,6 +73,9 @@ export async function processPayrollRun(id: string, actorEmployeeId?: string) {
     where: { month_year: { month: parsed.month, year: parsed.year } },
   });
   if (!run) throw AppError.notFound("Payroll run not found");
+  if (run.status === "Locked" || run.status === "Paid") {
+    throw AppError.conflict(`Payroll run is ${run.status} and cannot be modified.`);
+  }
   if (run.status !== "Draft") {
     throw AppError.conflict(`Only Draft runs can be processed (current: ${run.status})`);
   }
@@ -191,6 +194,39 @@ export async function approvePayrollRun(id: string, approverEmployeeId: string) 
     actorUserId: approverEmployeeId ?? undefined,
     oldValue: { status: "Processing" },
     newValue: { status: "Paid" },
+  });
+
+  return { data: serializePayrollRunList([updated])[0] };
+}
+
+/**
+ * Lock a payroll run. Once LOCKED, no recalculations, edits, or payslip additions can be made.
+ */
+export async function lockPayrollRun(id: string, actorEmployeeId?: string) {
+  const parsed = parseRunPublicId(id);
+  const run = await prisma.payrollRun.findUnique({
+    where: { month_year: { month: parsed.month, year: parsed.year } },
+  });
+  if (!run) throw AppError.notFound("Payroll run not found");
+  if (run.status === "Locked") {
+    return { data: serializePayrollRunList([run])[0] };
+  }
+
+  const updated = await prisma.payrollRun.update({
+    where: { id: run.id },
+    data: {
+      status: "Locked",
+    },
+    include: RUN_INCLUDE,
+  });
+
+  writeAuditLog({
+    action: "UPDATE",
+    entityType: "PayrollRun",
+    entityId: run.id,
+    actorUserId: actorEmployeeId ?? undefined,
+    oldValue: { status: run.status },
+    newValue: { status: "Locked" },
   });
 
   return { data: serializePayrollRunList([updated])[0] };

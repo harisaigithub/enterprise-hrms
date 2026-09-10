@@ -178,4 +178,47 @@ router.get(
   )
 );
 
+// =========================================================
+// DESIGNATIONS UPDATE & CHART
+// =========================================================
+
+router.put(
+  "/designations/:id",
+  organizationManagementController.updateDesignation.bind(
+    organizationManagementController
+  )
+);
+
+router.get(
+  "/chart",
+  organizationManagementController.getOrganizationChart.bind(
+    organizationManagementController
+  )
+);
+
+// =========================================================
+// HOLIDAYS
+// =========================================================
+
+router.get(
+  "/holidays",
+  organizationManagementController.getHolidays.bind(
+    organizationManagementController
+  )
+);
+
+router.post(
+  "/holidays",
+  organizationManagementController.addHoliday.bind(
+    organizationManagementController
+  )
+);
+
+router.delete(
+  "/holidays/:id",
+  organizationManagementController.deleteHoliday.bind(
+    organizationManagementController
+  )
+);
+
 export default router;

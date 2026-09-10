@@ -372,6 +372,83 @@ export class OrganizationManagementController {
       });
     }
   }
+
+  // =========================================================
+  // UPDATE DESIGNATION
+  // =========================================================
+
+  async updateDesignation(req: Request, res: Response) {
+    try {
+      const data = await organizationManagementService.updateDesignation(
+        req.params.id,
+        req.body
+      );
+      return res.status(200).json(data);
+    } catch (error: any) {
+      console.error("updateDesignation error:", error);
+      return res.status(400).json({
+        message: error.message || "Failed to update designation",
+      });
+    }
+  }
+
+  // =========================================================
+  // ORGANIZATION CHART
+  // =========================================================
+
+  async getOrganizationChart(req: Request, res: Response) {
+    try {
+      const data = await organizationManagementService.getOrganizationChart();
+      return res.status(200).json(data);
+    } catch (error: any) {
+      console.error("getOrganizationChart error:", error);
+      return res.status(500).json({
+        message: error.message || "Failed to generate organization chart",
+      });
+    }
+  }
+
+  // =========================================================
+  // HOLIDAYS
+  // =========================================================
+
+  async getHolidays(req: Request, res: Response) {
+    try {
+      const year = req.query.year ? Number(req.query.year) : undefined;
+      const locationId = req.query.locationId as string | undefined;
+      const data = await organizationManagementService.getHolidays(year, locationId);
+      return res.status(200).json(data);
+    } catch (error: any) {
+      console.error("getHolidays error:", error);
+      return res.status(500).json({
+        message: error.message || "Failed to get holidays",
+      });
+    }
+  }
+
+  async addHoliday(req: Request, res: Response) {
+    try {
+      const data = await organizationManagementService.addHoliday(req.body);
+      return res.status(201).json(data);
+    } catch (error: any) {
+      console.error("addHoliday error:", error);
+      return res.status(400).json({
+        message: error.message || "Failed to create holiday",
+      });
+    }
+  }
+
+  async deleteHoliday(req: Request, res: Response) {
+    try {
+      const data = await organizationManagementService.deleteHoliday(req.params.id);
+      return res.status(200).json(data);
+    } catch (error: any) {
+      console.error("deleteHoliday error:", error);
+      return res.status(400).json({
+        message: error.message || "Failed to delete holiday",
+      });
+    }
+  }
 }
 
 export const organizationManagementController =

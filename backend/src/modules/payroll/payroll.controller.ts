@@ -35,3 +35,8 @@ export const approve = asyncHandler(async (req: Request, res: Response) => {
   const result = await payrollService.approvePayrollRun(req.params.id, req.auth.employeeId);
   sendSuccess(res, result.data);
 });
+
+export const lock = asyncHandler(async (req: Request, res: Response) => {
+  const result = await payrollService.lockPayrollRun(req.params.id, req.auth?.employeeId);
+  sendSuccess(res, result.data);
+});

@@ -73,8 +73,12 @@ export function AuthProvider({ children }) {
     setPermissions([]);
   }, []);
 
+  const updateUser = useCallback((patch) => {
+    setUser((prev) => (prev ? { ...prev, ...patch } : prev));
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, role: user?.role ?? null, permissions, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, role: user?.role ?? null, permissions, loading, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

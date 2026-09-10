@@ -58,21 +58,29 @@ model Location {
   companyId String  @map("company_id") @db.Uuid
   name      String  @db.VarChar(100)
   address   String?
+  city      String? @db.VarChar(100)
+  state     String? @db.VarChar(100)
+  country   String  @default("India") @db.VarChar(100)
+  postalCode String? @map("postal_code") @db.VarChar(20)
   isActive  Boolean @default(true) @map("is_active")
 
   company         Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
   employees       Employee[]
   jobRequisitions JobRequisition[]
+  holidays        Holiday[]
 
   @@index([companyId])
   @@map("locations")
 }
 
 model Designation {
-  id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  title    String  @db.VarChar(100)
-  grade    String? @db.VarChar(20)
-  isActive Boolean @default(true) @map("is_active")
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title        String  @db.VarChar(100)
+  grade        String? @db.VarChar(20)
+  level        String? @default("L3") @db.VarChar(20)
+  departmentId String? @map("department_id") @db.Uuid
+  description  String? @db.Text
+  isActive     Boolean @default(true) @map("is_active")
 
   employees       Employee[]
   jobRequisitions JobRequisition[]
@@ -200,12 +208,20 @@ model Employee {
   userId             String?   @unique @map("user_id") @db.Uuid
   employeeCode       String    @unique @map("employee_code") @db.VarChar(20)
   firstName          String    @map("first_name") @db.VarChar(80)
+  middleName         String?   @map("middle_name") @db.VarChar(80)
   lastName           String    @map("last_name") @db.VarChar(80)
   dateOfBirth        DateTime? @map("date_of_birth") @db.Date
   gender             String?   @db.VarChar(20)
   personalEmail      String?   @map("personal_email") @db.VarChar(150)
   personalMobile     String?   @map("personal_mobile") @db.VarChar(20)
+  alternateMobile    String?   @map("alternate_mobile") @db.VarChar(20)
   address            String?
+  currentAddress     String?   @map("current_address") @db.Text
+  permanentAddress   String?   @map("permanent_address") @db.Text
+  city               String?   @db.VarChar(100)
+  state              String?   @db.VarChar(100)
+  country            String?   @default("India") @db.VarChar(100)
+  postalCode         String?   @map("postal_code") @db.VarChar(20)
   departmentId       String?   @map("department_id") @db.Uuid
   designationId      String?   @map("designation_id") @db.Uuid
   locationId         String?   @map("location_id") @db.Uuid
@@ -214,6 +230,21 @@ model Employee {
   employmentType     String    @default("Full-Time") @map("employment_type") @db.VarChar(30)
   status             String    @default("Active") @db.VarChar(20)
   isDepartmentHead   Boolean   @default(false) @map("is_department_head")
+  avatarUrl          String?   @map("avatar_url") @db.Text
+  guardianName       String?   @map("guardian_name") @db.VarChar(120)
+  guardianPhone      String?   @map("guardian_phone") @db.VarChar(30)
+  probationPeriodMonths Int?   @default(6) @map("probation_period_months")
+  expectedConfirmationDate DateTime? @map("expected_confirmation_date") @db.Date
+  actualConfirmationDate DateTime? @map("actual_confirmation_date") @db.Date
+  confirmationStatus String    @default("PROBATION") @map("confirmation_status") @db.VarChar(30)
+  confirmationExtensionReason String? @map("confirmation_extension_reason") @db.Text
+  noticePeriodDays   Int       @default(60) @map("notice_period_days")
+  shiftId            String?   @map("shift_id") @db.Uuid
+  panNumber          String?   @map("pan_number") @db.VarChar(30)
+  bankAccountNumber  String?   @map("bank_account_number") @db.VarChar(50)
+  bankIfsc           String?   @map("bank_ifsc") @db.VarChar(30)
+  bankName           String?   @map("bank_name") @db.VarChar(100)
+  isSoftDeleted      Boolean   @default(false) @map("is_soft_deleted")
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
 
   user             User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -222,6 +253,7 @@ model Employee {
   location         Location?    @relation(fields: [locationId], references: [id], onDelete: SetNull)
   reportingManager Employee?    @relation("EmployeeReports", fields: [reportingManagerId], references: [id], onDelete: SetNull)
   reports          Employee[]   @relation("EmployeeReports")
+  shift            AttendanceShift? @relation(fields: [shiftId], references: [id], onDelete: SetNull)
 
   organizationAuditLogs OrganizationAuditLog[]
 
@@ -263,12 +295,49 @@ model Employee {
   assetHistory  AssetHistory[]
   separations   Separation[]
   alumni        Alumni[]
+  documents     EmployeeDocument[]
+  emergencyContacts EmployeeEmergencyContact[]
+  movements         EmployeeMovement[]
+  regularizationRequests AttendanceRegularization[]
+  requests          EmployeeRequest[]
 
   @@index([departmentId])
   @@index([designationId])
   @@index([reportingManagerId])
   @@index([status])
   @@map("employees")
+}
+
+model EmployeeDocument {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId         String    @map("employee_id") @db.Uuid
+  documentType       String    @map("document_type") @db.VarChar(60)
+  documentNumber     String?   @map("document_number") @db.VarChar(100)
+  category           String    @default("Other") @db.VarChar(60)
+  fileName           String    @map("file_name") @db.VarChar(255)
+  fileUrl            String    @map("file_url") @db.Text
+  fileSize           Int?      @map("file_size")
+  mimeType           String?   @map("mime_type") @db.VarChar(100)
+  uploadedBy         String?   @map("uploaded_by") @db.VarChar(100)
+  verificationStatus String    @default("Pending") @map("verification_status") @db.VarChar(30)
+  status             String    @default("PENDING") @db.VarChar(30)
+  rejectionReason    String?   @map("rejection_reason") @db.Text
+  rejectedById       String?   @map("rejected_by_id") @db.Uuid
+  rejectedAt         DateTime? @map("rejected_at") @db.Timestamp(6)
+  verifiedById       String?   @map("verified_by_id") @db.Uuid
+  verifiedAt         DateTime? @map("verified_at") @db.Timestamp(6)
+  issueDate          DateTime? @map("issue_date") @db.Date
+  expiryDate         DateTime? @map("expiry_date") @db.Date
+  version            Int       @default(1)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([category])
+  @@index([status])
+  @@map("employee_documents")
 }
 
 model AuditLog {
@@ -483,24 +552,32 @@ model LeaveRequest {
 // ── Attendance Tracking ────────────────────────────────────────────────────
 
 model AttendanceShift {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name      String   @db.VarChar(50)
-  startTime DateTime @map("start_time") @db.Time(0)
-  endTime   DateTime @map("end_time") @db.Time(0)
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                   String    @db.VarChar(50)
+  startTime              DateTime  @map("start_time") @db.Time(0)
+  endTime                DateTime  @map("end_time") @db.Time(0)
+  gracePeriodMinutes     Int       @default(15) @map("grace_period_minutes")
+  breakDurationMinutes   Int       @default(60) @map("break_duration_minutes")
+  overtimeThresholdHours Decimal   @default(8.0) @map("overtime_threshold_hours") @db.Decimal(4, 2)
+
+  employees Employee[]
 
   @@map("attendance_shifts")
 }
 
 model AttendancePunch {
-  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  employeeId String    @map("employee_id") @db.Uuid
-  punchDate  DateTime  @map("punch_date") @db.Date
-  punchIn    DateTime? @map("punch_in") @db.Timestamp(6)
-  punchOut   DateTime? @map("punch_out") @db.Timestamp(6)
-  method     String    @default("Web") @db.VarChar(20)
-  // Derived status (Module 5): Present | Late | WFH | Absent | Holiday | Weekend
-  // Not derivable from punches alone, so stored. Computed at check-in/seed time.
-  status     String    @default("Present") @db.VarChar(20)
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId         String    @map("employee_id") @db.Uuid
+  punchDate          DateTime  @map("punch_date") @db.Date
+  punchIn            DateTime? @map("punch_in") @db.Timestamp(6)
+  punchOut           DateTime? @map("punch_out") @db.Timestamp(6)
+  method             String    @default("Web") @db.VarChar(20)
+  // Derived status: Present | Absent | Half-Day | Late | Early-Checkout | WFH | On-Duty | Holiday | Weekly-Off | Leave
+  status             String    @default("Present") @db.VarChar(30)
+  scheduledHours     Decimal?  @map("scheduled_hours") @db.Decimal(5, 2)
+  actualHours        Decimal?  @map("actual_hours") @db.Decimal(5, 2)
+  overtimeHours      Decimal   @default(0) @map("overtime_hours") @db.Decimal(5, 2)
+  isOvertimeApproved Boolean   @default(false) @map("is_overtime_approved")
 
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
@@ -1775,4 +1852,108 @@ model Alumni {
 
   @@index([employeeId])
   @@map("alumni")
+}
+
+model EmployeeEmergencyContact {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId     String   @map("employee_id") @db.Uuid
+  name           String   @db.VarChar(120)
+  relationship   String   @db.VarChar(50)
+  primaryPhone   String   @map("primary_phone") @db.VarChar(30)
+  alternatePhone String?  @map("alternate_phone") @db.VarChar(30)
+  address        String?  @db.Text
+  isPrimary      Boolean  @default(true) @map("is_primary")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@map("employee_emergency_contacts")
+}
+
+model EmployeeMovement {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId       String   @map("employee_id") @db.Uuid
+  movementType     String   @map("movement_type") @db.VarChar(30)
+  oldDepartmentId  String?  @map("old_department_id") @db.Uuid
+  newDepartmentId  String?  @map("new_department_id") @db.Uuid
+  oldDesignationId String?  @map("old_designation_id") @db.Uuid
+  newDesignationId String?  @map("new_designation_id") @db.Uuid
+  oldLevel         String?  @map("old_level") @db.VarChar(20)
+  newLevel         String?  @map("new_level") @db.VarChar(20)
+  oldSalary        Decimal? @map("old_salary") @db.Decimal(15, 2)
+  newSalary        Decimal? @map("new_salary") @db.Decimal(15, 2)
+  oldManagerId     String?  @map("old_manager_id") @db.Uuid
+  newManagerId     String?  @map("new_manager_id") @db.Uuid
+  oldStatus        String?  @map("old_status") @db.VarChar(30)
+  newStatus        String?  @map("new_status") @db.VarChar(30)
+  effectiveDate    DateTime @map("effective_date") @db.Date
+  reason           String   @db.Text
+  requestedById    String?  @map("requested_by_id") @db.Uuid
+  approvedById     String?  @map("approved_by_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([effectiveDate])
+  @@map("employee_movements")
+}
+
+model Holiday {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @db.VarChar(150)
+  date        DateTime @db.Date
+  locationId  String?  @map("location_id") @db.Uuid
+  year        Int
+  isMandatory Boolean  @default(true) @map("is_mandatory")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  location Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
+  @@index([locationId])
+  @@index([date])
+  @@map("holidays")
+}
+
+model AttendanceRegularization {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId        String    @map("employee_id") @db.Uuid
+  date              DateTime  @db.Date
+  originalStatus    String    @map("original_status") @db.VarChar(30)
+  requestedStatus   String    @map("requested_status") @db.VarChar(30)
+  requestedPunchIn  DateTime? @map("requested_punch_in") @db.Timestamp(6)
+  requestedPunchOut DateTime? @map("requested_punch_out") @db.Timestamp(6)
+  reason            String    @db.Text
+  status            String    @default("Pending") @db.VarChar(30)
+  approverId        String?   @map("approver_id") @db.Uuid
+  decisionNotes     String?   @map("decision_notes") @db.Text
+  decidedAt         DateTime? @map("decided_at") @db.Timestamp(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([date])
+  @@map("attendance_regularizations")
+}
+
+model EmployeeRequest {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId    String    @map("employee_id") @db.Uuid
+  requestType   String    @map("request_type") @db.VarChar(50)
+  payload       Json      @db.JsonB
+  status        String    @default("Pending") @db.VarChar(30)
+  reason        String?   @db.Text
+  approverId    String?   @map("approver_id") @db.Uuid
+  decisionNotes String?   @map("decision_notes") @db.Text
+  decidedAt     DateTime? @map("decided_at") @db.Timestamp(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([requestType, status])
+  @@map("employee_requests")
 }

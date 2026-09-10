@@ -23,6 +23,9 @@ export function serializeAttendance(punch: PunchWithEmployee) {
     checkOut: formatTime(punch.punchOut),
     status: punch.status,
     hoursWorked,
+    scheduledHours: punch.scheduledHours ? toNumber(punch.scheduledHours) : 8.0,
+    overtimeHours: punch.overtimeHours ? toNumber(punch.overtimeHours) : 0,
+    isOvertimeApproved: punch.isOvertimeApproved ?? false,
   };
 }
 

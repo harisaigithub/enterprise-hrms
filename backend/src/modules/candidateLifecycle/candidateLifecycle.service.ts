@@ -539,7 +539,86 @@ export async function createEmployeeAccount(applicationId: string) {
             });
 
             // =====================================================
-            // 6. EXPIRE OFFER INVITATION
+            // 6. RECORD JOINING MOVEMENT
+            // =====================================================
+            await tx.employeeMovement.create({
+                data: {
+                    employeeId: employee.id,
+                    movementType: "Joining",
+                    toDepartmentId: application.requisition.departmentId,
+                    toDesignationId: application.requisition.designationId,
+                    effectiveDate: joiningDate,
+                    remarks: "Employee joined from recruitment pipeline",
+                },
+            });
+
+            // =====================================================
+            // 7. COPY CANDIDATE DOCUMENTS TO EMPLOYEE DOCUMENTS
+            // =====================================================
+            for (const cDoc of application.documents) {
+                await tx.employeeDocument.create({
+                    data: {
+                        employeeId: employee.id,
+                        documentType: cDoc.documentType,
+                        category: "Identity",
+                        fileName: cDoc.fileName,
+                        fileUrl: cDoc.fileUrl,
+                        status: cDoc.status === "Verified" ? "Verified" : "Pending",
+                        verifiedById: cDoc.verifiedBy,
+                        verifiedAt: cDoc.verifiedAt,
+                    },
+                });
+            }
+
+            // =====================================================
+            // 8. INITIALIZE SALARY STRUCTURE FROM OFFER
+            // =====================================================
+            if (application.offer?.proposedSalary) {
+                const annual = Number(application.offer.proposedSalary);
+                const monthly = annual / 12;
+                const basic = Math.round(monthly * 0.50);
+                const hra = Math.round(monthly * 0.20);
+                const special = Math.round(monthly * 0.30);
+                const pf = Math.min(1800, Math.round(basic * 0.12));
+                const pt = 200;
+                await tx.salaryStructure.create({
+                    data: {
+                        employeeId: employee.id,
+                        effectiveFrom: joiningDate,
+                        basicSalary: basic,
+                        hra: hra,
+                        conveyanceAllowance: 0,
+                        medicalAllowance: 0,
+                        performanceBonus: 0,
+                        otherAllowances: special,
+                        providentFund: pf,
+                        professionalTax: pt,
+                        incomeTax: 0,
+                        healthInsurance: 500,
+                        isActive: true,
+                    },
+                });
+            }
+
+            // =====================================================
+            // 9. INITIALIZE LEAVE BALANCES
+            // =====================================================
+            const leaveTypes = await tx.leaveType.findMany({ where: { isActive: true } });
+            const curYear = joiningDate.getFullYear();
+            for (const lt of leaveTypes) {
+                await tx.leaveBalance.create({
+                    data: {
+                        employeeId: employee.id,
+                        leaveTypeId: lt.id,
+                        year: curYear,
+                        totalDays: lt.defaultAnnualDays,
+                        usedDays: 0,
+                    },
+                });
+            }
+
+            // =====================================================
+            // 10. EXPIRE OFFER INVITATION
             // =====================================================
 
             if (application.offer) {

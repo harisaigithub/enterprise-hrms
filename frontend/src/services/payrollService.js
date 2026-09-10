@@ -27,3 +27,19 @@ export const runPayroll = async (payrollRunId) => {
   const res = await api.post(`/payroll/runs/${payrollRunId}/process`);
   return res.data;
 };
+
+export const processPayrollRun = async (payrollRunId) => {
+  const res = await api.post(`/payroll/runs/${payrollRunId}/process`);
+  return res.data;
+};
+
+export const approvePayrollRun = async (payrollRunId) => {
+  const res = await api.post(`/payroll/runs/${payrollRunId}/approve`);
+  return res.data;
+};
+
+export const lockPayrollRun = async (payrollRunId) => {
+  const res = await api.post(`/payroll/runs/${payrollRunId}/lock`);
+  return res.data;
+};
+

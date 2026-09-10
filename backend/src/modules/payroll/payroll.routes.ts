@@ -23,6 +23,9 @@ router.post("/runs/:id/process", authenticate, requirePermission("payroll:write"
 // POST /api/payroll/runs/:id/approve — payroll:approve (four-eyes)
 router.post("/runs/:id/approve", authenticate, requirePermission("payroll:approve"), payrollController.approve);
 
+// POST /api/payroll/runs/:id/lock — payroll:write
+router.post("/runs/:id/lock", authenticate, requirePermission("payroll:write"), payrollController.lock);
+
 // GET /api/payroll/payslips — payroll:read
 router.get("/payslips", authenticate, requirePermission("payroll:read"), validate({ query: payslipQuerySchema }), payrollController.payslips);
 

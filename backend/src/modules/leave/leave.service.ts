@@ -122,7 +122,7 @@ export async function applyLeave(input: ApplyLeaveInput, actor?: AccessTokenPayl
   const end = new Date(`${input.endDate}T00:00:00Z`);
   if (end < start) throw AppError.badRequest("End date cannot be before start date");
 
-  const days = countWeekdays(start, end);
+  let days = countWeekdays(start, end);
   if (days <= 0) throw AppError.badRequest("Leave period contains no working days");
 
   // Never trust client: employee is resolved from the authenticated user unless
@@ -140,10 +140,48 @@ export async function applyLeave(input: ApplyLeaveInput, actor?: AccessTokenPayl
     if (!target) throw AppError.notFound("Employee not found");
     employee = target;
   }
-  if (!employee) throw AppError.badRequest("Employee could not be determined");
+  if (!employee) throw AppError.badRequest("Could not determine employee for leave application");
 
-  const leaveType = await prisma.leaveType.findUnique({ where: { code: input.leaveTypeId } });
-  if (!leaveType) throw AppError.notFound("Leave type not found");
+  // Inactive employee check (Req 75)
+  const empRecord = await prisma.employee.findUnique({
+    where: { id: employee.id },
+    select: { id: true, status: true, locationId: true },
+  });
+  if (empRecord?.status === "Inactive" || empRecord?.status === "Terminated") {
+    throw AppError.badRequest("Inactive or terminated employees cannot apply for leave.");
+  }
+
+  // Location-Specific Holiday Check (Req 40)
+  const holidays = await prisma.holiday.findMany({
+    where: {
+      date: { gte: start, lte: end },
+      OR: [
+        ...(empRecord?.locationId ? [{ locationId: empRecord.locationId }] : []),
+        { locationId: null },
+      ],
+    },
+    select: { date: true },
+  });
+
+  // Calculate effective working days excluding weekends and public holidays
+  let effectiveDays = 0;
+  const holidayDateStrings = new Set(holidays.map((h) => h.date.toISOString().slice(0, 10)));
+  const cur = new Date(start);
+  while (cur <= end) {
+    const dayOfWeek = cur.getUTCDay();
+    const dateStr = cur.toISOString().slice(0, 10);
+    // 0 = Sunday, 6 = Saturday
+    if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidayDateStrings.has(dateStr)) {
+      effectiveDays++;
+    }
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+
+  if (effectiveDays <= 0) {
+    throw AppError.badRequest("Selected leave period consists entirely of weekends or company holidays.");
+  }
+
+  days = effectiveDays;
 
   // Overlap check: no other non-rejected request spanning this range.
   const overlap = await prisma.leaveRequest.findFirst({

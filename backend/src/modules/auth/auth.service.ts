@@ -51,6 +51,7 @@ interface LoginUser {
     employeeCode: string;
     firstName: string;
     lastName: string;
+    avatarUrl?: string | null;
     designation?: { title: string } | null;
   } | null;
 }
@@ -111,9 +112,9 @@ export async function login(email: string, password: string, ip?: string) {
   });
 
   const refreshToken = await issueRefreshToken(account.user.id);
-  const avatar = account.employee
+  const avatar = account.employee?.avatarUrl || (account.employee
     ? `https://i.pravatar.cc/150?img=${Number(account.employee.employeeCode.replace(/\D/g, "")) || 1}`
-    : "";
+    : "");
 
   writeAuditLog({
     action: "LOGIN",

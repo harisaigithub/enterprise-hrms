@@ -25,6 +25,9 @@ import {
   ShieldCheck,
   Clock3,
   UserCog,
+  Send,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import MainLayout from "../../components/layout/MainLayout";
 import PageHeader from "../../components/shared/PageHeader";
@@ -40,6 +43,11 @@ import {
   getLastExportRequest,
   requestDataExport,
 } from "../../services/essService";
+import {
+  getEmployeeRequests,
+  createEmployeeRequest,
+  decideEmployeeRequest,
+} from "../../services/employeeService";
 import { proofStatusMeta, EXPORT_THROTTLE_DAYS, EXPORT_EXPIRY_HOURS } from "../../mock/ess";
 
 const currency = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
@@ -335,6 +343,482 @@ function TaxDeclarationTab({ declarations, onAdded }) {
   );
 }
 
+/* ---------------------------------- Request Center tab ---------------------------------- */
+
+function NewRequestModal({ isOpen, onClose, onSubmitted }) {
+  const [requestType, setRequestType] = useState("ProfileUpdate");
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  // Profile fields
+  const [mobileNumber, setMobileNumber] = useState("");
+  const [alternateMobile, setAlternateMobile] = useState("");
+  const [personalEmail, setPersonalEmail] = useState("");
+  const [currentAddress, setCurrentAddress] = useState("");
+  const [permanentAddress, setPermanentAddress] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [country, setCountry] = useState("India");
+  const [postalCode, setPostalCode] = useState("");
+
+  // Bank fields
+  const [bankName, setBankName] = useState("");
+  const [bankAccountNumber, setBankAccountNumber] = useState("");
+  const [bankIfsc, setBankIfsc] = useState("");
+  const [panNumber, setPanNumber] = useState("");
+
+  // Emergency Contact fields
+  const [contactName, setContactName] = useState("");
+  const [relationship, setRelationship] = useState("Guardian");
+  const [phone, setPhone] = useState("");
+  const [altPhone, setAltPhone] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactAddress, setContactAddress] = useState("");
+  const [isPrimary, setIsPrimary] = useState(false);
+
+  const resetForm = () => {
+    setReason("");
+    setError("");
+    setMobileNumber("");
+    setAlternateMobile("");
+    setPersonalEmail("");
+    setCurrentAddress("");
+    setPermanentAddress("");
+    setCity("");
+    setState("");
+    setPostalCode("");
+    setBankName("");
+    setBankAccountNumber("");
+    setBankIfsc("");
+    setPanNumber("");
+    setContactName("");
+    setRelationship("Guardian");
+    setPhone("");
+    setAltPhone("");
+    setContactEmail("");
+    setContactAddress("");
+    setIsPrimary(false);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!reason.trim()) {
+      setError("Please provide a reason for this change request.");
+      return;
+    }
+
+    let payload = {};
+    if (requestType === "ProfileUpdate") {
+      if (mobileNumber) payload.mobileNumber = mobileNumber.trim();
+      if (alternateMobile) payload.alternateMobile = alternateMobile.trim();
+      if (personalEmail) payload.personalEmail = personalEmail.trim();
+      if (currentAddress) payload.currentAddress = currentAddress.trim();
+      if (permanentAddress) payload.permanentAddress = permanentAddress.trim();
+      if (city) payload.city = city.trim();
+      if (state) payload.state = state.trim();
+      if (country) payload.country = country.trim();
+      if (postalCode) payload.postalCode = postalCode.trim();
+
+      if (Object.keys(payload).length === 0) {
+        setError("Please enter at least one profile detail to update.");
+        return;
+      }
+    } else if (requestType === "BankUpdate") {
+      if (bankName) payload.bankName = bankName.trim();
+      if (bankAccountNumber) payload.bankAccountNumber = bankAccountNumber.trim();
+      if (bankIfsc) payload.bankIfsc = bankIfsc.trim().toUpperCase();
+      if (panNumber) payload.panNumber = panNumber.trim().toUpperCase();
+
+      if (Object.keys(payload).length === 0) {
+        setError("Please provide at least one bank or statutory field to update.");
+        return;
+      }
+    } else if (requestType === "EmergencyContact") {
+      if (!contactName.trim() || !phone.trim()) {
+        setError("Contact Name and Phone number are required.");
+        return;
+      }
+      payload = {
+        name: contactName.trim(),
+        relationship,
+        phone: phone.trim(),
+        alternatePhone: altPhone.trim() || null,
+        email: contactEmail.trim() || null,
+        address: contactAddress.trim() || null,
+        isPrimary,
+      };
+    }
+
+    try {
+      setSubmitting(true);
+      setError("");
+      const res = await createEmployeeRequest({
+        requestType,
+        payload,
+        reason: reason.trim(),
+      });
+      setSubmitting(false);
+      resetForm();
+      onSubmitted(res.data);
+      onClose();
+    } catch (err) {
+      setSubmitting(false);
+      setError(err?.response?.data?.message || "Failed to submit request.");
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} title="Submit Change Request" onClose={onClose}>
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px", maxHeight: "75vh", overflowY: "auto", paddingRight: "4px" }}>
+        {error && (
+          <div style={{ padding: "8px 12px", background: "#fee2e2", border: "1px solid #f87171", borderRadius: "var(--radius-sm)", color: "#b91c1c", fontSize: "12.5px" }}>
+            {error}
+          </div>
+        )}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+          {fieldLabel("Request Category *")}
+          <select
+            value={requestType}
+            onChange={(e) => { setRequestType(e.target.value); setError(""); }}
+            style={{ ...inputStyle(false), height: "38px", cursor: "pointer" }}
+          >
+            <option value="ProfileUpdate">Profile & Contact Information</option>
+            <option value="BankUpdate">Bank Details & Statutory Identifiers</option>
+            <option value="EmergencyContact">Emergency Contact / Guardian</option>
+          </select>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+          {fieldLabel("Reason / Justification *")}
+          <input
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="e.g. Relocated to a new address / Updated bank account"
+            style={inputStyle(false)}
+            required
+          />
+        </div>
+
+        {requestType === "ProfileUpdate" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", background: "var(--background)", padding: "14px", borderRadius: "var(--radius)", border: "1px solid var(--border)" }}>
+            <p style={{ margin: 0, fontSize: "12px", fontWeight: 700, color: "var(--text)" }}>Profile Information to Update</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                {fieldLabel("Mobile Number")}
+                <input value={mobileNumber} onChange={(e) => setMobileNumber(e.target.value)} placeholder="+91 98765 43210" style={inputStyle(false)} />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                {fieldLabel("Alternate Mobile")}
+                <input value={alternateMobile} onChange={(e) => setAlternateMobile(e.target.value)} placeholder="+91 98765 00000" style={inputStyle(false)} />
+              </div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              {fieldLabel("Personal Email")}
+              <input type="email" value={personalEmail} onChange={(e) => setPersonalEmail(e.target.value)} placeholder="personal@example.com" style={inputStyle(false)} />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              {fieldLabel("Current Residential Address")}
+              <input value={currentAddress} onChange={(e) => setCurrentAddress(e.target.value)} placeholder="House, Street, Area" style={inputStyle(false)} />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              {fieldLabel("Permanent Address")}
+              <input value={permanentAddress} onChange={(e) => setPermanentAddress(e.target.value)} placeholder="Permanent Address" style={inputStyle(false)} />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                {fieldLabel("City")}
+                <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Bengaluru" style={inputStyle(false)} />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                {fieldLabel("State")}
+                <input value={state} onChange={(e) => setState(e.target.value)} placeholder="Karnataka" style={inputStyle(false)} />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                {fieldLabel("Postal Code")}
+                <input value={postalCode} onChange={(e) => setPostalCode(e.target.value)} placeholder="560001" style={inputStyle(false)} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {requestType === "BankUpdate" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", background: "var(--background)", padding: "14px", borderRadius: "var(--radius)", border: "1px solid var(--border)" }}>
+            <p style={{ margin: 0, fontSize: "12px", fontWeight: 700, color: "var(--text)" }}>Bank & Statutory Information</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                {fieldLabel("Bank Name")}
+                <input value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="HDFC Bank" style={inputStyle(false)} />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                {fieldLabel("Account Number")}
+                <input value={bankAccountNumber} onChange={(e) => setBankAccountNumber(e.target.value)} placeholder="001234567890" style={inputStyle(false)} />
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                {fieldLabel("IFSC Code")}
+                <input value={bankIfsc} onChange={(e) => setBankIfsc(e.target.value)} placeholder="HDFC0001234" style={inputStyle(false)} />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                {fieldLabel("PAN Number")}
+                <input value={panNumber} onChange={(e) => setPanNumber(e.target.value)} placeholder="ABCDE1234F" style={inputStyle(false)} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {requestType === "EmergencyContact" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", background: "var(--background)", padding: "14px", borderRadius: "var(--radius)", border: "1px solid var(--border)" }}>
+            <p style={{ margin: 0, fontSize: "12px", fontWeight: 700, color: "var(--text)" }}>Emergency Contact Details</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                {fieldLabel("Contact / Guardian Name *")}
+                <input value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder="e.g. Ramesh Kumar" style={inputStyle(false)} required />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                {fieldLabel("Relationship *")}
+                <select value={relationship} onChange={(e) => setRelationship(e.target.value)} style={{ ...inputStyle(false), height: "38px" }}>
+                  {["Father", "Mother", "Spouse", "Guardian", "Sibling", "Friend", "Other"].map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                {fieldLabel("Primary Phone *")}
+                <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91 98765 43210" style={inputStyle(false)} required />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                {fieldLabel("Alternate Phone")}
+                <input value={altPhone} onChange={(e) => setAltPhone(e.target.value)} placeholder="Optional" style={inputStyle(false)} />
+              </div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              {fieldLabel("Email")}
+              <input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="contact@example.com" style={inputStyle(false)} />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              {fieldLabel("Address")}
+              <input value={contactAddress} onChange={(e) => setContactAddress(e.target.value)} placeholder="Residential address of contact" style={inputStyle(false)} />
+            </div>
+            <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12.5px", color: "var(--text)", cursor: "pointer", marginTop: "4px" }}>
+              <input type="checkbox" checked={isPrimary} onChange={(e) => setIsPrimary(e.target.checked)} />
+              Mark as Primary Emergency Contact / Guardian
+            </label>
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "8px" }}>
+          <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
+          <PrimaryButton type="submit" disabled={submitting}>
+            <Send size={14} /> {submitting ? "Submitting..." : "Submit Request"}
+          </PrimaryButton>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function RequestCenterTab({ userRole }) {
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [subTab, setSubTab] = useState("my"); // "my" | "team"
+  const [showModal, setShowModal] = useState(false);
+  const [actionLoading, setActionLoading] = useState(null);
+
+  const canReview = userRole === "MANAGER" || userRole === "HR" || userRole === "ADMIN";
+
+  const fetchRequests = async () => {
+    try {
+      setLoading(true);
+      const res = await getEmployeeRequests();
+      setRequests(res.data || []);
+    } catch (err) {
+      console.error("Failed to load requests", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRequests();
+  }, []);
+
+  const handleDecide = async (id, status) => {
+    let rejectionReason = undefined;
+    if (status === "Rejected") {
+      const reasonInput = prompt("Enter reason for rejection:");
+      if (reasonInput === null) return;
+      rejectionReason = reasonInput.trim() || "Rejected by manager";
+    }
+
+    try {
+      setActionLoading(id);
+      await decideEmployeeRequest(id, { status, rejectionReason });
+      await fetchRequests();
+    } catch (err) {
+      alert(err?.response?.data?.message || `Failed to ${status.toLowerCase()} request`);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const filteredRequests = requests.filter((r) => {
+    if (statusFilter !== "All" && r.status !== statusFilter) return false;
+    return true;
+  });
+
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case "Approved":
+        return <StatusBadge label="Approved" color="#16a34a" bg="#f0fdf4" />;
+      case "Rejected":
+        return <StatusBadge label="Rejected" color="#dc2626" bg="#fef2f2" />;
+      default:
+        return <StatusBadge label="Pending Review" color="#d97706" bg="#fef3c7" />;
+    }
+  };
+
+  const formatPayload = (payload) => {
+    if (!payload || typeof payload !== "object") return "None";
+    const entries = Object.entries(payload).filter(([k, v]) => v !== null && v !== undefined && v !== "");
+    if (entries.length === 0) return "No details provided";
+    return entries.map(([k, v]) => `${k}: ${v}`).join(" • ");
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "10px" }}>
+        <div>
+          <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Request Center</h2>
+          <p style={{ fontSize: "12px", color: "var(--subtext)" }}>
+            Submit profile corrections, bank account modifications, and emergency contact updates with full approval audit trail.
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            style={{ ...inputStyle(false), width: "130px", height: "36px", padding: "4px 8px", cursor: "pointer" }}
+          >
+            <option value="All">All Statuses</option>
+            <option value="Pending">Pending</option>
+            <option value="Approved">Approved</option>
+            <option value="Rejected">Rejected</option>
+          </select>
+          <PrimaryButton onClick={() => setShowModal(true)}>
+            <Plus size={15} /> New Request
+          </PrimaryButton>
+        </div>
+      </div>
+
+      {loading ? (
+        <Spinner />
+      ) : filteredRequests.length === 0 ? (
+        <EmptyState icon={Send} title="No requests found" subtitle="Submit a profile, bank, or emergency contact change to get started." />
+      ) : (
+        <div style={{ ...cardStyle, overflow: "hidden" }}>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: "var(--background)", borderBottom: "1px solid var(--border)" }}>
+                  {["Employee", "Type", "Reason", "Changes", "Status", "Decision / Date", canReview ? "Actions" : ""].filter(Boolean).map((h) => (
+                    <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.5px", whiteSpace: "nowrap" }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRequests.map((r, i) => (
+                  <tr key={r.id} style={{ borderBottom: i < filteredRequests.length - 1 ? "1px solid var(--border)" : "none" }}>
+                    <td style={{ padding: "13px 16px", fontSize: "13px", fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap" }}>
+                      {r.employee ? `${r.employee.firstName} ${r.employee.lastName} (${r.employee.employeeCode})` : "Self"}
+                    </td>
+                    <td style={{ padding: "13px 16px", fontSize: "13px", color: "var(--text)" }}>
+                      <span style={{ fontWeight: 600 }}>
+                        {r.requestType === "ProfileUpdate" && "Profile & Contact"}
+                        {r.requestType === "BankUpdate" && "Bank & Statutory"}
+                        {r.requestType === "EmergencyContact" && "Emergency Contact"}
+                      </span>
+                    </td>
+                    <td style={{ padding: "13px 16px", fontSize: "12.5px", color: "var(--subtext)", maxWidth: "200px" }}>
+                      {r.reason || "—"}
+                    </td>
+                    <td style={{ padding: "13px 16px", fontSize: "12px", color: "var(--text)", maxWidth: "280px" }}>
+                      <span style={{ fontFamily: "monospace", fontSize: "11.5px", background: "var(--background)", padding: "2px 6px", borderRadius: "4px" }}>
+                        {formatPayload(r.payload)}
+                      </span>
+                    </td>
+                    <td style={{ padding: "13px 16px", whiteSpace: "nowrap" }}>
+                      {getStatusBadge(r.status)}
+                    </td>
+                    <td style={{ padding: "13px 16px", fontSize: "11.5px", color: "var(--subtext)", whiteSpace: "nowrap" }}>
+                      {fmtDateTime(r.createdAt)}
+                      {r.decidedBy && (
+                        <div style={{ marginTop: "2px", fontSize: "11px", color: "var(--text)" }}>
+                          By: {r.decidedBy.firstName} {r.decidedBy.lastName}
+                        </div>
+                      )}
+                      {r.rejectionReason && (
+                        <div style={{ marginTop: "2px", fontSize: "11px", color: "#dc2626" }}>
+                          Reason: {r.rejectionReason}
+                        </div>
+                      )}
+                    </td>
+                    {canReview && (
+                      <td style={{ padding: "13px 16px", whiteSpace: "nowrap" }}>
+                        {r.status === "Pending" ? (
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <button
+                              onClick={() => handleDecide(r.id, "Approved")}
+                              disabled={actionLoading === r.id}
+                              style={{
+                                display: "flex", alignItems: "center", gap: "4px", padding: "5px 10px",
+                                background: "#16a34a", color: "#fff", border: "none", borderRadius: "4px",
+                                fontSize: "12px", fontWeight: 600, cursor: "pointer",
+                              }}
+                            >
+                              <CheckCircle2 size={13} /> Approve
+                            </button>
+                            <button
+                              onClick={() => handleDecide(r.id, "Rejected")}
+                              disabled={actionLoading === r.id}
+                              style={{
+                                display: "flex", alignItems: "center", gap: "4px", padding: "5px 10px",
+                                background: "#dc2626", color: "#fff", border: "none", borderRadius: "4px",
+                                fontSize: "12px", fontWeight: 600, cursor: "pointer",
+                              }}
+                            >
+                              <XCircle size={13} /> Reject
+                            </button>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: "12px", color: "var(--subtext)" }}>—</span>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <NewRequestModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        onSubmitted={() => fetchRequests()}
+      />
+    </div>
+  );
+}
+
 /* ---------------------------------- Download My Data tab ---------------------------------- */
 
 function HierarchyView() {
@@ -445,6 +929,7 @@ function DataExportTab({ lastRequest, onRequested }) {
 const TABS = [
   { key: "overview", label: "Overview", icon: LayoutGrid },
   { key: "tax", label: "Tax Declaration", icon: Receipt },
+  { key: "requests", label: "Request Center", icon: Send },
   { key: "export", label: "Download My Data", icon: DownloadCloud },
 ];
 
@@ -496,6 +981,10 @@ export default function SelfService() {
 
         {activeTab === "tax" && (
           <TaxDeclarationTab declarations={declarations} onAdded={(d) => setDeclarations((prev) => [d, ...prev])} />
+        )}
+
+        {activeTab === "requests" && (
+          <RequestCenterTab userRole={user?.role} />
         )}
 
         {activeTab === "export" && (

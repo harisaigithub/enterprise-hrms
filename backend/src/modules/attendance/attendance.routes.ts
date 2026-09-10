@@ -34,4 +34,13 @@ router.post("/check-in", authenticate, requirePermission("attendance:write"), va
 // POST /api/attendance/check-out — attendance:write
 router.post("/check-out", authenticate, requirePermission("attendance:write"), validate({ body: checkOutBodySchema }), attendanceController.doCheckOut);
 
+// Regularization routes
+router.get("/regularizations", authenticate, attendanceController.listRegularizations);
+router.post("/regularize", authenticate, attendanceController.requestRegularization);
+router.patch("/regularizations/:id/decide", authenticate, attendanceController.decideRegularization);
+
+// Shift routes
+router.get("/shifts", authenticate, attendanceController.listShifts);
+router.post("/shifts", authenticate, requirePermission("attendance:write"), attendanceController.createShift);
+
 export default router;
