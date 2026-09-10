@@ -28,6 +28,7 @@ import EmptyState from "../../components/shared/EmptyState";
 import Modal from "../../components/shared/Modal";
 import {
   getMyExpenseClaims, getPendingApprovals, submitExpenseClaim, approveClaim, rejectClaim,
+  createDraft,
 } from "../../services/expenseService";
 import { EXPENSE_CATEGORIES, EXPENSE_POLICY, expenseStatusMeta, LOCKED_STATUSES } from "../../mock/expenses";
 import { useAuth } from "../../context/AuthContext";
@@ -232,20 +233,29 @@ function SubmitClaimModal({ isOpen, onClose, onSubmitted, currentEmployee }) {
     e.preventDefault();
     if (!validate()) return;
     setSaving(true);
-    await submitExpenseClaim({
-      employeeId: currentEmployee?.id || "EMP001",
-      employeeName: currentEmployee?.name || "Matsya Singh",
-      category: form.category,
-      amount: amountNum,
-      expenseDate: form.expenseDate,
-      businessPurpose: form.businessPurpose,
-      receiptAttached: !!form.receiptFileName,
-      receiptFileName: form.receiptFileName || null,
-    });
-    setSaving(false);
-    onSubmitted();
-    onClose();
-    setForm({ category: "", amount: "", expenseDate: "", businessPurpose: "", receiptFileName: "" });
+    try {
+      // 1. Create draft claim
+      const draft = await createDraft({
+        category: form.category,
+        amount: amountNum,
+        expenseDate: form.expenseDate,
+        businessPurpose: form.businessPurpose,
+        receiptAttached: !!form.receiptFileName,
+        receiptFileName: form.receiptFileName || null,
+      });
+      // 2. Submit the created draft for approval
+      if (draft?.id) {
+        await submitExpenseClaim(draft.id);
+      }
+      onSubmitted();
+      onClose();
+      setForm({ category: "", amount: "", expenseDate: "", businessPurpose: "", receiptFileName: "" });
+    } catch (err) {
+      console.error("Failed to submit expense claim:", err);
+      alert("Failed to submit claim. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const inputStyle = (key) => ({
