@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Recruitment (ATS) Page  •  Module 5
  * Tabs: Requisitions  •  Candidate Pipeline  •  Interviews  •  Offers
  */
@@ -488,18 +488,18 @@ function CandidateCard({ candidate, requisitionTitle, onMove }) {
   const nextStage = PIPELINE_STAGES[idx + 1];
 
   return (
-<div
-  style={{
-    ...cardStyle,
-    width: "100%",
-    minWidth: 0,
-    boxSizing: "border-box",
-    padding: "12px 14px",
-    marginBottom: "10px",
-    overflow: "hidden",
-  }}
->
-<div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+    <div
+      style={{
+        ...cardStyle,
+        width: "100%",
+        minWidth: 0,
+        boxSizing: "border-box",
+        padding: "12px 14px",
+        marginBottom: "10px",
+        overflow: "hidden",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
         <div>
           <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--text)" }}>{candidate.name}</p>
           <p style={{ fontSize: "11px", color: "var(--subtext)" }}>{requisitionTitle}</p>
@@ -534,22 +534,22 @@ function PipelineTab({ candidates, requisitions, onCandidateAdded, onMove }) {
         <PrimaryButton onClick={() => setShowAdd(true)}><Plus size={16} /> Add Candidate</PrimaryButton>
       </div>
 
-<div
-  style={{
-    display: "grid",
-    gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
-    gap: "14px",
-    width: "100%",
-    minWidth: 0,
-    paddingBottom: "8px",
-  }}
->
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+          gap: "14px",
+          width: "100%",
+          minWidth: 0,
+          paddingBottom: "8px",
+        }}
+      >
         {PIPELINE_STAGES.map((stage) => {
           const stageCandidates = candidates.filter((c) => c.stage === stage);
           const meta = stageMeta[stage];
           return (
-<div key={stage} style={{ minWidth: 0 }}>
-<div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+            <div key={stage} style={{ minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
                 <span style={{ fontSize: "11.5px", fontWeight: 700, color: meta.color, background: meta.bg, padding: "3px 10px", borderRadius: "99px" }}>{stage}</span>
                 <span style={{ fontSize: "11.5px", color: "var(--subtext)" }}>{stageCandidates.length}</span>
               </div>
@@ -586,8 +586,6 @@ function ScheduleInterviewModal({ isOpen, onClose, candidates, onSaved }) {
     const loadInterviewers = async () => {
       try {
         const res = await getEmployees();
-
-        console.log("INTERVIEWERS:", res);
 
         setInterviewers(res.data || []);
       } catch (error) {
@@ -1058,7 +1056,6 @@ function OfferRow({ offer, candidateName, onUpdate }) {
 
 function OffersTab({ offers, candidates, requisitions, onCreated, onUpdate }) {
   const [showCreate, setShowCreate] = useState(false);
-  const candidateName = (id) => candidates.find((c) => c.id === id)?.name || "N/A";
 
   return (
     <div>
@@ -1082,7 +1079,7 @@ function OffersTab({ offers, candidates, requisitions, onCreated, onUpdate }) {
               </thead>
               <tbody>
                 {offers.map((o) => (
-                  <OfferRow key={o.id} offer={o} candidateName={candidateName(o.candidateId)} onUpdate={onUpdate} />
+                  <OfferRow key={o.id} offer={o} candidateName={o.candidateName || "N/A"} onUpdate={onUpdate} />
                 ))}
               </tbody>
             </table>
@@ -1129,11 +1126,6 @@ export default function Recruitment() {
           getInterviews(),
           getOffers(),
         ]);
-
-        console.log("REQUISITIONS:", requisitionsRes);
-        console.log("CANDIDATES:", candidatesRes);
-        console.log("INTERVIEWS:", interviewsRes);
-        console.log("OFFERS:", offersRes);
 
         setRequisitions(requisitionsRes.data || []);
         setCandidates(candidatesRes.data || []);

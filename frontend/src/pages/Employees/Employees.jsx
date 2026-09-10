@@ -33,7 +33,7 @@ import StatusBadge from "../../components/shared/StatusBadge";
 import Spinner from "../../components/shared/Spinner";
 import EmptyState from "../../components/shared/EmptyState";
 import Modal from "../../components/shared/Modal";
-import { getEmployees, createEmployee, updateEmployee, deleteEmployee } from "../../services/employeeService";
+import { getEmployees, createEmployee, updateEmployee, deleteEmployee, getEmployeeSalary, upsertEmployeeSalary } from "../../services/employeeService";
 import { useAuth } from "../../context/AuthContext";
 import { departments, locations, employmentTypes, statuses } from "../../mock/employees";
 
@@ -44,8 +44,105 @@ const EMPLOYEE_STATUS_META = {
   Terminated: { label: "Terminated", color: "#dc2626", bg: "#fef2f2" },
 };
 
+const inr = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
+
+/* ── Shared Salary Structure Form ──────────────────────────────────────────── */
+const EMPTY_SALARY = {
+  effectiveFrom: new Date().toISOString().slice(0, 10),
+  basicSalary: "",
+  hra: "",
+  conveyanceAllowance: "1600",
+  medicalAllowance: "1250",
+  performanceBonus: "0",
+  otherAllowances: "0",
+  providentFund: "",
+  professionalTax: "200",
+  incomeTax: "0",
+  healthInsurance: "0",
+};
+
+function SalaryStructureForm({ salary, onChange, errors = {} }) {
+  const sel = (label, key, hint) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+      <label style={{ fontSize: "11.5px", fontWeight: 600, color: "var(--label)" }}>
+        {label}
+        {hint && <span style={{ fontWeight: 400, color: "var(--subtext)", marginLeft: "4px" }}>{hint}</span>}
+      </label>
+      <input
+        type="number"
+        min="0"
+        step="1"
+        value={salary[key]}
+        onChange={(e) => onChange(key, e.target.value)}
+        placeholder="0"
+        style={{
+          height: "36px", padding: "0 10px",
+          border: `1px solid ${errors[key] ? "var(--red)" : "var(--border)"}`,
+          borderRadius: "var(--radius-sm)",
+          fontSize: "13px", color: "var(--text)", outline: "none",
+          background: "var(--card)",
+        }}
+      />
+      {errors[key] && <span style={{ fontSize: "10.5px", color: "var(--red)" }}>{errors[key]}</span>}
+    </div>
+  );
+
+  const annualCtc = [
+    "basicSalary", "hra", "conveyanceAllowance", "medicalAllowance",
+    "performanceBonus", "otherAllowances",
+  ].reduce((s, k) => s + (Number(salary[k]) || 0), 0) * 12;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+      {/* CTC preview banner */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        background: "var(--primary-light)", borderRadius: "var(--radius-sm)",
+        padding: "10px 14px",
+      }}>
+        <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--primary)" }}>Estimated Annual CTC</span>
+        <span style={{ fontSize: "18px", fontWeight: 800, color: "var(--primary)" }}>{inr(annualCtc)}</span>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+        <label style={{ fontSize: "11.5px", fontWeight: 600, color: "var(--label)" }}>Effective From *</label>
+        <input
+          type="date"
+          value={salary.effectiveFrom}
+          onChange={(e) => onChange("effectiveFrom", e.target.value)}
+          style={{
+            height: "36px", padding: "0 10px",
+            border: `1px solid ${errors.effectiveFrom ? "var(--red)" : "var(--border)"}`,
+            borderRadius: "var(--radius-sm)",
+            fontSize: "13px", color: "var(--text)", outline: "none",
+          }}
+        />
+      </div>
+
+      <p style={{ margin: 0, fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Earnings (Monthly ₹)</p>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+        {sel("Basic Salary *", "basicSalary")}
+        {sel("HRA *", "hra", "(≈ 40% of basic)")}
+        {sel("Conveyance Allowance", "conveyanceAllowance")}
+        {sel("Medical Allowance", "medicalAllowance")}
+        {sel("Performance Bonus", "performanceBonus")}
+        {sel("Other Allowances", "otherAllowances")}
+      </div>
+
+      <p style={{ margin: 0, fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Statutory Deductions (Monthly ₹)</p>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+        {sel("Provident Fund (EPF)", "providentFund", "(12% of basic)")}
+        {sel("Professional Tax", "professionalTax", "(₹200/mo)")}
+        {sel("Income Tax (TDS)", "incomeTax")}
+        {sel("Health Insurance", "healthInsurance")}
+      </div>
+    </div>
+  );
+}
+
+
 // ─── Quick View Modal (Full Details + Current Payroll History) ───────────────
-function EmployeeDetailModal({ employee, isOpen, onClose, onEdit, onToggleStatus, onOffboard, canManage, canRemove }) {
+function EmployeeDetailModal({ employee, isOpen, onClose, onEdit, onToggleStatus, onOffboard, onEditPayroll, canManage, canRemove }) {
   const [activeTab, setActiveTab] = useState("overview");
 
   if (!employee) return null;
@@ -271,6 +368,26 @@ function EmployeeDetailModal({ employee, isOpen, onClose, onEdit, onToggleStatus
               </div>
             </div>
 
+            {/* Edit Payroll button for HR/Admin */}
+            {canManage && (
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  onClick={() => { onClose(); onEditPayroll(employee); }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "6px",
+                    padding: "8px 16px",
+                    background: "var(--primary)", color: "#fff",
+                    border: "none", borderRadius: "var(--radius-sm)",
+                    fontWeight: 600, fontSize: "13px", cursor: "pointer",
+                  }}
+                >
+                  <Edit2 size={14} /> Edit Salary Structure
+                </button>
+              </div>
+            )}
+
+
             {/* Monthly Salary Breakdown Table */}
             <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden" }}>
               <div style={{ padding: "10px 14px", background: "var(--background)", borderBottom: "1px solid var(--border)", fontWeight: 700, fontSize: "12px", textTransform: "uppercase", color: "var(--subtext)" }}>
@@ -428,6 +545,108 @@ function EmployeeDetailModal({ employee, isOpen, onClose, onEdit, onToggleStatus
   );
 }
 
+// ─── Edit Payroll / Salary Structure Modal ───────────────────────────────────
+function EditPayrollModal({ employee, isOpen, onClose, onSaved }) {
+  const [salary, setSalary] = useState({ ...EMPTY_SALARY });
+  const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [saveError, setSaveError] = useState("");
+
+  useEffect(() => {
+    if (!isOpen || !employee) return;
+    setErrors({}); setSaveError(""); setLoadError("");
+    // Load existing active salary structure
+    getEmployeeSalary(employee.id)
+      .then((res) => {
+        if (res.data) {
+          setSalary({
+            effectiveFrom: res.data.effectiveFrom || new Date().toISOString().slice(0, 10),
+            basicSalary: String(res.data.basicSalary || ""),
+            hra: String(res.data.hra || ""),
+            conveyanceAllowance: String(res.data.conveyanceAllowance ?? "1600"),
+            medicalAllowance: String(res.data.medicalAllowance ?? "1250"),
+            performanceBonus: String(res.data.performanceBonus ?? "0"),
+            otherAllowances: String(res.data.otherAllowances ?? "0"),
+            providentFund: String(res.data.providentFund ?? ""),
+            professionalTax: String(res.data.professionalTax ?? "200"),
+            incomeTax: String(res.data.incomeTax ?? "0"),
+            healthInsurance: String(res.data.healthInsurance ?? "0"),
+          });
+        } else {
+          setSalary({ ...EMPTY_SALARY });
+        }
+      })
+      .catch(() => { setLoadError("Could not load current salary structure."); setSalary({ ...EMPTY_SALARY }); });
+  }, [isOpen, employee]);
+
+  const validate = () => {
+    const e = {};
+    if (!salary.effectiveFrom) e.effectiveFrom = "Required";
+    if (!salary.basicSalary || Number(salary.basicSalary) <= 0) e.basicSalary = "Required";
+    if (!salary.hra || Number(salary.hra) < 0) e.hra = "Required";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validate()) return;
+    setSaving(true); setSaveError("");
+    try {
+      await upsertEmployeeSalary(employee.id, {
+        effectiveFrom: salary.effectiveFrom,
+        basicSalary: Number(salary.basicSalary),
+        hra: Number(salary.hra),
+        conveyanceAllowance: Number(salary.conveyanceAllowance) || 0,
+        medicalAllowance: Number(salary.medicalAllowance) || 0,
+        performanceBonus: Number(salary.performanceBonus) || 0,
+        otherAllowances: Number(salary.otherAllowances) || 0,
+        providentFund: Number(salary.providentFund) || 0,
+        professionalTax: Number(salary.professionalTax) || 0,
+        incomeTax: Number(salary.incomeTax) || 0,
+        healthInsurance: Number(salary.healthInsurance) || 0,
+      });
+      onSaved?.();
+      onClose();
+    } catch (err) {
+      setSaveError(err.message || "Failed to save salary structure");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!employee) return null;
+
+  return (
+    <Modal isOpen={isOpen} title={`Edit Salary Structure — ${employee.id}`} onClose={onClose} maxWidth="560px">
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+        {loadError && (
+          <div style={{ background: "var(--red-light)", color: "var(--red)", borderRadius: "var(--radius-sm)", padding: "10px 14px", fontSize: "12.5px", fontWeight: 600 }}>
+            {loadError}
+          </div>
+        )}
+        <SalaryStructureForm salary={salary} onChange={(key, val) => setSalary((p) => ({ ...p, [key]: val }))} errors={errors} />
+        {saveError && (
+          <div style={{ background: "var(--red-light)", color: "var(--red)", borderRadius: "var(--radius-sm)", padding: "10px 14px", fontSize: "12.5px", fontWeight: 600 }}>
+            {saveError}
+          </div>
+        )}
+        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", paddingTop: "4px" }}>
+          <button type="button" onClick={onClose}
+            style={{ padding: "9px 20px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "none", color: "var(--label)", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>
+            Cancel
+          </button>
+          <button type="submit" disabled={saving}
+            style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "#fff", fontWeight: 600, fontSize: "13px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
+            {saving ? "Saving…" : "Save Salary Structure"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 // ─── Offboard / Remove Employee Confirmation Modal ────────────────────────────
 function OffboardEmployeeModal({ employee, isOpen, onClose, onConfirmed }) {
   const [reason, setReason] = useState("Resignation");
@@ -539,14 +758,24 @@ function OffboardEmployeeModal({ employee, isOpen, onClose, onConfirmed }) {
 
 // ─── Add Employee Form ───────────────────────────────────────────────────────
 function AddEmployeeModal({ isOpen, onClose, onCreated }) {
+  const [step, setStep] = useState("details"); // "details" | "payroll"
   const [form, setForm] = useState({
     firstName: "", lastName: "", email: "", phone: "+91-", designation: "", department: "", location: "Bengaluru", employmentType: "Full-Time",
   });
+  const [salary, setSalary] = useState({ ...EMPTY_SALARY });
   const [errors, setErrors] = useState({});
+  const [salaryErrors, setSalaryErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const validate = () => {
+  const resetAll = () => {
+    setStep("details");
+    setForm({ firstName: "", lastName: "", email: "", phone: "+91-", designation: "", department: "", location: "Bengaluru", employmentType: "Full-Time" });
+    setSalary({ ...EMPTY_SALARY });
+    setErrors({}); setSalaryErrors({}); setError("");
+  };
+
+  const validateDetails = () => {
     const e = {};
     if (!form.firstName.trim()) e.firstName = "Required";
     if (!form.lastName.trim()) e.lastName = "Required";
@@ -557,13 +786,27 @@ function AddEmployeeModal({ isOpen, onClose, onCreated }) {
     return Object.keys(e).length === 0;
   };
 
+  const validateSalary = () => {
+    if (!salary.basicSalary && !salary.hra) return true; // optional on add
+    const e = {};
+    if (salary.basicSalary && Number(salary.basicSalary) <= 0) e.basicSalary = "Must be > 0";
+    if (salary.hra && Number(salary.hra) < 0) e.hra = "Must be ≥ 0";
+    if (!salary.effectiveFrom) e.effectiveFrom = "Required";
+    setSalaryErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleNext = (e) => {
+    e.preventDefault();
+    if (validateDetails()) setStep("payroll");
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validate()) return;
-    setSaving(true);
-    setError("");
+    if (!validateSalary()) return;
+    setSaving(true); setError("");
     try {
-      await createEmployee({
+      const created = await createEmployee({
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         email: form.email.trim(),
@@ -574,9 +817,28 @@ function AddEmployeeModal({ isOpen, onClose, onCreated }) {
         employmentType: form.employmentType,
         status: "Active",
       });
+      // If salary filled in, save it against the new employee
+      if (salary.basicSalary && Number(salary.basicSalary) > 0) {
+        const empId = created.data?.id;
+        if (empId) {
+          await upsertEmployeeSalary(empId, {
+            effectiveFrom: salary.effectiveFrom,
+            basicSalary: Number(salary.basicSalary),
+            hra: Number(salary.hra) || 0,
+            conveyanceAllowance: Number(salary.conveyanceAllowance) || 0,
+            medicalAllowance: Number(salary.medicalAllowance) || 0,
+            performanceBonus: Number(salary.performanceBonus) || 0,
+            otherAllowances: Number(salary.otherAllowances) || 0,
+            providentFund: Number(salary.providentFund) || 0,
+            professionalTax: Number(salary.professionalTax) || 0,
+            incomeTax: Number(salary.incomeTax) || 0,
+            healthInsurance: Number(salary.healthInsurance) || 0,
+          }).catch(() => {}); // non-fatal: payroll can be added later
+        }
+      }
       onCreated();
       onClose();
-      setForm({ firstName: "", lastName: "", email: "", phone: "+91-", designation: "", department: "", location: "Bengaluru", employmentType: "Full-Time" });
+      resetAll();
     } catch (err) {
       setError(err.message || "Could not create employee");
     } finally {
@@ -603,87 +865,134 @@ function AddEmployeeModal({ isOpen, onClose, onCreated }) {
   );
 
   return (
-    <Modal isOpen={isOpen} title="Add New Employee (Indian Corporate)" onClose={onClose}>
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-          {field("First Name *", "firstName")}
-          {field("Last Name *", "lastName")}
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-          {field("Work Email *", "email", "email")}
-          {field("Phone (India +91) *", "phone")}
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-          {field("Designation *", "designation")}
-          <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-            <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Department *</label>
-            <select
-              value={form.department}
-              onChange={(e) => setForm((p) => ({ ...p, department: e.target.value }))}
-              style={{
-                height: "38px", padding: "0 12px",
-                border: `1px solid ${errors.department ? "var(--red)" : "var(--border)"}`,
-                borderRadius: "var(--radius-sm)",
-                fontSize: "13.5px", color: "var(--text)", background: "var(--card)", outline: "none",
-              }}
-            >
-              <option value="">Select department</option>
-              {departments.map((d) => <option key={d} value={d}>{d}</option>)}
-            </select>
-          </div>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-            <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Work Location *</label>
-            <select
-              value={form.location}
-              onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))}
-              style={{
-                height: "38px", padding: "0 12px",
-                border: "1px solid var(--border)", borderRadius: "var(--radius-sm)",
-                fontSize: "13.5px", color: "var(--text)", background: "var(--card)", outline: "none",
-              }}
-            >
-              {locations.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
-            </select>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-            <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Employment Type *</label>
-            <select
-              value={form.employmentType}
-              onChange={(e) => setForm((p) => ({ ...p, employmentType: e.target.value }))}
-              style={{
-                height: "38px", padding: "0 12px",
-                border: "1px solid var(--border)", borderRadius: "var(--radius-sm)",
-                fontSize: "13.5px", color: "var(--text)", background: "var(--card)", outline: "none",
-              }}
-            >
-              {employmentTypes.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-        </div>
-
-        {error && (
-          <div style={{ background: "var(--red-light)", color: "var(--red)", borderRadius: "var(--radius-sm)", padding: "10px 14px", fontSize: "12.5px", fontWeight: 600 }}>
-            {error}
-          </div>
-        )}
-
-        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "8px" }}>
-          <button type="button" onClick={onClose}
-            style={{ padding: "9px 20px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "none", color: "var(--label)", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>
-            Cancel
+    <Modal isOpen={isOpen} title="Add New Employee" onClose={() => { resetAll(); onClose(); }} maxWidth="560px">
+      {/* Step indicator */}
+      <div style={{ display: "flex", gap: "0", marginBottom: "18px", borderRadius: "var(--radius-sm)", overflow: "hidden", border: "1px solid var(--border)" }}>
+        {["details", "payroll"].map((s, i) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => { if (s === "payroll" && step === "details") { if (validateDetails()) setStep("payroll"); } else setStep(s); }}
+            style={{
+              flex: 1, padding: "9px",
+              background: step === s ? "var(--primary)" : "var(--card)",
+              color: step === s ? "#fff" : "var(--subtext)",
+              border: "none", borderRight: i === 0 ? "1px solid var(--border)" : "none",
+              fontWeight: 600, fontSize: "12.5px", cursor: "pointer",
+            }}
+          >
+            {i + 1}. {s === "details" ? "Personal & Employment" : "Payroll Setup (optional)"}
           </button>
-          <button type="submit" disabled={saving}
-            style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "#fff", fontWeight: 600, fontSize: "13px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
-            {saving ? "Saving…" : "Add Employee"}
-          </button>
-        </div>
-      </form>
+        ))}
+      </div>
+
+      {step === "details" && (
+        <form onSubmit={handleNext} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            {field("First Name *", "firstName")}
+            {field("Last Name *", "lastName")}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            {field("Work Email *", "email", "email")}
+            {field("Phone (India +91) *", "phone")}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            {field("Designation *", "designation")}
+            <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+              <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Department *</label>
+              <select
+                value={form.department}
+                onChange={(e) => setForm((p) => ({ ...p, department: e.target.value }))}
+                style={{
+                  height: "38px", padding: "0 12px",
+                  border: `1px solid ${errors.department ? "var(--red)" : "var(--border)"}`,
+                  borderRadius: "var(--radius-sm)",
+                  fontSize: "13.5px", color: "var(--text)", background: "var(--card)", outline: "none",
+                }}
+              >
+                <option value="">Select department</option>
+                {departments.map((d) => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+              <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Work Location *</label>
+              <select
+                value={form.location}
+                onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))}
+                style={{
+                  height: "38px", padding: "0 12px",
+                  border: "1px solid var(--border)", borderRadius: "var(--radius-sm)",
+                  fontSize: "13.5px", color: "var(--text)", background: "var(--card)", outline: "none",
+                }}
+              >
+                {locations.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
+              </select>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+              <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Employment Type *</label>
+              <select
+                value={form.employmentType}
+                onChange={(e) => setForm((p) => ({ ...p, employmentType: e.target.value }))}
+                style={{
+                  height: "38px", padding: "0 12px",
+                  border: "1px solid var(--border)", borderRadius: "var(--radius-sm)",
+                  fontSize: "13.5px", color: "var(--text)", background: "var(--card)", outline: "none",
+                }}
+              >
+                {employmentTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "8px" }}>
+            <button type="button" onClick={() => { resetAll(); onClose(); }}
+              style={{ padding: "9px 20px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "none", color: "var(--label)", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>
+              Cancel
+            </button>
+            <button type="submit"
+              style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "#fff", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>
+              Next: Payroll →
+            </button>
+          </div>
+        </form>
+      )}
+
+      {step === "payroll" && (
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          <p style={{ margin: 0, fontSize: "12.5px", color: "var(--subtext)" }}>
+            Set the starting salary structure for this employee. You can skip and add it later from their profile.
+          </p>
+          <SalaryStructureForm salary={salary} onChange={(key, val) => setSalary((p) => ({ ...p, [key]: val }))} errors={salaryErrors} />
+          {error && (
+            <div style={{ background: "var(--red-light)", color: "var(--red)", borderRadius: "var(--radius-sm)", padding: "10px 14px", fontSize: "12.5px", fontWeight: 600 }}>
+              {error}
+            </div>
+          )}
+          <div style={{ display: "flex", gap: "10px", justifyContent: "space-between", marginTop: "8px" }}>
+            <button type="button" onClick={() => setStep("details")}
+              style={{ padding: "9px 20px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "none", color: "var(--label)", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>
+              ← Back
+            </button>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button type="button" disabled={saving} onClick={async () => { setSaving(true); setError(""); try { await createEmployee({ firstName: form.firstName.trim(), lastName: form.lastName.trim(), email: form.email.trim(), phone: form.phone.trim(), designation: form.designation.trim(), department: form.department, location: form.location, employmentType: form.employmentType, status: "Active" }); onCreated(); onClose(); resetAll(); } catch (err) { setError(err.message || "Could not create employee"); } finally { setSaving(false); } }}
+                style={{ padding: "9px 18px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "none", color: "var(--label)", fontWeight: 600, fontSize: "13px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
+                Skip & Save
+              </button>
+              <button type="submit" disabled={saving}
+                style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "#fff", fontWeight: 600, fontSize: "13px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
+                {saving ? "Saving…" : "Save Employee + Payroll"}
+              </button>
+            </div>
+          </div>
+        </form>
+      )}
     </Modal>
   );
 }
+
 
 // ─── Expanded Edit Employee Form (Comprehensive Fields) ──────────────────────
 function EditEmployeeModal({ employee, isOpen, onClose, onUpdated }) {
@@ -892,6 +1201,7 @@ export default function Employees() {
   const [showAdd, setShowAdd] = useState(false);
   const [viewingEmployee, setViewingEmployee] = useState(null);
   const [editingEmployee, setEditingEmployee] = useState(null);
+  const [editingPayrollEmployee, setEditingPayrollEmployee] = useState(null);
   const [offboardingEmployee, setOffboardingEmployee] = useState(null);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 8;
@@ -1226,6 +1536,12 @@ export default function Employees() {
 
       <AddEmployeeModal isOpen={showAdd} onClose={() => setShowAdd(false)} onCreated={load} />
       <EditEmployeeModal isOpen={!!editingEmployee} employee={editingEmployee} onClose={() => setEditingEmployee(null)} onUpdated={load} />
+      <EditPayrollModal
+        isOpen={!!editingPayrollEmployee}
+        employee={editingPayrollEmployee}
+        onClose={() => setEditingPayrollEmployee(null)}
+        onSaved={load}
+      />
       <EmployeeDetailModal
         isOpen={!!viewingEmployee}
         employee={viewingEmployee}
@@ -1233,6 +1549,7 @@ export default function Employees() {
         onEdit={(emp) => setEditingEmployee(emp)}
         onToggleStatus={handleToggleStatus}
         onOffboard={(emp) => setOffboardingEmployee(emp)}
+        onEditPayroll={(emp) => setEditingPayrollEmployee(emp)}
         canManage={canManage}
         canRemove={canRemove}
       />

@@ -89,6 +89,10 @@ export function serializeLeaveRequest(req: RequestWithRelations) {
     approverName: req.approver ? `${req.approver.firstName} ${req.approver.lastName}` : null,
     approvedOn: req.approvedOn ? formatDate(req.approvedOn) : null,
     comments: req.comments ?? "",
+    documentName: req.documentName ?? null,
+    documentUrl: req.documentUrl ?? null,
+    documentMimeType: req.documentMimeType ?? null,
+    documentSize: req.documentSize ?? null,
   };
 }
 

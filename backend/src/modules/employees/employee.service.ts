@@ -6,6 +6,12 @@ import { writeAuditLog } from "../../services/audit.service";
 import { serializeEmployeeList } from "../../serializers/employee.serializer";
 import { parsePagination } from "../../lib/utils";
 
+/** Safely convert a value to a Prisma Decimal-compatible number. */
+function toDecimal(v: unknown): number {
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : 0;
+}
+
 const EMPLOYEE_INCLUDE = {
   department: true,
   designation: true,
@@ -268,4 +274,128 @@ export async function deleteEmployee(id: string) {
   });
 
   return { data: { id: existing.employeeCode, deleted: true } };
+}
+
+/* -------------------------------------------------------------------------- */
+/*                          Salary Structure (HR)                             */
+/* -------------------------------------------------------------------------- */
+
+export interface SalaryStructureInput {
+  effectiveFrom: string;
+  basicSalary: number;
+  hra: number;
+  conveyanceAllowance?: number;
+  medicalAllowance?: number;
+  performanceBonus?: number;
+  otherAllowances?: number;
+  providentFund?: number;
+  professionalTax?: number;
+  incomeTax?: number;
+  healthInsurance?: number;
+}
+
+/** Serialize a raw SalaryStructure row for the frontend. */
+function serializeSalaryStructure(s: {
+  id: string;
+  effectiveFrom: Date;
+  basicSalary: unknown;
+  hra: unknown;
+  conveyanceAllowance: unknown;
+  medicalAllowance: unknown;
+  performanceBonus: unknown;
+  otherAllowances: unknown;
+  providentFund: unknown;
+  professionalTax: unknown;
+  incomeTax: unknown;
+  healthInsurance: unknown;
+  isActive: boolean;
+  createdAt: Date;
+}) {
+  return {
+    id: s.id,
+    effectiveFrom: s.effectiveFrom.toISOString().slice(0, 10),
+    basicSalary: toDecimal(s.basicSalary),
+    hra: toDecimal(s.hra),
+    conveyanceAllowance: toDecimal(s.conveyanceAllowance),
+    medicalAllowance: toDecimal(s.medicalAllowance),
+    performanceBonus: toDecimal(s.performanceBonus),
+    otherAllowances: toDecimal(s.otherAllowances),
+    providentFund: toDecimal(s.providentFund),
+    professionalTax: toDecimal(s.professionalTax),
+    incomeTax: toDecimal(s.incomeTax),
+    healthInsurance: toDecimal(s.healthInsurance),
+    isActive: s.isActive,
+  };
+}
+
+/** Get the active salary structure for an employee (returns null if none). */
+export async function getSalaryStructure(employeeIdOrCode: string) {
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(employeeIdOrCode);
+  const emp = await prisma.employee.findFirst({
+    where: isUuid ? { id: employeeIdOrCode } : { employeeCode: employeeIdOrCode },
+    select: { id: true },
+  });
+  if (!emp) throw AppError.notFound("Employee not found");
+
+  const structure = await prisma.salaryStructure.findFirst({
+    where: { employeeId: emp.id, isActive: true },
+    orderBy: { effectiveFrom: "desc" },
+  });
+
+  return { data: structure ? serializeSalaryStructure(structure) : null };
+}
+
+/**
+ * Create or update the active salary structure for an employee.
+ * Previous active structure is deactivated before the new one is saved,
+ * preserving a complete history for audit / payroll runs.
+ */
+export async function upsertSalaryStructure(
+  employeeIdOrCode: string,
+  input: SalaryStructureInput,
+  actorUserId?: string
+) {
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(employeeIdOrCode);
+  const emp = await prisma.employee.findFirst({
+    where: isUuid ? { id: employeeIdOrCode } : { employeeCode: employeeIdOrCode },
+    select: { id: true, employeeCode: true },
+  });
+  if (!emp) throw AppError.notFound("Employee not found");
+
+  const data = {
+    effectiveFrom: new Date(input.effectiveFrom),
+    basicSalary: toDecimal(input.basicSalary),
+    hra: toDecimal(input.hra),
+    conveyanceAllowance: toDecimal(input.conveyanceAllowance ?? 0),
+    medicalAllowance: toDecimal(input.medicalAllowance ?? 0),
+    performanceBonus: toDecimal(input.performanceBonus ?? 0),
+    otherAllowances: toDecimal(input.otherAllowances ?? 0),
+    providentFund: toDecimal(input.providentFund ?? 0),
+    professionalTax: toDecimal(input.professionalTax ?? 0),
+    incomeTax: toDecimal(input.incomeTax ?? 0),
+    healthInsurance: toDecimal(input.healthInsurance ?? 0),
+    isActive: true,
+  };
+
+  const structure = await prisma.$transaction(async (tx: any) => {
+    // Deactivate all existing active structures for this employee.
+    await tx.salaryStructure.updateMany({
+      where: { employeeId: emp.id, isActive: true },
+      data: { isActive: false },
+    });
+
+    return tx.salaryStructure.create({
+      data: { ...data, employeeId: emp.id },
+    });
+  });
+
+  await writeAuditLog({
+    actorUserId,
+    action: "UPDATE",
+    entityType: "SalaryStructure",
+    entityId: structure.id,
+    newValue: { employeeCode: emp.employeeCode, basicSalary: data.basicSalary },
+  });
+
+  return { data: serializeSalaryStructure(structure) };
 }

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Employee Profile Page
  * Route: /employees/:id
  * Tabs: Personal, Employment, Payroll (future: Documents, Assets, Leave history)
@@ -11,11 +11,12 @@ import MainLayout from "../../components/layout/MainLayout";
 import StatusBadge from "../../components/shared/StatusBadge";
 import Spinner from "../../components/shared/Spinner";
 import { getEmployee } from "../../services/employeeService";
+import { getPayslips, printPayslip } from "../../services/payrollService";
 
 const EMPLOYEE_STATUS_META = {
-  Active:     { label: "Active",     color: "#16a34a", bg: "#f0fdf4" },
-  "On Leave": { label: "On Leave",   color: "#d97706", bg: "#fffbeb" },
-  Inactive:   { label: "Inactive",   color: "#64748b", bg: "#f8fafc" },
+  Active: { label: "Active", color: "#16a34a", bg: "#f0fdf4" },
+  "On Leave": { label: "On Leave", color: "#d97706", bg: "#fffbeb" },
+  Inactive: { label: "Inactive", color: "#64748b", bg: "#f8fafc" },
   Terminated: { label: "Terminated", color: "#dc2626", bg: "#fef2f2" },
 };
 
@@ -40,10 +41,39 @@ export default function EmployeeProfile() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState("personal");
+  const [payslips, setPayslips] = useState([]);
+  const [payslipsLoading, setPayslipsLoading] = useState(false);
 
   useEffect(() => {
     getEmployee(id)
-      .then((res) => setEmployee(res.data))
+      .then(async (res) => {
+        const employeeData = res.data;
+
+        setEmployee(employeeData);
+
+        const employeeCode = employeeData.employeeCode || employeeData.id;
+
+        if (!employeeCode) {
+          throw new Error("Employee code is missing.");
+        }
+
+        try {
+          setPayslipsLoading(true);
+
+          const response = await getPayslips(employeeCode);
+
+          setPayslips(
+            Array.isArray(response)
+              ? response
+              : response?.data || response?.payslips || []
+          );
+        } catch (err) {
+          console.error("Failed to load payslips:", err);
+          setPayslips([]);
+        } finally {
+          setPayslipsLoading(false);
+        }
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [id]);
@@ -61,9 +91,9 @@ export default function EmployeeProfile() {
   );
 
   const tabs = [
-    { id: "personal",    label: "Personal Info" },
-    { id: "employment",  label: "Employment" },
-    { id: "payroll",     label: "Payroll" },
+    { id: "personal", label: "Personal Info" },
+    { id: "employment", label: "Employment" },
+    { id: "payroll", label: "Payroll" },
   ];
 
   return (
@@ -137,109 +167,270 @@ export default function EmployeeProfile() {
         <div style={{ background: "var(--card)", borderRadius: "var(--radius-lg)", border: "1px solid var(--border)", boxShadow: "var(--shadow-sm)", padding: "28px" }}>
           {activeTab === "personal" && (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "24px" }}>
-              <InfoRow icon={Mail}      label="Email"         value={employee.email} />
-              <InfoRow icon={Phone}     label="Phone"         value={employee.phone} />
-              <InfoRow icon={MapPin}    label="Location"      value={employee.location} />
-              <InfoRow icon={Calendar}  label="Date of Birth" value={employee.dob ? new Date(employee.dob).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"} />
+              <InfoRow icon={Mail} label="Email" value={employee.email} />
+              <InfoRow icon={Phone} label="Phone" value={employee.phone} />
+              <InfoRow icon={MapPin} label="Location" value={employee.location} />
+              <InfoRow icon={Calendar} label="Date of Birth" value={employee.dob ? new Date(employee.dob).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"} />
             </div>
           )}
 
           {activeTab === "employment" && (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "24px" }}>
-              <InfoRow icon={Briefcase} label="Designation"      value={employee.designation} />
-              <InfoRow icon={Building2} label="Department"       value={employee.department} />
-              <InfoRow icon={Calendar}  label="Join Date"        value={new Date(employee.joinDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })} />
-              <InfoRow icon={Briefcase} label="Employment Type"  value={employee.employmentType} />
+              <InfoRow icon={Briefcase} label="Designation" value={employee.designation} />
+              <InfoRow icon={Building2} label="Department" value={employee.department} />
+              <InfoRow icon={Calendar} label="Join Date" value={new Date(employee.joinDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })} />
+              <InfoRow icon={Briefcase} label="Employment Type" value={employee.employmentType} />
             </div>
           )}
 
-          {activeTab === "payroll" && (() => {
-            const annualCtc = employee.salary || 2400000;
-            const monthlyGross = Math.round(annualCtc / 12);
-            const basicPay = Math.round(monthlyGross * 0.5);
-            const hra = Math.round(basicPay * 0.4);
-            const specialAllowance = monthlyGross - basicPay - hra;
-            const epf = Math.round(basicPay * 0.12);
-            const pt = 200;
-            const tds = Math.round(monthlyGross * 0.1);
-            const deductions = epf + pt + tds;
-            const net = monthlyGross - deductions;
+          {activeTab === "payroll" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
 
-            const payslips = [
-              { month: "August 2026", period: "01 Aug - 31 Aug 2026", gross: monthlyGross, deductions, net, paidOn: "31 Aug 2026" },
-              { month: "July 2026", period: "01 Jul - 31 Jul 2026", gross: monthlyGross, deductions, net, paidOn: "31 Jul 2026" },
-              { month: "June 2026", period: "01 Jun - 30 Jun 2026", gross: monthlyGross, deductions, net, paidOn: "30 Jun 2026" },
-            ];
+              <p style={{ fontSize: "13.5px", color: "var(--subtext)", margin: 0 }}>
+                Salary details and payslip records for employee code{" "}
+                <strong>{employee.employeeCode}</strong>.
+              </p>
 
-            return (
-              <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-                <p style={{ fontSize: "13.5px", color: "var(--subtext)", margin: 0 }}>
-                  Salary details and payslip records for employee code <strong>{employee.employeeCode || employee.id}</strong>.
-                </p>
-
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "16px" }}>
-                  <div style={{ background: "var(--background)", borderRadius: "var(--radius)", padding: "16px" }}>
-                    <p style={{ fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "6px" }}>Annual CTC</p>
-                    <p style={{ fontSize: "22px", fontWeight: 800, color: "var(--primary)" }}>₹{annualCtc.toLocaleString("en-IN")}</p>
-                  </div>
-                  <div style={{ background: "var(--background)", borderRadius: "var(--radius)", padding: "16px" }}>
-                    <p style={{ fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "6px" }}>Monthly Gross</p>
-                    <p style={{ fontSize: "22px", fontWeight: 800, color: "var(--text)" }}>₹{monthlyGross.toLocaleString("en-IN")}</p>
-                  </div>
-                  <div style={{ background: "var(--green-light)", borderRadius: "var(--radius)", padding: "16px", border: "1px solid rgba(22, 163, 74, 0.2)" }}>
-                    <p style={{ fontSize: "11px", fontWeight: 700, color: "var(--green)", textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "6px" }}>Estimated Net Pay</p>
-                    <p style={{ fontSize: "22px", fontWeight: 800, color: "var(--green)" }}>₹{net.toLocaleString("en-IN")}</p>
-                  </div>
+              {payslipsLoading ? (
+                <Spinner />
+              ) : payslips.length === 0 ? (
+                <div
+                  style={{
+                    padding: "30px",
+                    textAlign: "center",
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--radius)",
+                    color: "var(--subtext)",
+                  }}
+                >
+                  No payslips found for this employee.
                 </div>
-
-                {/* Payslip History */}
+              ) : (
                 <div>
-                  <h4 style={{ margin: "0 0 12px", fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Historical Payslips</h4>
-                  <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden" }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                  <h4
+                    style={{
+                      margin: "0 0 12px",
+                      fontSize: "14px",
+                      fontWeight: 700,
+                      color: "var(--text)",
+                    }}
+                  >
+                    Payslip History
+                  </h4>
+
+                  <div
+                    style={{
+                      border: "1px solid var(--border)",
+                      borderRadius: "var(--radius)",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <table
+                      style={{
+                        width: "100%",
+                        borderCollapse: "collapse",
+                        fontSize: "13px",
+                      }}
+                    >
                       <thead>
-                        <tr style={{ background: "var(--background)", borderBottom: "1px solid var(--border)", textAlign: "left" }}>
-                          <th style={{ padding: "10px 14px", color: "var(--subtext)", fontWeight: 700 }}>Month / Pay Period</th>
-                          <th style={{ padding: "10px 14px", color: "var(--subtext)", fontWeight: 700 }}>Gross Pay</th>
-                          <th style={{ padding: "10px 14px", color: "var(--subtext)", fontWeight: 700 }}>Deductions</th>
-                          <th style={{ padding: "10px 14px", color: "var(--subtext)", fontWeight: 700 }}>Net Disbursed</th>
-                          <th style={{ padding: "10px 14px", color: "var(--subtext)", fontWeight: 700 }}>Disbursed On</th>
-                          <th style={{ padding: "10px 14px", color: "var(--subtext)", fontWeight: 700, textAlign: "right" }}>Action</th>
+                        <tr
+                          style={{
+                            background: "var(--background)",
+                            borderBottom: "1px solid var(--border)",
+                            textAlign: "left",
+                          }}
+                        >
+                          <th style={{ padding: "11px 14px" }}>
+                            Month / Pay Period
+                          </th>
+
+                          <th style={{ padding: "11px 14px" }}>
+                            Gross Pay
+                          </th>
+
+                          <th style={{ padding: "11px 14px" }}>
+                            Deductions
+                          </th>
+
+                          <th style={{ padding: "11px 14px" }}>
+                            Net Disbursed
+                          </th>
+
+                          <th
+                            style={{
+                              padding: "11px 14px",
+                              textAlign: "right",
+                            }}
+                          >
+                            Action
+                          </th>
                         </tr>
                       </thead>
+
                       <tbody>
-                        {payslips.map((p, idx) => (
-                          <tr key={p.month} style={{ borderBottom: idx < payslips.length - 1 ? "1px solid var(--border)" : "none" }}>
-                            <td style={{ padding: "10px 14px", fontWeight: 600, color: "var(--text)" }}>
-                              {p.month}
-                              <p style={{ margin: "2px 0 0", fontSize: "11.5px", color: "var(--subtext)", fontWeight: 400 }}>{p.period}</p>
-                            </td>
-                            <td style={{ padding: "10px 14px", color: "var(--text)" }}>₹{p.gross.toLocaleString("en-IN")}</td>
-                            <td style={{ padding: "10px 14px", color: "var(--red)" }}>-₹{p.deductions.toLocaleString("en-IN")}</td>
-                            <td style={{ padding: "10px 14px", fontWeight: 700, color: "var(--green)" }}>₹{p.net.toLocaleString("en-IN")}</td>
-                            <td style={{ padding: "10px 14px", color: "var(--subtext)" }}>{p.paidOn}</td>
-                            <td style={{ padding: "10px 14px", textAlign: "right" }}>
-                              <button
-                                type="button"
-                                onClick={() => alert(`Downloading Payslip for ${p.month}`)}
-                                style={{
-                                  display: "inline-flex", alignItems: "center", gap: "4px",
-                                  padding: "5px 10px", background: "none", border: "1px solid var(--border)",
-                                  borderRadius: "4px", fontSize: "12px", fontWeight: 600, color: "var(--primary)", cursor: "pointer",
-                                }}
-                              >
-                                <Download size={12} /> Payslip PDF
-                              </button>
+                        {payslipsLoading ? (
+                          <tr>
+                            <td
+                              colSpan="6"
+                              style={{
+                                padding: "30px",
+                                textAlign: "center",
+                                color: "var(--subtext)",
+                              }}
+                            >
+                              Loading payslips...
                             </td>
                           </tr>
-                        ))}
+                        ) : payslips.length === 0 ? (
+                          <tr>
+                            <td
+                              colSpan="6"
+                              style={{
+                                padding: "30px",
+                                textAlign: "center",
+                                color: "var(--subtext)",
+                              }}
+                            >
+                              No payslips found.
+                            </td>
+                          </tr>
+                        ) : (
+                          payslips.map((p, idx) => {
+                            const gross = Number(p.earnings?.total ?? 0);
+                            const totalDeductions = Number(p.deductions?.total ?? 0);
+                            const netPay = Number(p.netPay ?? 0);
+
+                            const paidDate = p.paidOn
+                              ? new Date(p.paidOn).toLocaleDateString("en-IN", {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                              })
+                              : "—";
+
+                            return (
+                              <tr
+                                key={p.id}
+                                style={{
+                                  borderBottom:
+                                    idx < payslips.length - 1
+                                      ? "1px solid var(--border)"
+                                      : "none",
+                                }}
+                              >
+                                {/* Month / Pay Period */}
+                                <td
+                                  style={{
+                                    padding: "10px 14px",
+                                    fontWeight: 600,
+                                    color: "var(--text)",
+                                  }}
+                                >
+                                  {p.period || "—"}
+
+                                  <p
+                                    style={{
+                                      margin: "2px 0 0",
+                                      fontSize: "11.5px",
+                                      color: "var(--subtext)",
+                                      fontWeight: 400,
+                                    }}
+                                  >
+                                    {p.id || "—"}
+                                  </p>
+                                </td>
+
+                                {/* Gross Pay */}
+                                <td
+                                  style={{
+                                    padding: "10px 14px",
+                                    color: "var(--text)",
+                                  }}
+                                >
+                                  ₹{gross.toLocaleString("en-IN")}
+                                </td>
+
+                                {/* Deductions */}
+                                <td
+                                  style={{
+                                    padding: "10px 14px",
+                                    color: "var(--red)",
+                                  }}
+                                >
+                                  -₹{totalDeductions.toLocaleString("en-IN")}
+                                </td>
+
+                                {/* Net Disbursed */}
+                                <td
+                                  style={{
+                                    padding: "10px 14px",
+                                    fontWeight: 700,
+                                    color: "var(--green)",
+                                  }}
+                                >
+                                  ₹{netPay.toLocaleString("en-IN")}
+                                </td>
+
+                                {/* Disbursed On */}
+                                <td
+                                  style={{
+                                    padding: "10px 14px",
+                                    color: "var(--subtext)",
+                                  }}
+                                >
+                                  {paidDate}
+                                </td>
+
+                                {/* Action */}
+                                <td
+                                  style={{
+                                    padding: "10px 14px",
+                                    textAlign: "right",
+                                  }}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      try {
+                                        await printPayslip(p.id);
+                                      } catch (error) {
+                                        console.error("Failed to open payslip PDF:", error);
+                                        alert(
+                                          error?.response?.data?.message ||
+                                          error?.message ||
+                                          "Unable to open payslip PDF"
+                                        );
+                                      }
+                                    }}
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: "4px",
+                                      padding: "5px 10px",
+                                      background: "none",
+                                      border: "1px solid var(--border)",
+                                      borderRadius: "4px",
+                                      fontSize: "12px",
+                                      fontWeight: 600,
+                                      color: "var(--primary)",
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    <Download size={12} />
+                                    Payslip PDF
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
                       </tbody>
                     </table>
                   </div>
                 </div>
-              </div>
-            );
-          })()}
+              )}
+            </div>
+          )}
         </div>
       </div>
     </MainLayout>

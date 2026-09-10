@@ -2,6 +2,12 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
 import { writeAuditLog } from "../../services/audit.service";
+import path from "path";
+import { randomUUID } from "crypto";
+
+import minioClient, {
+  MINIO_BUCKET,
+} from "../../config/minio";
 import {
   serializeLeaveTypeList,
   serializeLeaveBalanceList,
@@ -104,6 +110,11 @@ export interface ApplyLeaveInput {
   startDate: string;
   endDate: string;
   reason?: string;
+
+  documentName?: string;
+  documentUrl?: string;
+  documentMimeType?: string;
+  documentSize?: number;
 }
 
 export async function applyLeave(input: ApplyLeaveInput, actor?: AccessTokenPayload) {
@@ -164,6 +175,11 @@ export async function applyLeave(input: ApplyLeaveInput, actor?: AccessTokenPayl
       endDate: end,
       reason: input.reason ?? null,
       status: "Pending",
+
+      documentName: input.documentName ?? null,
+      documentUrl: input.documentUrl ?? null,
+      documentMimeType: input.documentMimeType ?? null,
+      documentSize: input.documentSize ?? null,
     },
     include: REQUEST_INCLUDE,
   });
@@ -256,4 +272,54 @@ export async function rejectLeave(requestId: string, approverEmployeeId: string,
 
 export function normalizeDateRange(start: Date, end: Date): { start: Date; end: Date } {
   return { start: startOfDay(start), end: startOfDay(end) };
+}
+
+export async function uploadLeaveDocument(
+  file: Express.Multer.File
+) {
+  if (!file) {
+    throw AppError.badRequest("Document is required");
+  }
+
+  const allowedTypes = [
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+  ];
+
+  if (!allowedTypes.includes(file.mimetype)) {
+    throw AppError.badRequest(
+      "Only PDF, JPG and PNG files are allowed"
+    );
+  }
+
+  const extension = path.extname(file.originalname);
+
+  const objectName =
+    `leave/documents/${randomUUID()}${extension}`;
+
+  await minioClient.putObject(
+    MINIO_BUCKET,
+    objectName,
+    file.buffer,
+    file.size,
+    {
+      "Content-Type": file.mimetype,
+    }
+  );
+
+  const fileName = objectName.split("/").pop();
+
+  const fileUrl =
+    `/uploads/leave/${fileName}`;
+
+  return {
+    data: {
+      documentName: file.originalname,
+      documentUrl: fileUrl,
+      documentMimeType: file.mimetype,
+      documentSize: file.size,
+      objectName,
+    },
+  };
 }

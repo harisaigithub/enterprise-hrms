@@ -1,4 +1,4 @@
-/**
+﻿/**
  * LMS Page  •  Module 11
  * Tabs: Course Catalog  •  My Learning  •  Compliance Dashboard
  */

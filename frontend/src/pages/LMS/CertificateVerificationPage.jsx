@@ -21,7 +21,6 @@ export default function CertificateVerificationPage() {
 
     verifyCertificate(token)
       .then((res) => {
-        console.log("VERIFY RESPONSE:", res);
         setData(res);
       })
       .catch((err) => {

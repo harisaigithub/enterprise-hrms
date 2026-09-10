@@ -43,17 +43,38 @@ export default function CandidatePortal() {
     catch (requestError) { setError(requestError.message); }
     finally { setBusy(false); }
   };
+
   const upload = async (event) => {
-    event.preventDefault(); if (!file) return;
-    if (file.size > 650000) { setError("Please upload a file smaller than 650 KB for this demo."); return; }
-    setBusy(true); setError(""); setMessage("");
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try { await uploadCandidateDocument(token, { documentType, fileName: file.name, fileUrl: reader.result }); setMessage("Document uploaded successfully and sent to HR for verification."); setFile(null); event.target.reset(); await loadPortal(); }
-      catch (requestError) { setError(requestError.message); }
-      finally { setBusy(false); }
-    };
-    reader.readAsDataURL(file);
+    event.preventDefault();
+
+    if (!file) {
+      setError("Please select a document.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    setMessage("");
+
+    try {
+      await uploadCandidateDocument(token, {
+        documentType,
+        file,
+      });
+
+      setMessage(
+        "Document uploaded successfully and sent to HR for verification."
+      );
+
+      setFile(null);
+      event.target.reset();
+
+      await loadPortal();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return <main className="candidate-page">

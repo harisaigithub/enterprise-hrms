@@ -24,7 +24,67 @@ export default function CandidateLifecycleTab() {
       {role === "HR" && row.approvalStatus === "HR Review" && <><button style={btn} disabled={busy === row.id} onClick={() => run(row.id, () => firstApproveApplication(row.id, "Reviewed by HR"))}>First approval</button><button style={{ ...btn, background: "#b91c1c" }} onClick={() => reject(row.id)}>Reject</button></>}
       {role === "ADMIN" && row.approvalStatus === "Second Approval" && <><button style={btn} disabled={busy === row.id} onClick={() => secondApprove(row)}>Second approval & generate offer</button><button style={{ ...btn, background: "#b91c1c" }} onClick={() => reject(row.id)}>Reject</button></>}
       {row.offer && <p><b>Offer:</b> {row.offer.status} · ₹{Number(row.offer.proposedSalary).toLocaleString("en-IN")}</p>}
-      {!!row.documents.length && <div><b>Documents</b>{row.documents.map((doc) => <div key={doc.id} style={{ marginTop: 8, padding: 9, background: "var(--background)", borderRadius: 7 }}>{doc.documentType}: {doc.fileName} — <b>{doc.status}</b>{role === "HR" && doc.status === "Pending Verification" && <span><button style={btn} onClick={() => verify(doc, "Verified")}>Verify</button><button style={{ ...btn, background: "#b91c1c" }} onClick={() => verify(doc, "Rejected")}>Reject</button></span>}</div>)}</div>}
+      {!!row.documents.length && (
+        <div>
+          <b>Documents</b>
+
+          {row.documents.map((doc) => {
+            const fileUrl = doc.fileUrl || doc.documentUrl;
+
+            return (
+              <div
+                key={doc.id}
+                style={{
+                  marginTop: 8,
+                  padding: 9,
+                  background: "var(--background)",
+                  borderRadius: 7,
+                }}
+              >
+                {doc.documentType}: {doc.fileName} — <b>{doc.status}</b>
+
+                {fileUrl && (
+                  <button
+                    type="button"
+                    style={btn}
+                    onClick={() => {
+                      const fileBaseUrl =
+                        import.meta.env.VITE_API_URL.replace(/\/api\/?$/, "");
+
+                      window.open(
+                        `${fileBaseUrl}${fileUrl}`,
+                        "_blank",
+                        "noopener,noreferrer"
+                      );
+                    }}
+                  >
+                    View Document
+                  </button>
+                )}
+
+                {role === "HR" &&
+                  doc.status === "Pending Verification" && (
+                    <span>
+                      <button
+                        style={btn}
+                        onClick={() => verify(doc, "Verified")}
+                      >
+                        Verify
+                      </button>
+
+                      <button
+                        style={{ ...btn, background: "#b91c1c" }}
+                        onClick={() => verify(doc, "Rejected")}
+                      >
+                        Reject
+                      </button>
+                    </span>
+                  )}
+              </div>
+            );
+          })}
+        </div>
+      )}
       {role === "HR" && row.offer?.status === "Accepted" && row.documents.length > 0 && row.documents.every((d) => d.status === "Verified") && !row.employeeId && <button style={btn} onClick={() => run(row.id, () => convertCandidateToEmployee(row.id))}>Create employee account</button>}
     </article>)}
   </div>;

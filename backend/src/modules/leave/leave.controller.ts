@@ -54,4 +54,25 @@ export const getLeaveTypePublic = asyncHandler(async (req: Request, res: Respons
   const type = await prisma.leaveType.findUnique({ where: { code: req.params.code } });
   if (!type) throw AppError.notFound("Leave type not found");
   sendSuccess(res, { id: type.code, name: type.name, maxDays: type.defaultAnnualDays, carryForward: type.carryForward });
-});
+});export const uploadDocument = asyncHandler(
+  async (req: Request, res: Response) => {
+    if (!req.file) {
+      throw AppError.badRequest(
+        "Document is required"
+      );
+    }
+
+    const result =
+      await leaveService.uploadLeaveDocument(
+        req.file
+      );
+
+    sendSuccess(
+      res,
+      result.data,
+      undefined,
+      201
+    );
+  }
+);
+
