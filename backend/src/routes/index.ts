@@ -1,4 +1,4 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import authRoutes from "../modules/auth/auth.routes";
 import organizationManagementRoutes from "../modules/organization/organizationManagement.routes";
 import employeeRoutes from "../modules/employees/employee.routes";
@@ -21,6 +21,7 @@ import complianceRoutes from "../modules/compliance/compliance.routes";
 import reportsRoutes from "../modules/reports/reports.routes";
 import dashboardRoutes from "../modules/dashboard/dashboard.routes";
 import notificationRoutes from "../modules/notifications/notifications.routes";
+import expenseRoutes from "../modules/expense/expense.routes";
 
 
 const router = Router();
@@ -55,5 +56,6 @@ if (!serviceName || serviceName === "compliance") router.use("/compliance", comp
 if (!serviceName || serviceName === "reports") router.use("/reports", reportsRoutes);
 if (!serviceName || serviceName === "dashboard") router.use("/dashboard", dashboardRoutes);
 if (!serviceName || serviceName === "notifications") router.use("/notifications", notificationRoutes);
+if (!serviceName || serviceName === "expense") router.use("/expense", expenseRoutes);
 
 export default router;

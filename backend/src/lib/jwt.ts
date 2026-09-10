@@ -4,10 +4,14 @@ import { AppError } from "./errors";
 
 export interface AccessTokenPayload {
   sub: string; // user id
+  userId: string; // alias for sub
   role: string; // role name (ADMIN, HR, MANAGER, EMPLOYEE)
   permissions: string[];
   employeeId?: string; // linked employee UUID (if any)
   employeeCode?: string;
+  firstName?: string;
+  lastName?: string;
+  name?: string;
 }
 
 export interface RefreshTokenPayload {
@@ -32,10 +36,14 @@ export function verifyAccessToken(token: string): AccessTokenPayload {
     const payload = jwt.verify(token, env.JWT_ACCESS_SECRET) as JwtPayload & AccessTokenPayload;
     return {
       sub: payload.sub,
+      userId: payload.sub,
       role: payload.role,
       permissions: payload.permissions ?? [],
       employeeId: payload.employeeId,
       employeeCode: payload.employeeCode,
+      firstName: payload.firstName,
+      lastName: payload.lastName,
+      name: payload.name,
     };
   } catch {
     throw AppError.unauthorized("Invalid or expired access token");

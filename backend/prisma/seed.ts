@@ -649,6 +649,13 @@ async function main() {
         { name: "Finance Approval (over band only)", approverRule: "Named Role: Finance", slaHours: 24, parallelGroup: null, condition: { field: "amount", operator: ">", value: 2000000 } },
       ],
     },
+    {
+      requestType: "Expense Claim",
+      steps: [
+        { name: "Manager Review", approverRule: "Direct Reporting Manager", slaHours: 48, parallelGroup: null, condition: null },
+        { name: "Finance Review", approverRule: "Named Role: Finance", slaHours: 48, parallelGroup: null, condition: null },
+      ],
+    },
   ];
   for (const [i, def] of workflowDefs.entries()) {
     await prisma.workflowDefinition.create({
@@ -702,7 +709,7 @@ async function main() {
         create: [
           { text: "Reduce p95 latency on /employees endpoint to <200ms", progress: 70 },
           { text: "Add caching layer for payroll queries", progress: 40 },
-        ],
+      ],
       },
     },
   });
@@ -719,7 +726,7 @@ async function main() {
         create: [
           { text: "Weekly 1:1s with 2 mentees", progress: 85 },
           { text: "Pair on at least 4 features together", progress: 50 },
-        ],
+      ],
       },
     },
   });
@@ -736,7 +743,7 @@ async function main() {
         create: [
           { text: "Draft migration plan and get manager sign-off", progress: 100 },
           { text: "Migrate 3 services to the new pipeline", progress: 20 },
-        ],
+      ],
       },
     },
   });
@@ -754,7 +761,7 @@ async function main() {
         create: [
           { goalId: g1.id, rating: 4, comments: "Made strong progress on latency work; caching layer is in progress and on track." },
           { goalId: g2.id, rating: 5, comments: "Both mentees shipped their first independent features this quarter." },
-        ],
+      ],
       },
     },
   });
@@ -803,13 +810,13 @@ async function main() {
         create: [
           { itemText: "Migration plan review", orderIndex: 0 },
           { itemText: "Career growth check-in", orderIndex: 1 },
-        ],
+      ],
       },
       actionItems: {
         create: [
           { text: "Share migration doc with platform team", done: true },
           { text: "Look into staff-engineer track requirements", done: false },
-        ],
+      ],
       },
     },
   });
@@ -824,12 +831,12 @@ async function main() {
         create: [
           { itemText: "Q3 goal setting", orderIndex: 0 },
           { itemText: "Mentee pairing", orderIndex: 1 },
-        ],
+      ],
       },
       actionItems: {
         create: [
           { text: "Finalize Q3 OKRs", done: true },
-        ],
+      ],
       },
     },
   });
@@ -1298,7 +1305,7 @@ async function main() {
               acknowledgementDeadlineDays: 14,
               publishedAt: new Date("2026-01-01T00:00:00Z"),
             },
-          ],
+        ],
         },
       },
       include: { versions: true },

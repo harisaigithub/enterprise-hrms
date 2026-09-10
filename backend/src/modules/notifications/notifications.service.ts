@@ -1,4 +1,4 @@
-import nodemailer from "nodemailer";
+﻿import nodemailer from "nodemailer";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
 import { env } from "../../config/env";
@@ -13,7 +13,10 @@ export const NOTIFICATION_CATEGORIES = [
   "Policy Published",
   "New Device Login",
   "Compliance Training Due",
+  "Expense Submitted",
   "Expense Approved",
+  "Expense Rejected",
+  "Expense Queued for Payroll",
   "Onboarding Reminder",
 ] as const;
 
@@ -46,8 +49,8 @@ export function lintTemplate(body: string) {
   const violations = fields.flatMap((field) => {
     const definition = MERGE_FIELDS.find((item) => item.id === field);
     if (!definition) return [{ field, reason: "Not in the approved merge-field catalog" }];
-    if (definition.classification === "L3" || definition.classification === "L4") {
-      return [{ field, reason: `Classified ${definition.classification}; raw value cannot be included` }];
+if (definition.classification === "L3" || definition.classification === "L4") {
+      return [{ field, reason: "Classified: raw value cannot be included" }];
     }
     return [];
   });
@@ -136,14 +139,14 @@ export async function templates() {
 
 export async function saveTemplate(input: { name: string; category: string; body: string }, actorUserId: string) {
   const lint = lintTemplate(input.body);
-  if (!lint.passed) throw AppError.badRequest(`Template contains restricted fields: ${lint.violations.map((item) => item.field).join(", ")}`);
+  if (!lint.passed) throw AppError.badRequest(`Template contains restricted fields: ${lint.violations.map((v) => v.field).join(", ")}`);
   const created = await prisma.notificationTemplate.create({ data: { ...input, createdByUserId: actorUserId } });
   void writeAuditLog({ actorUserId, action: "CREATE", entityType: "NotificationTemplate", entityId: created.id, newValue: { name: created.name, category: created.category } });
   return created;
 }
 
 function render(body: string, values: Record<string, string>) {
-  return body.replace(/{{\s*([a-zA-Z0-9_]+)\s*}}/g, (_match, key: string) => values[key] ?? `[${key}]`);
+  return body.replace(/{{\s*([a-zA-Z0-9_]+)\s*}}/g, (_match, key: string) => values[key] ?? []);
 }
 
 async function sendEmail(to: string, subject: string, body: string) {
