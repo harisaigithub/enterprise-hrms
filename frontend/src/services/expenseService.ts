@@ -140,8 +140,7 @@ export const createDraft = async (data: {
   amount: number;
   expenseDate: string;
   businessPurpose: string;
-  receiptAttached?: boolean;
-  receiptFileName?: string;
+  receiptFileId?: string;
 }): Promise<ExpenseClaim> => {
   const res = await api.post("/expense/claims", { ...data, isDraft: true });
   return res.data.data;

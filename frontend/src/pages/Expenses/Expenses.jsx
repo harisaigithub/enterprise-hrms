@@ -240,8 +240,7 @@ function SubmitClaimModal({ isOpen, onClose, onSubmitted, currentEmployee }) {
         amount: amountNum,
         expenseDate: form.expenseDate,
         businessPurpose: form.businessPurpose,
-        receiptAttached: !!form.receiptFileName,
-        receiptFileName: form.receiptFileName || null,
+        // receiptFileId: form.receiptFileId, // optional - can be added after receipt upload
       });
       // 2. Submit the created draft for approval
       if (draft?.id) {
