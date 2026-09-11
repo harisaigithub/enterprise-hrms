@@ -25,18 +25,13 @@ export const checkOut = async (employeeId) => {
   return res.data;
 };
 
-/**
- * Break tracking — stub implementation.
- * The backend endpoint (POST /attendance/break-start & /break-end) is TBD.
- * Until wired, break sessions are tracked client-side in Attendance.jsx state.
- */
-export const startBreak = async (employeeId, breakType = "Short Break") => {
-  // TODO: wire to POST /attendance/break-start when backend is ready
-  return { data: { employeeId, breakType, startTime: new Date().toISOString() } };
+export const startBreak = async (_employeeId, breakType = "Short Break") => {
+  const res = await api.post("/attendance/break-start", { breakType });
+  return res.data;
 };
 
-export const endBreak = async (employeeId) => {
-  // TODO: wire to POST /attendance/break-end when backend is ready
-  return { data: { employeeId, endTime: new Date().toISOString() } };
+export const endBreak = async () => {
+  const res = await api.post("/attendance/break-end", {});
+  return res.data;
 };
 

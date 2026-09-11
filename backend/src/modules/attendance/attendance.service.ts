@@ -137,14 +137,20 @@ export async function checkOut(employeeCode: string, actorEmployeeId?: string) {
   const empId = await resolveEmployeeId(employeeCode, actorEmployeeId);
   const today = startOfDay(new Date());
 
-  const punch = await prisma.attendancePunch.findUnique({
-    where: { employeeId_punchDate: { employeeId: empId, punchDate: today } },
-  });
+  const [punch, activeBreak] = await Promise.all([
+    prisma.attendancePunch.findUnique({
+      where: { employeeId_punchDate: { employeeId: empId, punchDate: today } },
+    }),
+    prisma.attendanceBreak.findFirst({ where: { employeeId: empId, endedAt: null }, select: { id: true } }),
+  ]);
   if (!punch?.punchIn) {
     throw AppError.badRequest("Check in first before checking out");
   }
   if (punch.punchOut) {
     throw AppError.conflict("Already checked out today");
+  }
+  if (activeBreak) {
+    throw AppError.conflict("End your active break before checking out");
   }
 
   const updated = await prisma.attendancePunch.update({
@@ -162,4 +168,83 @@ export async function checkOut(employeeCode: string, actorEmployeeId?: string) {
 
   const serialized = serializeAttendanceList([updated])[0];
   return { data: { employeeId: employeeCode, checkOut: serialized.checkOut } };
+}
+
+export async function startBreak(employeeId: string, actorUserId: string, breakType = "Short Break") {
+  const today = startOfDay(new Date());
+  const punch = await prisma.attendancePunch.findUnique({
+    where: { employeeId_punchDate: { employeeId, punchDate: today } },
+    select: { punchIn: true, punchOut: true },
+  });
+
+  if (!punch?.punchIn) throw AppError.badRequest("Check in first before starting a break");
+  if (punch.punchOut) throw AppError.badRequest("A break cannot be started after check-out");
+
+  try {
+    const attendanceBreak = await prisma.attendanceBreak.create({
+      data: { employeeId, breakType },
+    });
+
+    await writeAuditLog({
+      actorUserId,
+      action: "CREATE",
+      entityType: "AttendanceBreak",
+      entityId: attendanceBreak.id,
+      newValue: { employeeId, breakType, action: "BREAK_START", startedAt: attendanceBreak.startedAt },
+    });
+
+    return {
+      data: {
+        id: attendanceBreak.id,
+        breakType: attendanceBreak.breakType,
+        startTime: attendanceBreak.startedAt.toISOString(),
+        endTime: null,
+        durationMinutes: null,
+      },
+    };
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      throw AppError.conflict("A break is already active");
+    }
+    throw error;
+  }
+}
+
+export async function endBreak(employeeId: string, actorUserId: string) {
+  const activeBreak = await prisma.attendanceBreak.findFirst({
+    where: { employeeId, endedAt: null },
+    orderBy: { startedAt: "desc" },
+  });
+  if (!activeBreak) throw AppError.badRequest("No active break found");
+
+  const endedAt = new Date();
+  const durationMinutes = Math.max(0, Math.floor((endedAt.getTime() - activeBreak.startedAt.getTime()) / 60000));
+  const closed = await prisma.attendanceBreak.updateMany({
+    where: { id: activeBreak.id, endedAt: null },
+    data: { endedAt, durationMinutes },
+  });
+  if (closed.count !== 1) throw AppError.conflict("This break has already ended");
+
+  const attendanceBreak = await prisma.attendanceBreak.findUniqueOrThrow({
+    where: { id: activeBreak.id },
+  });
+
+  await writeAuditLog({
+    actorUserId,
+    action: "UPDATE",
+    entityType: "AttendanceBreak",
+    entityId: attendanceBreak.id,
+    oldValue: { endedAt: null },
+    newValue: { action: "BREAK_END", endedAt, durationMinutes },
+  });
+
+  return {
+    data: {
+      id: attendanceBreak.id,
+      breakType: attendanceBreak.breakType,
+      startTime: attendanceBreak.startedAt.toISOString(),
+      endTime: attendanceBreak.endedAt?.toISOString() ?? null,
+      durationMinutes: attendanceBreak.durationMinutes,
+    },
+  };
 }
