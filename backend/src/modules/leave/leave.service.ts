@@ -183,6 +183,16 @@ export async function applyLeave(input: ApplyLeaveInput, actor?: AccessTokenPayl
 
   days = effectiveDays;
 
+  const leaveType = await prisma.leaveType.findFirst({
+    where: {
+      OR: [
+        { id: input.leaveTypeId },
+        { code: input.leaveTypeId },
+      ],
+    },
+  });
+  if (!leaveType) throw AppError.notFound("Leave type not found");
+
   // Overlap check: no other non-rejected request spanning this range.
   const overlap = await prisma.leaveRequest.findFirst({
     where: {

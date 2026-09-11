@@ -81,7 +81,7 @@ export async function listRequests(
     if (!actorEmployeeId) throw AppError.forbidden("Manager context required");
     // Manager can view their direct reports + their own requests
     const reports = await prisma.employee.findMany({
-      where: { managerId: actorEmployeeId },
+      where: { reportingManagerId: actorEmployeeId },
       select: { id: true },
     });
     const allowedIds = [actorEmployeeId, ...reports.map((r) => r.id)];

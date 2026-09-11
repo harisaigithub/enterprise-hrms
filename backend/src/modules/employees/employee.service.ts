@@ -367,12 +367,10 @@ export async function createEmployee(input: CreateEmployeeInput, actorId?: strin
       personalEmail: email || null,
       personalMobile: input.phone ?? null,
       alternateMobile: input.alternateMobile ?? null,
-      currentAddress: input.currentAddress ?? null,
-      permanentAddress: input.permanentAddress ?? null,
+      address: input.currentAddress ?? null,
       city: input.city ?? null,
       state: input.state ?? null,
       country: input.country ?? "India",
-      postalCode: input.postalCode ?? null,
       panNumber: input.panNumber ?? null,
       bankAccountNumber: input.bankAccountNumber ?? null,
       bankIfsc: input.bankIfsc ?? null,
@@ -458,12 +456,10 @@ export async function updateEmployee(id: string, input: Partial<CreateEmployeeIn
     lastName: input.lastName ?? undefined,
     personalMobile: input.phone !== undefined ? (input.phone || null) : undefined,
     alternateMobile: input.alternateMobile !== undefined ? (input.alternateMobile || null) : undefined,
-    currentAddress: input.currentAddress !== undefined ? (input.currentAddress || null) : undefined,
-    permanentAddress: input.permanentAddress !== undefined ? (input.permanentAddress || null) : undefined,
+    address: input.currentAddress !== undefined ? (input.currentAddress || null) : undefined,
     city: input.city !== undefined ? (input.city || null) : undefined,
     state: input.state !== undefined ? (input.state || null) : undefined,
     country: input.country !== undefined ? (input.country || null) : undefined,
-    postalCode: input.postalCode !== undefined ? (input.postalCode || null) : undefined,
     panNumber: input.panNumber !== undefined ? (input.panNumber || null) : undefined,
     bankAccountNumber: input.bankAccountNumber !== undefined ? (input.bankAccountNumber || null) : undefined,
     bankIfsc: input.bankIfsc !== undefined ? (input.bankIfsc || null) : undefined,
@@ -797,12 +793,19 @@ export async function uploadEmployeeDocument(
   if (!emp) throw AppError.notFound("Employee not found");
 
   const saved = await saveUploadedFile("documents", file);
+  const docType = meta.documentType || meta.category || "Other";
+
+  const latestDoc = await prisma.employeeDocument.findFirst({
+    where: { employeeId: id, documentType: docType },
+    orderBy: { version: "desc" },
+  });
+  const nextVersion = latestDoc && latestDoc.version ? latestDoc.version + 1 : 1;
 
   const doc = await prisma.employeeDocument.create({
     data: {
       employeeId: id,
-      documentType: meta.documentType || meta.category || "Other",
-      category: meta.category || meta.documentType || "Other",
+      documentType: docType,
+      category: meta.category || docType,
       documentNumber: meta.documentNumber || null,
       fileName: saved.fileName,
       fileUrl: saved.fileUrl,
@@ -813,7 +816,7 @@ export async function uploadEmployeeDocument(
       status: "VERIFIED",
       issueDate: meta.issueDate ? new Date(meta.issueDate) : null,
       expiryDate: meta.expiryDate ? new Date(meta.expiryDate) : null,
-      version: 1,
+      version: nextVersion,
     },
   });
 
@@ -846,7 +849,7 @@ export async function verifyEmployeeDocument(
   });
 
   writeAuditLog({
-    action: isVerified ? "VERIFY_DOCUMENT" : "REJECT_DOCUMENT",
+    action: "UPDATE",
     entityType: "EmployeeDocument",
     entityId: doc.id,
     newValue: { status: updated.status, reason: updated.rejectionReason },

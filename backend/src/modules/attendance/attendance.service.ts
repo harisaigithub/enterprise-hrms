@@ -6,6 +6,15 @@ import { serializeAttendanceList, serializeTeamSummary } from "../../serializers
 import { formatDate } from "../../serializers/helpers";
 import { startOfDay } from "../../serializers/helpers";
 
+function formatTime(d: Date | null | undefined): string | null {
+  if (!d) return null;
+  return d.toISOString().slice(11, 16);
+}
+
+function toNumber(val: any): number {
+  return val != null ? Number(val) : 0;
+}
+
 const PUNCH_INCLUDE = {
   employee: { select: { employeeCode: true } },
 } satisfies Prisma.AttendancePunchInclude;
@@ -350,7 +359,7 @@ export async function decideRegularization(
     });
 
     writeAuditLog({
-      action: "REGULARIZE_ATTENDANCE",
+      action: "UPDATE",
       entityType: "AttendancePunch",
       entityId: reg.id,
       newValue: { employeeId: reg.employeeId, date: formatDate(reg.date), status: reg.requestedStatus },

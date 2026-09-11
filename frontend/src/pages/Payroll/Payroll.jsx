@@ -36,17 +36,18 @@ import StatusBadge from "../../components/shared/StatusBadge";
 import Spinner from "../../components/shared/Spinner";
 import EmptyState from "../../components/shared/EmptyState";
 import { useAuth } from "../../context/AuthContext";
-<<<<<<< HEAD
 import {
   getPayslips,
   getPayrollRuns,
+  getPayslip,
+  runPayroll,
   processPayrollRun,
   approvePayrollRun,
   lockPayrollRun,
+  printPayslip,
+  printAnnualStatement,
+  printForm16,
 } from "../../services/payrollService";
-=======
-import { getPayslips, getPayrollRuns, getPayslip, runPayroll, printPayslip, printAnnualStatement, printForm16  } from "../../services/payrollService";
->>>>>>> d93447b1d439c5cc63a242d1d0f227c61fb70db0
 import { payrollStatusMeta, getUserPayslips, payrollRuns as mockPayrollRuns } from "../../mock/payroll";
 
 const fmt = (n) =>

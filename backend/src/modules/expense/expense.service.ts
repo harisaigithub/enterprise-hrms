@@ -168,7 +168,7 @@ workflowInstanceId,
     data: {
       claimId: claim.id,
       action: "SUBMITTED",
-      actorId: actor.employeeId,
+      actorId: actor.employeeId || claim.employeeId,
       actorName: `${claim.employee.firstName} ${claim.employee.lastName}`,
       oldStatus: "Draft",
       newStatus: "Submitted",

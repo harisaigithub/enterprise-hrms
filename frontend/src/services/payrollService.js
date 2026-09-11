@@ -35,7 +35,6 @@ export const runPayroll = async (payrollRunId) => {
   return res.data;
 };
 
-<<<<<<< HEAD
 export const processPayrollRun = async (payrollRunId) => {
   const res = await api.post(`/payroll/runs/${payrollRunId}/process`);
   return res.data;
@@ -51,7 +50,6 @@ export const lockPayrollRun = async (payrollRunId) => {
   return res.data;
 };
 
-=======
 export const printPayslip = async (id) => {
   const res = await api.post(`/payroll/payslips/${id}/print`, {}, {
     responseType: "blob",
@@ -134,4 +132,4 @@ export const printForm16 = async () => {
 
   return url;
 };
->>>>>>> d93447b1d439c5cc63a242d1d0f227c61fb70db0
+

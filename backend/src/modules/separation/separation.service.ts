@@ -685,7 +685,7 @@ export async function convertToAlumni(
       employeeId: separation.employeeId,
       movementType: "Exit",
       effectiveDate: separation.lastWorkingDay,
-      remarks: `Separation completed (${separation.type}) - Converted to Alumni`,
+      reason: `Separation completed (${separation.type}) - Converted to Alumni`,
     },
   });
 

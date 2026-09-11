@@ -129,7 +129,7 @@ export const verifyDocument = asyncHandler(async (req: Request, res: Response) =
   const result = await employeeService.verifyEmployeeDocument(
     pk,
     req.params.docId,
-    { status: normalizedStatus, rejectionReason },
+    { status: normalizedStatus as "VERIFIED" | "REJECTED", rejectionReason },
     req.auth?.sub
   );
   sendSuccess(res, result.data);

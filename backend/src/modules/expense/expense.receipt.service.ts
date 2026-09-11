@@ -1,4 +1,4 @@
-import { v4 as uuidv4 } from "uuid";
+import { randomUUID as uuidv4 } from "crypto";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
 import minioClient, { MINIO_BUCKET, ensureMinioBucket } from "../../config/minio";
