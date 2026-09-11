@@ -37,6 +37,7 @@ import {
   addCostCenter,
   getDesignations,
   addDesignation,
+  updateDesignation,
   getGrades,
   addGrade,
   getRoster,
@@ -532,13 +533,25 @@ function CostCentersTab({ costCenters, departments, onAdded }) {
 
 /* ---------------------------------- Designations & Grades tab ---------------------------------- */
 
+const DESIGNATION_LEVELS = [
+  { value: "L1", label: "L1 — Intern" },
+  { value: "L2", label: "L2 — Junior" },
+  { value: "L3", label: "L3 — Engineer" },
+  { value: "L4", label: "L4 — Senior Engineer" },
+  { value: "L5", label: "L5 — Lead" },
+  { value: "L6", label: "L6 — Manager" },
+  { value: "L7", label: "L7 — Director" },
+];
+
 function DesignationsGradesTab({
   designations,
   grades,
   onDesignationAdded,
+  onDesignationUpdated,
   onGradeAdded,
 }) {
   const [newDesignation, setNewDesignation] = useState("");
+  const [newLevel, setNewLevel] = useState("L3");
   const [newGrade, setNewGrade] = useState({
     code: "",
     name: "",
@@ -552,14 +565,27 @@ function DesignationsGradesTab({
     try {
       const d = {
         title: newDesignation.trim(),
+        level: newLevel,
       };
 
       const res = await addDesignation(d);
 
       onDesignationAdded(res.data);
       setNewDesignation("");
+      setNewLevel("L3");
     } catch (error) {
       console.error("Failed to add designation:", error);
+    }
+  };
+
+  const handleToggleActive = async (d) => {
+    try {
+      const res = await updateDesignation(d.id, { isActive: !d.isActive });
+      if (onDesignationUpdated) {
+        onDesignationUpdated(res.data);
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || err.message || "Failed to update designation");
     }
   };
 
@@ -599,51 +625,92 @@ function DesignationsGradesTab({
       {/* ================= DESIGNATIONS ================= */}
 
       <div style={{ ...cardStyle, padding: "18px 20px" }}>
-        <h3
-          style={{
-            fontSize: "14px",
-            fontWeight: 700,
-            color: "var(--text)",
-            marginBottom: "12px",
-          }}
-        >
-          Designations
-        </h3>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+          <h3
+            style={{
+              fontSize: "14px",
+              fontWeight: 700,
+              color: "var(--text)",
+              margin: 0,
+            }}
+          >
+            Designations
+          </h3>
+          <span style={{ fontSize: "11.5px", color: "var(--subtext)" }}>
+            {designations.length} total
+          </span>
+        </div>
 
-        {designations.map((d, i) => {
-          const status = d.isActive ? "Active" : "Inactive";
-          const meta = statusMeta[status];
+        <div style={{ maxHeight: "360px", overflowY: "auto", paddingRight: "4px" }}>
+          {designations.map((d, i) => {
+            const status = d.isActive ? "Active" : "Inactive";
+            const meta = statusMeta[status];
 
-          return (
-            <div
-              key={d.id}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                padding: "8px 0",
-                borderTop:
-                  i > 0
-                    ? "1px solid var(--border)"
-                    : "none",
-              }}
-            >
-              <span
+            return (
+              <div
+                key={d.id}
                 style={{
-                  fontSize: "13px",
-                  color: "var(--text)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "8px 0",
+                  borderTop:
+                    i > 0
+                      ? "1px solid var(--border)"
+                      : "none",
                 }}
               >
-                {d.title}
-              </span>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span
+                    style={{
+                      fontSize: "13px",
+                      color: d.isActive ? "var(--text)" : "var(--subtext)",
+                      textDecoration: d.isActive ? "none" : "line-through",
+                    }}
+                  >
+                    {d.title}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      padding: "2px 6px",
+                      borderRadius: "4px",
+                      background: "rgba(37, 99, 235, 0.1)",
+                      color: "#2563eb",
+                    }}
+                  >
+                    {d.level || "L3"}
+                  </span>
+                </div>
 
-              <StatusBadge
-                label={status}
-                color={meta?.color}
-                bg={meta?.bg}
-              />
-            </div>
-          );
-        })}
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <StatusBadge
+                    label={status}
+                    color={meta?.color}
+                    bg={meta?.bg}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleToggleActive(d)}
+                    style={{
+                      fontSize: "11px",
+                      padding: "2px 8px",
+                      borderRadius: "4px",
+                      border: "1px solid var(--border)",
+                      background: "none",
+                      cursor: "pointer",
+                      color: d.isActive ? "#dc2626" : "#16a34a",
+                    }}
+                    title={d.isActive ? "Soft deactivate designation" : "Re-activate designation"}
+                  >
+                    {d.isActive ? "Deactivate" : "Activate"}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
 
         <form
           onSubmit={handleAddDesignation}
@@ -659,8 +726,21 @@ function DesignationsGradesTab({
               setNewDesignation(e.target.value)
             }
             placeholder="New designation title"
-            style={inputStyle(false)}
+            style={{ ...inputStyle(false), flex: 2 }}
           />
+
+          <select
+            value={newLevel}
+            onChange={(e) => setNewLevel(e.target.value)}
+            style={{ ...inputStyle(false), flex: 1, minWidth: "110px", cursor: "pointer" }}
+            title="Designation Level"
+          >
+            {DESIGNATION_LEVELS.map((lvl) => (
+              <option key={lvl.value} value={lvl.value}>
+                {lvl.label}
+              </option>
+            ))}
+          </select>
 
           <SecondaryButton
             type="submit"
@@ -1400,6 +1480,7 @@ export default function OrgManagement() {
             designations={designations}
             grades={grades}
             onDesignationAdded={(d) => setDesignations((prev) => [...prev, d])}
+            onDesignationUpdated={(d) => setDesignations((prev) => prev.map((x) => (x.id === d.id ? { ...x, ...d } : x)))}
             onGradeAdded={(g) => setGrades((prev) => [...prev, g])}
           />
         )}

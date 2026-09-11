@@ -879,7 +879,13 @@ export default function EmployeeProfile() {
                 <InfoRow icon={Clock} label="Shift Grace Period" value={`${employee.shift?.gracePeriodMinutes ?? 15} minutes`} />
                 <InfoRow icon={ShieldCheck} label="Probation Period" value={`${employee.probationPeriodMonths ?? 3} Months`} />
                 <InfoRow icon={Calendar} label="Expected Confirmation Date" value={employee.expectedConfirmationDate ? new Date(employee.expectedConfirmationDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"} />
+                {employee.actualConfirmationDate && (
+                  <InfoRow icon={Calendar} label="Actual Confirmation Date" value={new Date(employee.actualConfirmationDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })} highlight />
+                )}
                 <InfoRow icon={CheckCircle2} label="Confirmation Status" value={employee.confirmationStatus || "In Probation"} highlight={employee.confirmationStatus === "Confirmed"} />
+                {employee.confirmationExtensionReason && (
+                  <InfoRow icon={AlertCircle} label="Extension Reason" value={employee.confirmationExtensionReason} />
+                )}
                 <InfoRow icon={AlertCircle} label="Notice Period" value={`${employee.noticePeriodDays ?? 90} Days`} />
               </div>
             </div>

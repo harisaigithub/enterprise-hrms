@@ -214,6 +214,20 @@ export const addDesignation = async (payload) => {
   };
 };
 
+/**
+ * PUT /api/v1/organization/designations/:id
+ */
+export const updateDesignation = async (id, patch) => {
+  const res = await api.put(
+    `/organization/designations/${id}`,
+    patch
+  );
+
+  return {
+    data: res.data,
+  };
+};
+
 
 /* ========================================================================= */
 /* GRADES                                                                    */

@@ -19,13 +19,21 @@ export async function writeAuditLog(input: {
   newValue?: unknown;
 }): Promise<void> {
   try {
+    let actor: Prisma.UserCreateNestedOneWithoutAuditLogsInput | undefined = undefined;
+    if (input.actorUserId) {
+      const u = await prisma.user.findUnique({ where: { id: input.actorUserId }, select: { id: true } });
+      if (u) {
+        actor = { connect: { id: u.id } };
+      }
+    }
+
     const data: Prisma.AuditLogCreateInput = {
       action: input.action,
       entityType: input.entityType,
       entityId: input.entityId ?? null,
       oldValue: input.oldValue !== undefined ? (jsonSafe(input.oldValue) as Prisma.InputJsonValue) : Prisma.DbNull,
       newValue: input.newValue !== undefined ? (jsonSafe(input.newValue) as Prisma.InputJsonValue) : Prisma.DbNull,
-      actor: input.actorUserId ? { connect: { id: input.actorUserId } } : undefined,
+      actor,
     };
     await prisma.auditLog.create({ data });
   } catch (err) {
