@@ -32,7 +32,7 @@ import {
   revokeAccess,
   convertToAlumni,
   getAlumni,
-} from "../../services/separationService";
+} from "../../services/Separationservice";
 
 import { getEmployees } from "../../services/employeeService";
 import { useAuth } from "../../context/AuthContext";

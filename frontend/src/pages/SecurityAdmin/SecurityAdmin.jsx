@@ -52,8 +52,8 @@ import {
   executeRestore,
   getAuditLog,
   verifyAuditChain,
-} from "../../services/securityService";
-import { PERMISSION_CATALOG, MFA_RESTRICTED_ROLE_IDS, userStatusMeta, severityMeta } from "../../mock/security";
+} from "../../services/Securityservice";
+import { PERMISSION_CATALOG, MFA_RESTRICTED_ROLE_IDS, userStatusMeta, severityMeta } from "../../mock/Security";
 
 const ME_NAME = "Matsya Singh";
 const fmtDateTime = (d) => (d ? new Date(d).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : " — ");

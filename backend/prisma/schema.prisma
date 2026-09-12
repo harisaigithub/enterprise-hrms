@@ -248,6 +248,12 @@ model Employee {
   bankAccountNumber  String?   @map("bank_account_number") @db.VarChar(50)
   bankIfsc           String?   @map("bank_ifsc") @db.VarChar(30)
   bankName           String?   @map("bank_name") @db.VarChar(100)
+  // Encrypted statutory/payroll values added by the payroll-details migration.
+  pan                String?   @db.Text
+  uan                String?   @db.Text
+  bankAccount        String?   @map("bank_account") @db.Text
+  ifsc               String?   @db.VarChar(20)
+  pfAccount          String?   @map("pf_account") @db.Text
   isSoftDeleted      Boolean   @default(false) @map("is_soft_deleted")
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
 

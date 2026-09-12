@@ -41,14 +41,14 @@ import {
   completeCourseContent,
   uploadCourseContentFile,
   uploadCourseThumbnail,
-} from "../../services/lmsService";
+} from "../../services/Lmsservice";
 
 import { getEmployees } from "../../services/employeeService";
-import CourseContentViewer from "../../pages/LMS/CourseContentViewer";
+import CourseContentViewer from "./CourseContentViewer";
 import { getFileUrl } from "../../utils/uploadFileUrl";
 import CertificateManagement from "./CertificateManagement";
 import { useAuth } from "../../context/AuthContext";
-import { _getCourses, _getEnrollments } from "../../mock/lms";
+import { _getCourses, _getEnrollments } from "../../mock/Lms";
 
 
 
