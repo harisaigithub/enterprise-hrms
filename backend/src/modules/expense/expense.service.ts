@@ -41,11 +41,28 @@ export async function createDraftClaim(
   },
   actor: AccessTokenPayload
 ) {
-  if (!actor.employeeId) throw AppError.forbidden("Employee account not linked");
+  if (!actor.employeeId) {
+    throw AppError.forbidden("Employee account not linked");
+  }
 
-  // Validate policy (warnings only for draft)
+  const expenseDate =
+    input.expenseDate instanceof Date
+      ? input.expenseDate
+      : new Date(`${input.expenseDate}T00:00:00.000Z`);
+
+  if (Number.isNaN(expenseDate.getTime())) {
+    throw AppError.badRequest("Invalid expense date");
+  }
+
+  // Validate policy
   const policyResult = await validateClaimAgainstPolicy(
-    { employeeId: actor.employeeId, category: input.category, amount: input.amount, expenseDate: input.expenseDate, receiptFileId: input.receiptFileId },
+    {
+      employeeId: actor.employeeId,
+      category: input.category,
+      amount: input.amount,
+      expenseDate,
+      receiptFileId: input.receiptFileId,
+    },
     actor
   );
 
@@ -54,7 +71,7 @@ export async function createDraftClaim(
     employeeId: actor.employeeId,
     category: input.category,
     amount: input.amount,
-    expenseDate: input.expenseDate,
+    expenseDate,
   });
 
   const claimNumber = await generateClaimNumber();
@@ -65,18 +82,21 @@ export async function createDraftClaim(
       employeeId: actor.employeeId,
       category: input.category,
       amount: input.amount,
-      expenseDate: input.expenseDate,
+      expenseDate,
       businessPurpose: input.businessPurpose,
       status: "Draft",
       isDraft: true,
-receiptPending: !!input.receiptFileId,
-      policyViolations: policyResult.warnings as unknown as Prisma.InputJsonValue,
-      duplicateWarning: duplicateResult.isDuplicate ? duplicateResult as unknown as Prisma.InputJsonValue : Prisma.DbNull,
+      receiptPending: !!input.receiptFileId,
+      policyViolations:
+        policyResult.warnings as unknown as Prisma.InputJsonValue,
+      duplicateWarning: duplicateResult.isDuplicate
+        ? (duplicateResult as unknown as Prisma.InputJsonValue)
+        : Prisma.DbNull,
     },
     include: CLAIM_INCLUDE,
   });
 
-// Link receipt if provided
+  // Link receipt if provided
   if (input.receiptFileId) {
     await prisma.expenseReceipt.updateMany({
       where: { id: input.receiptFileId, claimId: { equals: null } as any },
@@ -93,7 +113,7 @@ receiptPending: !!input.receiptFileId,
       claimNumber,
       category: input.category,
       amount: input.amount,
-      expenseDate: input.expenseDate.toISOString(),
+      expenseDate: expenseDate.toISOString(),
       isDraft: true,
       policyViolations: policyResult.warnings,
       duplicateWarning: duplicateResult.isDuplicate ? { type: duplicateResult.matchType, matchedClaim: duplicateResult.matchedClaimNumber } : null,
@@ -135,8 +155,26 @@ export async function submitClaim(claimId: string, actor: AccessTokenPayload) {
   });
 
   // Submit to workflow engine (Employee -> Manager -> Finance)
+  // Find active workflow definition for Expense Claim
+  const workflowDefinition = await prisma.workflowDefinition.findFirst({
+    where: {
+      requestType: "Expense Claim",
+      status: "Active",
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  if (!workflowDefinition) {
+    throw AppError.badRequest(
+      "No active workflow definition configured for Expense Claim."
+    );
+  }
+
+  // Submit to workflow engine
   const workflowResult = await submitRequest(
-    "expense-approval", // Workflow definition ID for expense approval
+    workflowDefinition.id,
     claim.employee.employeeCode,
     {
       amount: Number(claim.amount),
@@ -157,7 +195,7 @@ export async function submitClaim(claimId: string, actor: AccessTokenPayload) {
       isDraft: false,
       submittedAt: new Date(),
       approvalStage: "Manager Review",
-workflowInstanceId,
+      workflowInstanceId,
       policyViolations: policyResult.warnings as unknown as Prisma.InputJsonValue,
       duplicateWarning: duplicateResult.isDuplicate ? duplicateResult as unknown as Prisma.InputJsonValue : Prisma.DbNull,
     },
@@ -239,7 +277,7 @@ export async function actOnClaim(
     `${actor.firstName} ${actor.lastName}`.trim(),
     action,
     comments,
-    { bypassRoleApprover: actorRoles.includes("ADMIN") }
+    { bypassRoleApprover: actor.permissions?.includes("workflows:write") ?? false }
   );
 
   const workflowStatus = result.data.status;
@@ -275,7 +313,7 @@ export async function actOnClaim(
     include: CLAIM_INCLUDE,
   });
 
-await prisma.expenseClaimHistory.create({
+  await prisma.expenseClaimHistory.create({
     data: {
       claimId: claim.id,
       action: action.toUpperCase(),
@@ -463,7 +501,7 @@ async function createCorrectedClaim(entry: any, actor: AccessTokenPayload) {
       approvedForReimbursementAt: new Date(),
       originalClaimId: original.id,
       correctingEntryId: entry.id,
-policyViolations: Prisma.JsonNull,
+      policyViolations: Prisma.JsonNull,
       duplicateWarning: Prisma.JsonNull,
     },
   });
@@ -543,6 +581,51 @@ export async function listClaims(
   ]);
 
   return { data: claims, total, page: filters.page, limit: filters.limit, totalPages: Math.ceil(total / filters.limit) };
+}
+
+/** Get pending expense claims for approval */
+export async function getPendingApprovals(
+  stage: "Manager" | "Finance" | undefined,
+  actor: AccessTokenPayload
+) {
+  const where: Prisma.ExpenseClaimWhereInput = {
+    status: {
+      in: ["Submitted", "Manager Pending", "Finance Pending"],
+    },
+  };
+
+  if (stage === "Manager") {
+    where.status = {
+      in: ["Submitted", "Manager Pending"],
+    };
+  }
+
+  if (stage === "Finance") {
+    where.status = {
+      in: ["Finance Pending"],
+    };
+  }
+
+  // Manager can see claims of employees reporting to them
+  if (actor.role === "MANAGER") {
+    if (!actor.employeeId) {
+      throw AppError.forbidden("Manager account not linked");
+    }
+
+    where.employee = {
+      reportingManagerId: actor.employeeId,
+    };
+  }
+
+  const claims = await prisma.expenseClaim.findMany({
+    where,
+    include: CLAIM_INCLUDE,
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  return { data: claims };
 }
 
 /** Get single claim by ID */

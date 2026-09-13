@@ -5,6 +5,10 @@
 
 import api from "./api";
 
+/* -------------------------------------------------------------------------- */
+/* Types                                                                      */
+/* -------------------------------------------------------------------------- */
+
 export interface ExpensePolicy {
   id: string;
   category: string;
@@ -12,39 +16,6 @@ export interface ExpensePolicy {
   receiptThreshold: number;
   submissionWindowDays: number;
   isActive: boolean;
-}
-
-export interface ExpenseClaim {
-  id: string;
-  claimNumber: string;
-  employeeId: string;
-  employeeName?: string;
-  category: string;
-  amount: number;
-  expenseDate: string;
-  businessPurpose: string;
-  status: string;
-  approvalStage?: string;
-  submittedAt?: string;
-  managerApprovedAt?: string;
-  financeApprovedAt?: string;
-  approvedForReimbursementAt?: string;
-  queuedForPayrollAt?: string;
-  rejectedAt?: string;
-  rejectionReason?: string;
-  rejectedBy?: string;
-  policyViolations: string[];
-  duplicateWarning?: { type: "exact" | "near"; claimId: string; similarity?: number } | null;
-  isDraft: boolean;
-  receiptPending: boolean;
-  isImmutable: boolean;
-  correctingEntryId?: string;
-  originalClaimId?: string;
-  workflowInstanceId?: string;
-  createdAt: string;
-  updatedAt: string;
-  receipts?: ExpenseReceipt[];
-  history?: ExpenseClaimHistory[];
 }
 
 export interface ExpenseReceipt {
@@ -72,6 +43,60 @@ export interface ExpenseClaimHistory {
   createdAt: string;
 }
 
+export interface ExpenseClaim {
+  id: string;
+  claimNumber: string;
+  employeeId: string;
+  employeeName?: string;
+
+  category: string;
+  amount: number;
+  expenseDate: string;
+  businessPurpose: string;
+
+  status: string;
+  approvalStage?: string;
+
+  submittedAt?: string;
+  managerApprovedAt?: string;
+  financeApprovedAt?: string;
+  approvedForReimbursementAt?: string;
+  queuedForPayrollAt?: string;
+
+  rejectedAt?: string;
+  rejectionReason?: string;
+  rejectedBy?: string;
+
+  policyViolations: string[];
+
+  duplicateWarning?: {
+    type: "exact" | "near";
+    claimId: string;
+    similarity?: number;
+  } | null;
+
+  isDraft: boolean;
+  receiptPending: boolean;
+  isImmutable: boolean;
+
+  correctingEntryId?: string;
+  originalClaimId?: string;
+  workflowInstanceId?: string;
+
+  createdAt: string;
+  updatedAt: string;
+
+  receipts?: ExpenseReceipt[];
+  history?: ExpenseClaimHistory[];
+
+  /* Existing frontend compatibility fields */
+  receiptAttached?: boolean;
+  receiptFileName?: string;
+  possibleDuplicateOf?: string;
+  violations?: string[];
+  submittedOn?: string;
+}
+
 export interface ExpenseCorrectingEntry {
   id: string;
   entryNumber: string;
@@ -89,8 +114,16 @@ export interface ExpenseCorrectingEntry {
 }
 
 export interface DuplicateCheckResult {
-  exactDuplicate?: { claimId: string; claimNumber: string } | null;
-  nearDuplicate?: { claimId: string; claimNumber: string; similarity: number } | null;
+  exactDuplicate?: {
+    claimId: string;
+    claimNumber: string;
+  } | null;
+
+  nearDuplicate?: {
+    claimId: string;
+    claimNumber: string;
+    similarity: number;
+  } | null;
 }
 
 export interface ReimbursementQueueItem {
@@ -105,33 +138,72 @@ export interface ReimbursementQueueItem {
   createdAt: string;
 }
 
-// Policy
+/* -------------------------------------------------------------------------- */
+/* Policy                                                                     */
+/* -------------------------------------------------------------------------- */
+
 export const getPolicies = async (): Promise<ExpensePolicy[]> => {
   const res = await api.get("/expense/policies");
+
   return res.data.data;
 };
 
-export const upsertPolicy = async (data: Partial<ExpensePolicy> & { category: string }): Promise<ExpensePolicy> => {
-  const res = await api.post("/expense/policies", data);
+export const upsertPolicy = async (
+  data: Partial<ExpensePolicy> & {
+    category: string;
+  }
+): Promise<ExpensePolicy> => {
+  const res = await api.post(
+    "/expense/policies",
+    data
+  );
+
   return res.data.data;
 };
 
-// Claims
-export const getMyExpenseClaims = async (employeeId?: string): Promise<ExpenseClaim[]> => {
-  const res = await api.get("/expense/claims", { params: { employeeId } });
+/* -------------------------------------------------------------------------- */
+/* Claims                                                                     */
+/* -------------------------------------------------------------------------- */
+
+export const getMyExpenseClaims = async (
+  _employeeId?: string
+): Promise<ExpenseClaim[]> => {
+  /*
+   * Employee is resolved by the authenticated backend user.
+   * Do NOT send employeeId from frontend.
+   */
+  const res = await api.get(
+    "/expense/claims"
+  );
+
   return res.data.data;
 };
 
-export const getMyClaims = getMyExpenseClaims;
+export const getMyClaims =
+  getMyExpenseClaims;
 
-export const getPendingApprovals = async (stage?: "Manager" | "Finance"): Promise<ExpenseClaim[]> => {
-  const params = stage ? { stage } : {};
-  const res = await api.get("/expense/claims/pending", { params });
+export const getPendingApprovals = async (
+  stage?: "Manager" | "Finance"
+): Promise<ExpenseClaim[]> => {
+  const params = stage
+    ? { stage }
+    : {};
+
+  const res = await api.get(
+    "/expense/claims/pending",
+    { params }
+  );
+
   return res.data.data;
 };
 
-export const getClaimById = async (id: string): Promise<ExpenseClaim> => {
-  const res = await api.get(`/expense/claims/${id}`);
+export const getClaimById = async (
+  id: string
+): Promise<ExpenseClaim> => {
+  const res = await api.get(
+    `/expense/claims/${id}`
+  );
+
   return res.data.data;
 };
 
@@ -142,143 +214,473 @@ export const createDraft = async (data: {
   businessPurpose: string;
   receiptFileId?: string;
 }): Promise<ExpenseClaim> => {
-  const res = await api.post("/expense/claims", { ...data, isDraft: true });
+  const res = await api.post(
+    "/expense/claims",
+    {
+      ...data,
+      isDraft: true,
+    }
+  );
+
   return res.data.data;
 };
 
-export const updateDraft = async (id: string, data: Partial<ExpenseClaim>): Promise<ExpenseClaim> => {
-  const res = await api.put(`/expense/claims/${id}`, data);
+export const updateDraft = async (
+  id: string,
+  data: Partial<ExpenseClaim>
+): Promise<ExpenseClaim> => {
+  const res = await api.put(
+    `/expense/claims/${id}`,
+    data
+  );
+
   return res.data.data;
 };
 
-export const submitClaim = async (id: string): Promise<ExpenseClaim> => {
-  const res = await api.post(`/expense/claims/${id}/submit`);
+export const submitClaim = async (
+  id: string
+): Promise<ExpenseClaim> => {
+  const res = await api.post(
+    `/expense/claims/${id}/submit`
+  );
+
   return res.data.data;
 };
 
-export const submitExpenseClaim = submitClaim;
+export const submitExpenseClaim =
+  submitClaim;
 
-export const deleteDraft = async (id: string): Promise<void> => {
-  await api.delete(`/expense/claims/${id}`);
+export const deleteDraft = async (
+  id: string
+): Promise<void> => {
+  await api.delete(
+    `/expense/claims/${id}`
+  );
 };
 
-// Receipts
-export const getReceiptUploadUrl = async (claimId: string, fileName: string, mimeType: string, fileSize: number): Promise<{ uploadUrl: string; objectName: string }> => {
-  const res = await api.post(`/expense/receipts/upload-url`, { claimId, fileName, mimeType, fileSize });
+/* -------------------------------------------------------------------------- */
+/* Receipts — MinIO                                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Step 1:
+ * Ask backend for a presigned MinIO PUT URL.
+ */
+export const getReceiptUploadUrl = async (
+  claimId: string,
+  fileName: string,
+  mimeType: string,
+  fileSize: number
+): Promise<{
+  uploadUrl: string;
+  objectName: string;
+  fileId?: string;
+  expiresIn?: number;
+}> => {
+  const res = await api.post(
+    "/expense/receipts/upload-url",
+    {
+      claimId,
+      fileName,
+      mimeType,
+      fileSize,
+    }
+  );
+
   return res.data.data;
 };
 
-export const confirmReceiptUpload = async (claimId: string, objectName: string, fileHash: string, perceptualHash?: string): Promise<ExpenseReceipt> => {
-  const res = await api.post(`/expense/receipts/complete`, { claimId, objectName, fileHash, perceptualHash });
+/**
+ * Step 2:
+ * Upload the actual file directly to MinIO.
+ *
+ * IMPORTANT:
+ * Do not use api.post() here.
+ * uploadUrl is the MinIO presigned URL.
+ */
+export const uploadReceiptToMinio = async (
+  uploadUrl: string,
+  file: File
+): Promise<void> => {
+  const response = await fetch(
+    uploadUrl,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type":
+          file.type ||
+          "application/octet-stream",
+      },
+      body: file,
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Receipt upload failed: ${response.status} ${response.statusText}`
+    );
+  }
+};
+
+/**
+ * Step 3:
+ * Tell backend that the MinIO upload is complete.
+ */
+export const confirmReceiptUpload = async (
+  claimId: string,
+  objectName: string,
+  fileHash: string,
+  perceptualHash?: string
+): Promise<ExpenseReceipt> => {
+  const res = await api.post(
+    "/expense/receipts/complete",
+    {
+      claimId,
+      objectName,
+      fileHash,
+      perceptualHash,
+    }
+  );
+
   return res.data.data;
 };
 
-export const getReceiptSignedUrl = async (receiptId: string): Promise<{ url: string; expiresAt: string }> => {
-  const res = await api.get(`/expense/receipts/${receiptId}/download`);
+/**
+ * Complete receipt upload flow:
+ *
+ * Frontend
+ *   ↓
+ * get presigned URL
+ *   ↓
+ * PUT file → MinIO
+ *   ↓
+ * confirm upload
+ *   ↓
+ * ExpenseReceipt DB record
+ */
+export const uploadExpenseReceipt = async (
+  claimId: string,
+  file: File,
+  fileHash: string,
+  perceptualHash?: string
+): Promise<ExpenseReceipt> => {
+  if (!claimId) {
+    throw new Error(
+      "claimId is required"
+    );
+  }
+
+  if (!file) {
+    throw new Error(
+      "Receipt file is required"
+    );
+  }
+
+  const {
+    uploadUrl,
+    objectName,
+  } = await getReceiptUploadUrl(
+    claimId,
+    file.name,
+    file.type,
+    file.size
+  );
+
+  if (!uploadUrl) {
+    throw new Error(
+      "Backend did not return a MinIO upload URL"
+    );
+  }
+
+  if (!objectName) {
+    throw new Error(
+      "Backend did not return a MinIO object name"
+    );
+  }
+
+  await uploadReceiptToMinio(
+    uploadUrl,
+    file
+  );
+
+  return confirmReceiptUpload(
+    claimId,
+    objectName,
+    fileHash,
+    perceptualHash
+  );
+};
+
+/**
+ * Get receipt view/download URL from backend.
+ *
+ * Backend returns:
+ * {
+ *   receiptId,
+ *   downloadUrl,
+ *   fileName,
+ *   mimeType
+ * }
+ */
+export const getReceiptSignedUrl = async (
+  receiptId: string
+): Promise<{
+  receiptId: string;
+  downloadUrl: string;
+  fileName?: string;
+  mimeType?: string;
+}> => {
+  const res = await api.get(
+    `/expense/receipts/${receiptId}/download`
+  );
+
   return res.data.data;
 };
 
-export const deleteReceipt = async (receiptId: string): Promise<void> => {
-  await api.delete(`/expense/receipts/${receiptId}`);
+export const deleteReceipt = async (
+  receiptId: string
+): Promise<void> => {
+  await api.delete(
+    `/expense/receipts/${receiptId}`
+  );
 };
 
-// Approvals
-export const approveClaim = async (id: string, actorRole: "Manager" | "Finance"): Promise<ExpenseClaim> => {
-  const res = await api.put(`/expense/claims/${id}/approve`, { stage: actorRole });
+/**
+ * Convenience helper for opening a receipt.
+ */
+export const viewExpenseReceipt = async (
+  receiptId: string
+): Promise<void> => {
+  const result =
+    await getReceiptSignedUrl(
+      receiptId
+    );
+
+  if (!result?.downloadUrl) {
+    throw new Error(
+      "Receipt view URL was not returned by the server"
+    );
+  }
+
+  window.open(
+    result.downloadUrl,
+    "_blank",
+    "noopener,noreferrer"
+  );
+};
+
+/* -------------------------------------------------------------------------- */
+/* Approvals                                                                  */
+/* -------------------------------------------------------------------------- */
+
+export const approveClaim = async (
+  id: string,
+  actorRole: "Manager" | "Finance"
+): Promise<ExpenseClaim> => {
+  const res = await api.put(
+    `/expense/claims/${id}/approve`,
+    {
+      stage: actorRole,
+    }
+  );
+
   return res.data.data;
 };
 
-export const rejectClaim = async (id: string, actorRole: "Manager" | "Finance", reason: string): Promise<ExpenseClaim> => {
-  const res = await api.put(`/expense/claims/${id}/reject`, { stage: actorRole, reason });
+export const rejectClaim = async (
+  id: string,
+  actorRole: "Manager" | "Finance",
+  reason: string
+): Promise<ExpenseClaim> => {
+  const res = await api.put(
+    `/expense/claims/${id}/reject`,
+    {
+      stage: actorRole,
+      rejectionReason: reason,
+    }
+  );
+
   return res.data.data;
 };
 
-// Resubmission
-export const resubmitClaim = async (id: string): Promise<ExpenseClaim> => {
-  const res = await api.post(`/expense/claims/${id}/resubmit`);
+/* -------------------------------------------------------------------------- */
+/* Resubmission                                                               */
+/* -------------------------------------------------------------------------- */
+
+export const resubmitClaim = async (
+  id: string
+): Promise<ExpenseClaim> => {
+  const res = await api.post(
+    `/expense/claims/${id}/resubmit`
+  );
+
   return res.data.data;
 };
 
-// Correcting Entries
-export const createCorrectingEntry = async (data: {
-  originalClaimId: string;
-  reason: string;
-  correctionType: string;
-  adjustedAmount?: number;
-}): Promise<ExpenseCorrectingEntry> => {
-  const res = await api.post("/expense/correcting-entries", data);
+/* -------------------------------------------------------------------------- */
+/* Correcting Entries                                                         */
+/* -------------------------------------------------------------------------- */
+
+export const createCorrectingEntry =
+  async (data: {
+    originalClaimId: string;
+    reason: string;
+    correctionType: string;
+    adjustedAmount?: number;
+  }): Promise<ExpenseCorrectingEntry> => {
+    const res = await api.post(
+      "/expense/correcting-entries",
+      data
+    );
+
+    return res.data.data;
+  };
+
+export const getCorrectingEntries =
+  async (
+    claimId: string
+  ): Promise<ExpenseCorrectingEntry[]> => {
+    const res = await api.get(
+      `/expense/claims/${claimId}/correcting-entries`
+    );
+
+    return res.data.data;
+  };
+
+export const approveCorrectingEntry =
+  async (
+    entryId: string
+  ): Promise<ExpenseCorrectingEntry> => {
+    const res = await api.put(
+      `/expense/correcting-entries/${entryId}/approve`
+    );
+
+    return res.data.data;
+  };
+
+/* -------------------------------------------------------------------------- */
+/* Reimbursement                                                              */
+/* -------------------------------------------------------------------------- */
+
+export const getReimbursementQueue =
+  async (
+    status?: string
+  ): Promise<ReimbursementQueueItem[]> => {
+    const params = status
+      ? { status }
+      : {};
+
+    const res = await api.get(
+      "/expense/reimbursements",
+      { params }
+    );
+
+    return res.data.data;
+  };
+
+export const processReimbursement =
+  async (
+    claimId: string
+  ): Promise<{
+    success: boolean;
+    payrollRunId?: string;
+  }> => {
+    const res = await api.post(
+      `/expense/claims/${claimId}/queue-payroll`
+    );
+
+    return res.data.data;
+  };
+
+export const markReimbursementPaid =
+  async (
+    claimId: string,
+    payrollRunId: string
+  ): Promise<void> => {
+    await api.post(
+      `/expense/claims/${claimId}/mark-paid`,
+      {
+        payrollRunId,
+      }
+    );
+  };
+
+/* -------------------------------------------------------------------------- */
+/* History                                                                    */
+/* -------------------------------------------------------------------------- */
+
+export const getClaimHistory = async (
+  claimId: string
+): Promise<ExpenseClaimHistory[]> => {
+  const res = await api.get(
+    `/expense/claims/${claimId}/history`
+  );
+
   return res.data.data;
 };
 
-export const getCorrectingEntries = async (claimId: string): Promise<ExpenseCorrectingEntry[]> => {
-  const res = await api.get(`/expense/claims/${claimId}/correcting-entries`);
+/* -------------------------------------------------------------------------- */
+/* Duplicate Check                                                            */
+/* -------------------------------------------------------------------------- */
+
+export const checkDuplicates = async (
+  data: {
+    category: string;
+    amount: number;
+    expenseDate: string;
+    fileHash?: string;
+    perceptualHash?: string;
+  }
+): Promise<DuplicateCheckResult> => {
+  const res = await api.post(
+    "/expense/duplicates/check",
+    data
+  );
+
   return res.data.data;
 };
 
-export const approveCorrectingEntry = async (entryId: string): Promise<ExpenseCorrectingEntry> => {
-  const res = await api.put(`/expense/correcting-entries/${entryId}/approve`);
-  return res.data.data;
-};
-
-// Reimbursement
-export const getReimbursementQueue = async (status?: string): Promise<ReimbursementQueueItem[]> => {
-  const params = status ? { status } : {};
-  const res = await api.get("/expense/reimbursements", { params });
-  return res.data.data;
-};
-
-export const processReimbursement = async (claimId: string): Promise<{ success: boolean; payrollRunId?: string }> => {
-  const res = await api.post(`/expense/claims/${claimId}/queue-payroll`);
-  return res.data.data;
-};
-
-export const markReimbursementPaid = async (claimId: string, payrollRunId: string): Promise<void> => {
-  await api.post(`/expense/claims/${claimId}/mark-paid`, { payrollRunId });
-};
-
-// History
-export const getClaimHistory = async (claimId: string): Promise<ExpenseClaimHistory[]> => {
-  const res = await api.get(`/expense/claims/${claimId}/history`);
-  return res.data.data;
-};
-
-// Duplicate check
-export const checkDuplicates = async (data: {
-  category: string;
-  amount: number;
-  expenseDate: string;
-  fileHash?: string;
-  perceptualHash?: string;
-}): Promise<DuplicateCheckResult> => {
-  const res = await api.post("/expense/duplicates/check", data);
-  return res.data.data;
-};
+/* -------------------------------------------------------------------------- */
+/* Default export                                                             */
+/* -------------------------------------------------------------------------- */
 
 export default {
   getPolicies,
   upsertPolicy,
+
   getMyExpenseClaims,
   getMyClaims,
   getPendingApprovals,
   getClaimById,
+
   createDraft,
   updateDraft,
   submitClaim,
   submitExpenseClaim,
   deleteDraft,
+
   getReceiptUploadUrl,
+  uploadReceiptToMinio,
   confirmReceiptUpload,
+  uploadExpenseReceipt,
   getReceiptSignedUrl,
+  viewExpenseReceipt,
   deleteReceipt,
+
   approveClaim,
   rejectClaim,
+
   resubmitClaim,
+
   createCorrectingEntry,
   getCorrectingEntries,
   approveCorrectingEntry,
+
   getReimbursementQueue,
   processReimbursement,
   markReimbursementPaid,
+
   getClaimHistory,
+
   checkDuplicates,
 };

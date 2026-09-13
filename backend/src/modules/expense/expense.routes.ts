@@ -35,6 +35,14 @@ router.get(
   expenseController.listClaims
 );
 
+// GET /api/expense/claims/pending?stage=Manager|Finance
+router.get(
+  "/claims/pending",
+  authenticate,
+  requirePermission("expenses:read"),
+  expenseController.getPendingApprovals
+);
+
 // POST /api/expense/claims � expense:write (create draft)
 router.post(
   "/claims",

@@ -8,7 +8,7 @@ import * as receiptService from "./expense.receipt.service";
 import * as reimbursementService from "./expense.reimbursement.service";
 import { AppError } from "../../lib/errors";
 import { prisma } from "../../lib/prisma";
-import { validateReceiptFile } from "./expense.receipt.service";
+
 import type { AccessTokenPayload } from "../../lib/jwt";
 
 /** Resolve employee ID from auth */
@@ -49,6 +49,18 @@ export const listClaims = asyncHandler(async (req: Request, res: Response) => {
     { ...req.auth!, employeeId }
   );
   sendSuccess(res, result.data, result.total);
+});
+
+
+export const getPendingApprovals = asyncHandler(async (req, res) => {
+  const stage = req.query.stage as "Manager" | "Finance" | undefined;
+
+  const result = await expenseService.getPendingApprovals(
+    stage,
+    req.auth!
+  );
+
+  return sendSuccess(res, result.data);
 });
 
 export const getClaim = asyncHandler(async (req: Request, res: Response) => {
@@ -137,37 +149,129 @@ export const checkDuplicates = asyncHandler(async (req: Request, res: Response) 
 
 /** ============ RECEIPT ENDPOINTS ============ */
 
-export const getUploadUrl = asyncHandler(async (req: Request, res: Response) => {
-  const employeeId = await resolveEmployeeId(req);
-  const result = await receiptService.generateUploadUrl({ ...req.body, employeeId }, { ...req.auth!, employeeId });
-  sendSuccess(res, result);
-});
+/** ============ RECEIPT ENDPOINTS ============ */
 
-export const completeUpload = asyncHandler(async (req: Request, res: Response) => {
-  const employeeId = await resolveEmployeeId(req);
-  // For server-side upload, file buffer would be in req.file (multer)
-  // For client-side upload, we just verify the object exists
-  const result = await receiptService.completeReceiptUpload(req.body, { ...req.auth!, employeeId });
-  sendSuccess(res, result);
-});
+export const getUploadUrl = asyncHandler(
+  async (req: Request, res: Response) => {
+    const employeeId = await resolveEmployeeId(req);
 
-export const getDownloadUrl = asyncHandler(async (req: Request, res: Response) => {
-  const employeeId = await resolveEmployeeId(req);
-  const result = await receiptService.generateDownloadUrl(req.params.receiptId, employeeId, req.auth?.role ?? "");
-  sendSuccess(res, result);
-});
+    const result =
+      await receiptService.generateUploadUrl(
+        {
+          ...req.body,
+          employeeId,
+        },
+        {
+          ...req.auth!,
+          employeeId,
+        }
+      );
 
-export const getReceiptMeta = asyncHandler(async (req: Request, res: Response) => {
-  const employeeId = await resolveEmployeeId(req);
-  const result = await receiptService.getReceiptMetadata(req.params.receiptId, employeeId, req.auth?.role ?? "");
-  sendSuccess(res, result);
-});
+    sendSuccess(res, result);
+  }
+);
 
-export const deleteReceipt = asyncHandler(async (req: Request, res: Response) => {
-  const employeeId = await resolveEmployeeId(req);
-  await receiptService.deleteReceipt(req.params.receiptId, employeeId, { ...req.auth!, employeeId });
-  sendSuccess(res, { deleted: true });
-});
+export const completeUpload = asyncHandler(
+  async (req: Request, res: Response) => {
+    const employeeId = await resolveEmployeeId(req);
+
+    const result =
+      await receiptService.completeReceiptUpload(
+        req.body,
+        {
+          ...req.auth!,
+          employeeId,
+        }
+      );
+
+    sendSuccess(res, result);
+  }
+);
+
+export const uploadReceipt = asyncHandler(
+  async (req: Request, res: Response) => {
+    const employeeId = await resolveEmployeeId(req);
+
+    const file = req.file;
+
+    if (!file) {
+      throw AppError.badRequest(
+        "Receipt file is required."
+      );
+    }
+
+    const claimId = String(
+      req.body.claimId ?? ""
+    ).trim();
+
+    if (!claimId) {
+      throw AppError.badRequest(
+        "claimId is required."
+      );
+    }
+
+    const result =
+      await receiptService.uploadReceipt(
+        {
+          employeeId,
+          claimId,
+          fileName: file.originalname,
+          mimeType: file.mimetype,
+          buffer: file.buffer,
+        },
+        {
+          ...req.auth!,
+          employeeId,
+        }
+      );
+
+    sendSuccess(res, result, undefined, 201);
+  }
+);
+
+export const getDownloadUrl = asyncHandler(
+  async (req: Request, res: Response) => {
+    const employeeId = await resolveEmployeeId(req);
+
+    const result =
+      await receiptService.generateDownloadUrl(
+        req.params.receiptId,
+        employeeId,
+        req.auth?.role ?? ""
+      );
+
+    sendSuccess(res, result);
+  }
+);
+
+export const getReceiptMeta = asyncHandler(
+  async (req: Request, res: Response) => {
+    const employeeId = await resolveEmployeeId(req);
+
+    const result =
+      await receiptService.getReceiptMetadata(
+        req.params.receiptId,
+        employeeId,
+        req.auth?.role ?? ""
+      );
+
+    sendSuccess(res, result);
+  }
+);
+
+export const deleteReceipt = asyncHandler(
+  async (req: Request, res: Response) => {
+    const employeeId = await resolveEmployeeId(req);
+
+    const result =
+      await receiptService.deleteReceipt(
+        req.params.receiptId,
+        employeeId
+      );
+
+    sendSuccess(res, result);
+  }
+);
 
 /** ============ CORRECTING ENTRIES ============ */
 
@@ -240,3 +344,5 @@ export const getClaimHistory = asyncHandler(async (req: Request, res: Response) 
   });
   sendSuccess(res, history);
 });
+
+
