@@ -233,16 +233,16 @@ function ApplyLeaveModal({ isOpen, onClose, leaveTypes, employeeId, onSaved }) {
         reason: form.reason,
 
         documentName:
-          documentData?.documentName || null,
+          documentData?.documentName || undefined,
 
         documentUrl:
-          documentData?.documentUrl || null,
+          documentData?.documentUrl || undefined,
 
         documentMimeType:
-          documentData?.documentMimeType || null,
+          documentData?.documentMimeType || undefined,
 
         documentSize:
-          documentData?.documentSize || null,
+          documentData?.documentSize || undefined,
       });
 
       setForm({

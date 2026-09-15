@@ -183,13 +183,14 @@ export async function applyLeave(input: ApplyLeaveInput, actor?: AccessTokenPayl
 
   days = effectiveDays;
 
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    input.leaveTypeId
+  );
+
   const leaveType = await prisma.leaveType.findFirst({
-    where: {
-      OR: [
-        { id: input.leaveTypeId },
-        { code: input.leaveTypeId },
-      ],
-    },
+    where: isUuid
+      ? { id: input.leaveTypeId }
+      : { code: input.leaveTypeId },
   });
   if (!leaveType) throw AppError.notFound("Leave type not found");
 
