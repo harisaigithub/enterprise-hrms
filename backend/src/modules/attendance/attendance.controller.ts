@@ -38,6 +38,18 @@ export const doCheckOut = asyncHandler(async (req: Request, res: Response) => {
   sendSuccess(res, result.data);
 });
 
+export const doStartBreak = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.auth?.employeeId) throw AppError.forbidden("An employee profile is required to start a break");
+  const result = await attendanceService.startBreak(req.auth.employeeId, req.auth.sub, req.body.breakType);
+  sendSuccess(res, result.data, undefined, 201);
+});
+
+export const doEndBreak = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.auth?.employeeId) throw AppError.forbidden("An employee profile is required to end a break");
+  const result = await attendanceService.endBreak(req.auth.employeeId, req.auth.sub);
+  sendSuccess(res, result.data);
+});
+
 export const requestRegularization = asyncHandler(async (req: Request, res: Response) => {
   if (!req.auth) throw AppError.unauthorized();
   const employeeCode = req.body.employeeId ?? req.auth.employeeCode;

@@ -22,6 +22,12 @@ const checkOutBodySchema = z.object({
   employeeId: z.string().optional(),
 });
 
+const startBreakBodySchema = z.object({
+  breakType: z.enum(["Lunch Break", "Short Break", "Tea Break", "Personal Break"]).default("Short Break"),
+});
+
+const endBreakBodySchema = z.object({}).strict();
+
 // GET /api/attendance — attendance:read
 router.get("/", authenticate, requirePermission("attendance:read"), validate({ query: listQuerySchema }), attendanceController.list);
 
@@ -33,6 +39,10 @@ router.post("/check-in", authenticate, requirePermission("attendance:write"), va
 
 // POST /api/attendance/check-out — attendance:write
 router.post("/check-out", authenticate, requirePermission("attendance:write"), validate({ body: checkOutBodySchema }), attendanceController.doCheckOut);
+
+// Breaks always belong to the authenticated employee.
+router.post("/break-start", authenticate, requirePermission("attendance:write"), validate({ body: startBreakBodySchema }), attendanceController.doStartBreak);
+router.post("/break-end", authenticate, requirePermission("attendance:write"), validate({ body: endBreakBodySchema }), attendanceController.doEndBreak);
 
 // Regularization routes
 router.get("/regularizations", authenticate, attendanceController.listRegularizations);
