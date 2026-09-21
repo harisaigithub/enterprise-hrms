@@ -16,6 +16,16 @@ export const getDefinitions = async () => {
   return res.data;
 };
 
+export const getBlueprints = async () => {
+  const res = await api.get("/workflow/blueprints");
+  return res.data;
+};
+
+export const installBlueprint = async (key) => {
+  const res = await api.post(`/workflow/blueprints/${key}/install`);
+  return res.data;
+};
+
 export const addDefinition = async (def) => {
   const res = await api.post("/workflow/definitions", def);
   return res.data;

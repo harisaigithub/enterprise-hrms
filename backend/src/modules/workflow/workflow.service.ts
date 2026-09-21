@@ -208,6 +208,247 @@ export interface CreateDefinitionInput {
   steps: WorkflowStepInput[];
 }
 
+export interface WorkflowBlueprint extends CreateDefinitionInput {
+  key: string;
+  module: string;
+  title: string;
+  description: string;
+  trigger: string;
+  attributes: string[];
+}
+
+export const WORKFLOW_BLUEPRINTS: WorkflowBlueprint[] = [
+  {
+    key: "leave-request",
+    module: "Leave",
+    title: "Leave Approval",
+    requestType: "Leave Request",
+    description: "Manager approval with HR review for extended leave.",
+    trigger: "Employee submits a leave request",
+    attributes: ["duration_days", "leave_type"],
+    steps: [
+      { name: "Manager Approval", approverRule: "Direct Reporting Manager", slaHours: 24 },
+      { name: "HR Policy Review", approverRule: "Named Role: HR", slaHours: 24, condition: { field: "duration_days", operator: ">", value: 5 } },
+    ],
+  },
+  {
+    key: "expense-claim",
+    module: "Expenses",
+    title: "Expense Claim Review",
+    requestType: "Expense Claim",
+    description: "Manager verification followed by conditional Finance approval.",
+    trigger: "Employee submits an expense claim with receipt",
+    attributes: ["amount", "has_receipt"],
+    steps: [
+      { name: "Manager Verification", approverRule: "Direct Reporting Manager", slaHours: 24 },
+      { name: "Finance Approval", approverRule: "Named Role: Finance", slaHours: 24, condition: { field: "amount", operator: ">", value: 5000 } },
+    ],
+  },
+  {
+    key: "payroll-run",
+    module: "Payroll",
+    title: "Monthly Payroll Sign-off",
+    requestType: "Payroll Run",
+    description: "Parallel HR and Finance verification before final release.",
+    trigger: "Payroll run is submitted for processing",
+    attributes: ["gross_payroll", "employee_count"],
+    steps: [
+      { name: "HR Headcount Check", approverRule: "Named Role: HR", slaHours: 12, parallelGroup: "verification" },
+      { name: "Finance Cost Check", approverRule: "Named Role: Finance", slaHours: 12, parallelGroup: "verification" },
+      { name: "Department Sign-off", approverRule: "Department Head", slaHours: 12 },
+    ],
+  },
+  {
+    key: "employee-onboarding",
+    module: "Onboarding",
+    title: "Employee Onboarding",
+    requestType: "Employee Onboarding",
+    description: "HR documentation and department readiness checks.",
+    trigger: "Candidate accepts an offer",
+    attributes: ["documents_complete", "joining_in_days"],
+    steps: [
+      { name: "HR Document Verification", approverRule: "Named Role: HR", slaHours: 24 },
+      { name: "Department Readiness", approverRule: "Department Head", slaHours: 24 },
+    ],
+  },
+  {
+    key: "recruitment-offer",
+    module: "Recruitment",
+    title: "Offer Release",
+    requestType: "Recruitment Offer",
+    description: "Department selection approval with HR offer authorization.",
+    trigger: "Candidate is recommended after interview",
+    attributes: ["annual_ctc", "position_level"],
+    steps: [
+      { name: "Hiring Manager Approval", approverRule: "Department Head", slaHours: 24 },
+      { name: "HR Offer Approval", approverRule: "Named Role: HR", slaHours: 24 },
+      { name: "Finance Budget Review", approverRule: "Named Role: Finance", slaHours: 24, condition: { field: "annual_ctc", operator: ">", value: 1000000 } },
+    ],
+  },
+  {
+    key: "attendance-regularization",
+    module: "Attendance",
+    title: "Attendance Regularization",
+    requestType: "Attendance Regularization",
+    description: "Manager decision with HR escalation for repeated corrections.",
+    trigger: "Employee requests a punch correction",
+    attributes: ["monthly_request_count"],
+    steps: [
+      { name: "Manager Review", approverRule: "Direct Reporting Manager", slaHours: 12 },
+      { name: "HR Exception Review", approverRule: "Named Role: HR", slaHours: 24, condition: { field: "monthly_request_count", operator: ">", value: 2 } },
+    ],
+  },
+  {
+    key: "asset-allocation",
+    module: "Assets",
+    title: "Asset Allocation",
+    requestType: "Asset Allocation",
+    description: "Manager need validation and conditional Finance approval.",
+    trigger: "Employee requests an organizational asset",
+    attributes: ["asset_value"],
+    steps: [
+      { name: "Manager Need Approval", approverRule: "Direct Reporting Manager", slaHours: 24 },
+      { name: "Finance Purchase Approval", approverRule: "Named Role: Finance", slaHours: 24, condition: { field: "asset_value", operator: ">", value: 25000 } },
+    ],
+  },
+  {
+    key: "travel-request",
+    module: "Travel",
+    title: "Business Travel",
+    requestType: "Business Travel",
+    description: "Manager approval plus Finance review for higher travel budgets.",
+    trigger: "Employee submits a travel plan",
+    attributes: ["estimated_cost", "duration_days"],
+    steps: [
+      { name: "Manager Approval", approverRule: "Direct Reporting Manager", slaHours: 24 },
+      { name: "Finance Budget Approval", approverRule: "Named Role: Finance", slaHours: 24, condition: { field: "estimated_cost", operator: ">", value: 10000 } },
+    ],
+  },
+  {
+    key: "performance-goal",
+    module: "Performance",
+    title: "Performance Goal",
+    requestType: "Performance Goal",
+    description: "Manager alignment and department-level strategic review.",
+    trigger: "Employee submits or revises a goal",
+    attributes: ["weightage"],
+    steps: [
+      { name: "Manager Alignment", approverRule: "Direct Reporting Manager", slaHours: 24 },
+      { name: "Department Review", approverRule: "Department Head", slaHours: 24, condition: { field: "weightage", operator: ">=", value: 40 } },
+    ],
+  },
+  {
+    key: "separation-request",
+    module: "Separation",
+    title: "Employee Separation",
+    requestType: "Employee Separation",
+    description: "Manager acknowledgement, HR clearance and Finance settlement.",
+    trigger: "Resignation or separation is initiated",
+    attributes: ["notice_shortfall_days", "settlement_amount"],
+    steps: [
+      { name: "Manager Acknowledgement", approverRule: "Direct Reporting Manager", slaHours: 24 },
+      { name: "HR Clearance", approverRule: "Named Role: HR", slaHours: 48 },
+      { name: "Finance Settlement", approverRule: "Named Role: Finance", slaHours: 48 },
+    ],
+  },
+  {
+    key: "helpdesk-exception",
+    module: "Helpdesk",
+    title: "Helpdesk Escalation",
+    requestType: "Helpdesk Escalation",
+    description: "Department escalation for high-impact or overdue tickets.",
+    trigger: "Ticket is marked high priority or breaches SLA",
+    attributes: ["priority_score", "age_hours"],
+    steps: [
+      { name: "Department Escalation", approverRule: "Department Head", slaHours: 8 },
+      { name: "HR Impact Review", approverRule: "Named Role: HR", slaHours: 12, condition: { field: "priority_score", operator: ">=", value: 4 } },
+    ],
+  },
+  {
+    key: "policy-publication",
+    module: "Policies",
+    title: "Policy Publication",
+    requestType: "Policy Publication",
+    description: "Department content review and HR publication approval.",
+    trigger: "A new policy version is submitted",
+    attributes: ["affected_employee_count"],
+    steps: [
+      { name: "Department Content Review", approverRule: "Department Head", slaHours: 24 },
+      { name: "HR Publication Approval", approverRule: "Named Role: HR", slaHours: 24 },
+    ],
+  },
+  {
+    key: "compliance-filing",
+    module: "Compliance",
+    title: "Compliance Filing",
+    requestType: "Compliance Filing",
+    description: "Owner validation with Finance and HR sign-off.",
+    trigger: "A statutory filing is prepared",
+    attributes: ["financial_impact"],
+    steps: [
+      { name: "Finance Validation", approverRule: "Named Role: Finance", slaHours: 12, parallelGroup: "signoff" },
+      { name: "HR Compliance Sign-off", approverRule: "Named Role: HR", slaHours: 12, parallelGroup: "signoff" },
+    ],
+  },
+  {
+    key: "learning-enrollment",
+    module: "LMS",
+    title: "Paid Learning Enrollment",
+    requestType: "Learning Enrollment",
+    description: "Manager relevance check and Finance approval for paid courses.",
+    trigger: "Employee requests course enrollment",
+    attributes: ["course_cost"],
+    steps: [
+      { name: "Manager Relevance Check", approverRule: "Direct Reporting Manager", slaHours: 24 },
+      { name: "Finance Cost Approval", approverRule: "Named Role: Finance", slaHours: 24, condition: { field: "course_cost", operator: ">", value: 0 } },
+    ],
+  },
+];
+
+export async function listBlueprints() {
+  const definitions = await prisma.workflowDefinition.findMany({
+    where: { requestType: { in: WORKFLOW_BLUEPRINTS.map((b) => b.requestType) } },
+    select: { id: true, requestType: true, status: true, createdAt: true },
+    orderBy: { createdAt: "desc" },
+  });
+  return {
+    data: WORKFLOW_BLUEPRINTS.map((blueprint) => {
+      const installed = definitions.find((d) => d.requestType === blueprint.requestType && d.status === "Active");
+      return { ...blueprint, installed: !!installed, definitionId: installed?.id ?? null };
+    }),
+  };
+}
+
+export async function installBlueprint(key: string) {
+  const blueprint = WORKFLOW_BLUEPRINTS.find((item) => item.key === key);
+  if (!blueprint) throw AppError.notFound("Workflow blueprint not found");
+
+  const definition = await prisma.$transaction(async (tx) => {
+    await tx.workflowDefinition.updateMany({
+      where: { requestType: blueprint.requestType, status: "Active" },
+      data: { status: "Inactive" },
+    });
+    return tx.workflowDefinition.create({
+      data: {
+        requestType: blueprint.requestType,
+        steps: {
+          create: blueprint.steps.map((step, orderIndex) => ({
+            name: step.name,
+            approverRule: step.approverRule,
+            slaHours: step.slaHours ?? 24,
+            parallelGroup: step.parallelGroup || null,
+            condition: (step.condition as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+            orderIndex,
+          })),
+        },
+      },
+      include: { steps: { orderBy: { orderIndex: "asc" } } },
+    });
+  });
+
+  return { data: { blueprintKey: key, module: blueprint.module, definition: serializeDefinition(definition) } };
+}
+
 export async function createDefinition(input: CreateDefinitionInput) {
   const ruleSet = new Set<string>(APPROVER_RULES);
   for (const s of input.steps) {
