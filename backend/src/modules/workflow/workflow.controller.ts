@@ -19,6 +19,16 @@ export const createDefinition = asyncHandler(async (req: Request, res: Response)
   sendSuccess(res, result.data, undefined, 201);
 });
 
+export const listBlueprints = asyncHandler(async (_req: Request, res: Response) => {
+  const result = await workflowService.listBlueprints();
+  sendSuccess(res, result.data);
+});
+
+export const installBlueprint = asyncHandler(async (req: Request, res: Response) => {
+  const result = await workflowService.installBlueprint(req.params.key);
+  sendSuccess(res, result.data, undefined, 201);
+});
+
 export const deactivateDefinition = asyncHandler(async (req: Request, res: Response) => {
   const result = await workflowService.deactivateDefinition(req.params.id);
   sendSuccess(res, result.data);

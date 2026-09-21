@@ -66,6 +66,10 @@ router.post("/definitions", authenticate, manageAccess, validate({ body: createD
 router.put("/definitions/:id/deactivate", authenticate, manageAccess, workflowController.deactivateDefinition);
 router.delete("/definitions/:id", authenticate, manageAccess, workflowController.deleteDefinition);
 
+// Module-specific workflow blueprint library
+router.get("/blueprints", authenticate, viewAccess, workflowController.listBlueprints);
+router.post("/blueprints/:key/install", authenticate, manageAccess, workflowController.installBlueprint);
+
 // Instances
 router.get("/instances", authenticate, viewAccess, workflowController.listInstances);
 router.post("/instances", authenticate, viewAccess, validate({ body: submitBodySchema }), workflowController.submitRequest);

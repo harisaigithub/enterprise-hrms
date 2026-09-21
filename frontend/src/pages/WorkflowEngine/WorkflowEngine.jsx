@@ -2,14 +2,14 @@
  * Workflow Engine Page
  * Module 21 — Generic approval engine
  * Tabs: Instances & Approvals | Definitions | Event Log
- * Wired to the real backend via Workflowengineservice (→ /api/workflow).
+ * Wired to the real backend via workflowEngineService (→ /api/workflow).
  *
  * Golden Rule #5 is enforced server-side: an approver can never approve their
  * own request (data anomalies auto-escalate one level up instead).
  */
 
 import { useState, useEffect } from "react";
-import { GitBranch, ListChecks, History, Plus, RefreshCw, Check, X, UserPlus } from "lucide-react";
+import { GitBranch, ListChecks, History, Plus, RefreshCw, Check, X, UserPlus, LibraryBig, Sparkles, ShieldCheck } from "lucide-react";
 import MainLayout from "../../components/layout/MainLayout";
 import PageHeader from "../../components/shared/PageHeader";
 import StatusBadge from "../../components/shared/StatusBadge";
@@ -19,6 +19,8 @@ import { useAuth } from "../../context/AuthContext";
 import {
   getRoster,
   getDefinitions,
+  getBlueprints,
+  installBlueprint,
   addDefinition,
   deactivateDefinition,
   deleteDefinition,
@@ -58,6 +60,7 @@ const APPROVER_RULES = [
 
 const TABS = [
   { key: "instances", label: "Instances & Approvals", icon: ListChecks },
+  { key: "blueprints", label: "Workflow Library", icon: LibraryBig },
   { key: "definitions", label: "Definitions", icon: GitBranch },
   { key: "events", label: "Event Log", icon: History },
 ];
@@ -138,6 +141,7 @@ export default function WorkflowEngine() {
 
   const [roster, setRoster] = useState([]);
   const [definitions, setDefinitions] = useState([]);
+  const [blueprints, setBlueprints] = useState([]);
   const [instances, setInstances] = useState([]);
   const [events, setEvents] = useState([]);
 
@@ -152,11 +156,12 @@ export default function WorkflowEngine() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([getRoster(), getDefinitions(), getInstances(), getEventLog()])
-      .then(([r, d, i, e]) => {
+    Promise.all([getRoster(), getDefinitions(), getBlueprints(), getInstances(), getEventLog()])
+      .then(([r, d, b, i, e]) => {
         if (cancelled) return;
         setRoster(r.data || []);
         setDefinitions(d.data || []);
+        setBlueprints(b.data || []);
         setInstances(i.data || []);
         setEvents(e.data || []);
       })
@@ -172,8 +177,9 @@ export default function WorkflowEngine() {
   const refresh = async (part) => {
     setBusy(part);
     try {
-      const [d, i, e] = await Promise.all([getDefinitions(), getInstances(), getEventLog()]);
+      const [d, b, i, e] = await Promise.all([getDefinitions(), getBlueprints(), getInstances(), getEventLog()]);
       setDefinitions(d.data || []);
+      setBlueprints(b.data || []);
       setInstances(i.data || []);
       setEvents(e.data || []);
     } catch (err) {
@@ -223,6 +229,19 @@ export default function WorkflowEngine() {
       await refresh("sla");
     } catch (err) {
       flash(err.message || "SLA check failed");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleInstallBlueprint = async (blueprint) => {
+    setBusy(`blueprint-${blueprint.key}`);
+    try {
+      await installBlueprint(blueprint.key);
+      flash(`${blueprint.module} workflow installed and activated`);
+      await refresh("blueprints");
+    } catch (err) {
+      flash(err.message || "Workflow installation failed");
     } finally {
       setBusy(null);
     }
@@ -383,6 +402,79 @@ export default function WorkflowEngine() {
       </div>
     </SectionCard>
   );
+
+  const renderBlueprints = () => {
+    const installedCount = blueprints.filter((blueprint) => blueprint.installed).length;
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        <SectionCard style={{ padding: "20px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "20px", alignItems: "center", flexWrap: "wrap" }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+                <Sparkles size={18} color="var(--primary)" />
+                <h3 style={{ fontSize: "16px", fontWeight: 700, color: "var(--text)" }}>Enterprise Workflow Coverage</h3>
+              </div>
+              <p style={{ color: "var(--subtext)", fontSize: "13px", lineHeight: 1.5 }}>
+                Install module-specific approval chains with conditional routing, parallel sign-offs, SLA escalation and self-approval protection.
+              </p>
+            </div>
+            <div style={{ minWidth: "210px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--subtext)", marginBottom: "7px" }}>
+                <span>{installedCount} of {blueprints.length} modules covered</span>
+                <strong style={{ color: "var(--text)" }}>{blueprints.length ? Math.round((installedCount / blueprints.length) * 100) : 0}%</strong>
+              </div>
+              <div style={{ height: "8px", background: "var(--bg)", borderRadius: "99px", overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${blueprints.length ? (installedCount / blueprints.length) * 100 : 0}%`, background: "var(--primary)", borderRadius: "99px" }} />
+              </div>
+            </div>
+          </div>
+        </SectionCard>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "14px" }}>
+          {blueprints.map((blueprint) => (
+            <SectionCard key={blueprint.key} style={{ padding: "18px", display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+                <div>
+                  <span style={{ display: "inline-block", padding: "3px 8px", borderRadius: "99px", background: "var(--primary-light)", color: "var(--primary)", fontSize: "11px", fontWeight: 700, marginBottom: "8px" }}>
+                    {blueprint.module}
+                  </span>
+                  <h3 style={{ fontSize: "15px", fontWeight: 700, color: "var(--text)" }}>{blueprint.title}</h3>
+                </div>
+                {blueprint.installed && <ShieldCheck size={20} color="#16a34a" />}
+              </div>
+              <p style={{ fontSize: "12.5px", color: "var(--subtext)", lineHeight: 1.5 }}>{blueprint.description}</p>
+              <div style={{ fontSize: "12px", color: "var(--subtext)" }}>
+                <strong style={{ color: "var(--text)" }}>Trigger:</strong> {blueprint.trigger}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {blueprint.steps.map((step, index) => (
+                  <div key={`${blueprint.key}-${index}`} style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "12px", color: "var(--text)" }}>
+                    <span style={{ width: "20px", height: "20px", borderRadius: "50%", background: "var(--bg)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: "var(--primary)", flexShrink: 0 }}>{index + 1}</span>
+                    <span>{step.name}</span>
+                    {step.condition && <span style={{ color: "#0284c7" }}>• conditional</span>}
+                    {step.parallelGroup && <span style={{ color: "#d97706" }}>• parallel</span>}
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                {blueprint.attributes.map((attribute) => (
+                  <code key={attribute} style={{ fontSize: "10.5px", padding: "3px 6px", background: "var(--bg)", color: "var(--subtext)", borderRadius: "4px" }}>{attribute}</code>
+                ))}
+              </div>
+              <button
+                onClick={() => handleInstallBlueprint(blueprint)}
+                disabled={!canWrite || busy === `blueprint-${blueprint.key}`}
+                style={{ ...btnPrimary, marginTop: "auto", justifyContent: "center", opacity: !canWrite ? 0.55 : 1 }}
+              >
+                {blueprint.installed ? <RefreshCw size={14} /> : <Plus size={14} />}
+                {blueprint.installed ? "Reinstall latest blueprint" : "Install workflow"}
+              </button>
+            </SectionCard>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   const renderDefinitions = () => (
     <SectionCard>
@@ -708,6 +800,7 @@ export default function WorkflowEngine() {
         ) : (
           <>
             {activeTab === "instances" && renderInstances()}
+            {activeTab === "blueprints" && renderBlueprints()}
             {activeTab === "definitions" && renderDefinitions()}
             {activeTab === "events" && renderEvents()}
           </>
