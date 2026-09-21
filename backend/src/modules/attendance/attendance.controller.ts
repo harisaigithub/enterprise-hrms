@@ -4,6 +4,19 @@ import { sendSuccess } from "../../lib/response";
 import * as attendanceService from "./attendance.service";
 import { AppError } from "../../lib/errors";
 
+function regularizationActor(req: Request) {
+  if (!req.auth?.employeeId || !req.auth.employeeCode) {
+    throw AppError.forbidden("A linked employee profile is required for attendance regularization");
+  }
+  return {
+    userId: req.auth.sub,
+    employeeId: req.auth.employeeId,
+    employeeCode: req.auth.employeeCode,
+    role: req.auth.role,
+    name: req.auth.name || `${req.auth.firstName ?? ""} ${req.auth.lastName ?? ""}`.trim() || req.auth.employeeCode,
+  };
+}
+
 export const list = asyncHandler(async (req: Request, res: Response) => {
   const q = req.query as Record<string, string | undefined>;
   const result = await attendanceService.listAttendance(
@@ -51,12 +64,11 @@ export const doEndBreak = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const requestRegularization = asyncHandler(async (req: Request, res: Response) => {
-  if (!req.auth) throw AppError.unauthorized();
-  const employeeCode = req.body.employeeId ?? req.auth.employeeCode;
+  const actor = regularizationActor(req);
   const result = await attendanceService.requestRegularization(
-    employeeCode,
+    actor.employeeCode,
     req.body,
-    req.auth.employeeId
+    actor
   );
   sendSuccess(res, result.data, undefined, 201);
 });
@@ -73,12 +85,12 @@ export const listRegularizations = asyncHandler(async (req: Request, res: Respon
 });
 
 export const decideRegularization = asyncHandler(async (req: Request, res: Response) => {
-  if (!req.auth) throw AppError.unauthorized();
-  const result = await attendanceService.decideRegularization(
-    req.params.id,
-    req.body,
-    req.auth.sub
-  );
+  const result = await attendanceService.actOnRegularization(req.params.id, req.body, regularizationActor(req));
+  sendSuccess(res, result.data);
+});
+
+export const resubmitRegularization = asyncHandler(async (req: Request, res: Response) => {
+  const result = await attendanceService.resubmitRegularization(req.params.id, req.body, regularizationActor(req));
   sendSuccess(res, result.data);
 });
 

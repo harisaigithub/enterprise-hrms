@@ -271,15 +271,16 @@ model Employee {
   interviewPanels     InterviewPanel[]     @relation("InterviewPanels")
   interviewScorecards InterviewScorecard[] @relation("InterviewScorecards")
 
-  leaveBalances     LeaveBalance[]
-  leaveRequests     LeaveRequest[]     @relation("LeaveRequestsSubmitted")
-  approvedLeaves    LeaveRequest[]     @relation("LeaveRequestsApproved")
-  attendancePunches AttendancePunch[]
-  attendanceBreaks  AttendanceBreak[]
-  salaryStructures  SalaryStructure[]
-  payslips          Payslip[]
-  approvedRuns      PayrollRun[]       @relation("PayrollRunApprovedBy")
-  workflowRequests  WorkflowInstance[]
+  leaveBalances                   LeaveBalance[]
+  leaveRequests                   LeaveRequest[]                    @relation("LeaveRequestsSubmitted")
+  approvedLeaves                  LeaveRequest[]                    @relation("LeaveRequestsApproved")
+  attendancePunches               AttendancePunch[]
+  attendanceBreaks                AttendanceBreak[]
+  salaryStructures                SalaryStructure[]
+  payslips                        Payslip[]
+  approvedRuns                    PayrollRun[]                      @relation("PayrollRunApprovedBy")
+  workflowRequests                WorkflowInstance[]
+  attendanceRegularizationHistory AttendanceRegularizationHistory[]
 
   performanceGoals PerformanceGoal[]
   reviewsSubject   PerformanceReview[]        @relation("PerformanceReviewSubject")
@@ -721,11 +722,12 @@ model WorkflowInstance {
   resolutionFailure String?  @map("resolution_failure") @db.Text
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
-  definition    WorkflowDefinition     @relation(fields: [definitionId], references: [id], onDelete: Restrict)
-  requester     Employee               @relation(fields: [requesterId], references: [id], onDelete: Restrict)
-  steps         WorkflowInstanceStep[]
-  events        WorkflowEvent[]
-  expenseClaims ExpenseClaim[]         @relation("ExpenseClaimWorkflow")
+  definition                WorkflowDefinition         @relation(fields: [definitionId], references: [id], onDelete: Restrict)
+  requester                 Employee                   @relation(fields: [requesterId], references: [id], onDelete: Restrict)
+  steps                     WorkflowInstanceStep[]
+  events                    WorkflowEvent[]
+  expenseClaims             ExpenseClaim[]             @relation("ExpenseClaimWorkflow")
+  attendanceRegularizations AttendanceRegularization[]
 
   @@index([requesterId])
   @@index([status])
@@ -1951,25 +1953,47 @@ model AttendanceBreak {
 }
 
 model AttendanceRegularization {
-  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  employeeId        String    @map("employee_id") @db.Uuid
-  date              DateTime  @db.Date
-  originalStatus    String    @map("original_status") @db.VarChar(30)
-  requestedStatus   String    @map("requested_status") @db.VarChar(30)
-  requestedPunchIn  DateTime? @map("requested_punch_in") @db.Timestamp(6)
-  requestedPunchOut DateTime? @map("requested_punch_out") @db.Timestamp(6)
-  reason            String    @db.Text
-  status            String    @default("Pending") @db.VarChar(30)
-  approverId        String?   @map("approver_id") @db.Uuid
-  decisionNotes     String?   @map("decision_notes") @db.Text
-  decidedAt         DateTime? @map("decided_at") @db.Timestamp(6)
-  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId         String    @map("employee_id") @db.Uuid
+  date               DateTime  @db.Date
+  originalStatus     String    @map("original_status") @db.VarChar(30)
+  requestedStatus    String    @map("requested_status") @db.VarChar(30)
+  requestedPunchIn   DateTime? @map("requested_punch_in") @db.Timestamp(6)
+  requestedPunchOut  DateTime? @map("requested_punch_out") @db.Timestamp(6)
+  reason             String    @db.Text
+  status             String    @default("Submitted") @db.VarChar(40)
+  approverId         String?   @map("approver_id") @db.Uuid
+  workflowInstanceId String?   @unique @map("workflow_instance_id") @db.Uuid
+  decisionNotes      String?   @map("decision_notes") @db.Text
+  decidedAt          DateTime? @map("decided_at") @db.Timestamp(6)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
 
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee         Employee                          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  workflowInstance WorkflowInstance?                 @relation(fields: [workflowInstanceId], references: [id], onDelete: SetNull)
+  history          AttendanceRegularizationHistory[]
 
   @@index([employeeId])
   @@index([date])
+  @@index([status])
   @@map("attendance_regularizations")
+}
+
+model AttendanceRegularizationHistory {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  regularizationId String   @map("regularization_id") @db.Uuid
+  actorEmployeeId  String?  @map("actor_employee_id") @db.Uuid
+  action           String   @db.VarChar(40)
+  fromStatus       String?  @map("from_status") @db.VarChar(40)
+  toStatus         String   @map("to_status") @db.VarChar(40)
+  comment          String?  @db.Text
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  regularization AttendanceRegularization @relation(fields: [regularizationId], references: [id], onDelete: Cascade)
+  actor          Employee?                @relation(fields: [actorEmployeeId], references: [id], onDelete: SetNull)
+
+  @@index([regularizationId, createdAt])
+  @@map("attendance_regularization_history")
 }
 
 model EmployeeRequest {
