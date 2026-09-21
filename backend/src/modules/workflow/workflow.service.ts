@@ -290,12 +290,12 @@ export const WORKFLOW_BLUEPRINTS: WorkflowBlueprint[] = [
     module: "Attendance",
     title: "Attendance Regularization",
     requestType: "Attendance Regularization",
-    description: "Manager decision with HR escalation for repeated corrections.",
+    description: "Manager review followed by HR verification before attendance is changed.",
     trigger: "Employee requests a punch correction",
     attributes: ["monthly_request_count"],
     steps: [
       { name: "Manager Review", approverRule: "Direct Reporting Manager", slaHours: 12 },
-      { name: "HR Exception Review", approverRule: "Named Role: HR", slaHours: 24, condition: { field: "monthly_request_count", operator: ">", value: 2 } },
+      { name: "HR Verification", approverRule: "Named Role: HR", slaHours: 24 },
     ],
   },
   {

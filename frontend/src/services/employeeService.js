@@ -181,7 +181,12 @@ export const getRegularizations = async () => {
 };
 
 export const decideRegularization = async (id, payload) => {
-  const res = await api.patch(`/attendance/regularizations/${id}/decide`, payload);
+  const res = await api.patch(`/attendance/regularizations/${id}/act`, payload);
+  return res.data;
+};
+
+export const resubmitRegularization = async (id, payload) => {
+  const res = await api.patch(`/attendance/regularizations/${id}/resubmit`, payload);
   return res.data;
 };
 

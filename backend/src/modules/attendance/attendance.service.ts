@@ -2,6 +2,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
 import { writeAuditLog } from "../../services/audit.service";
+import { createInAppForEmployee } from "../notifications/notifications.service";
+import * as workflowService from "../workflow/workflow.service";
 import { serializeAttendanceList, serializeTeamSummary } from "../../serializers/attendance.serializer";
 import { formatDate } from "../../serializers/helpers";
 import { startOfDay } from "../../serializers/helpers";
@@ -303,26 +305,98 @@ export async function endBreak(employeeId: string, actorUserId: string) {
 /*                         Attendance Regularization                          */
 /* -------------------------------------------------------------------------- */
 
+const REGULARIZATION_ACTIVE_STATUSES = ["Submitted", "More Details Required", "Resubmitted", "Manager Approved"];
+const REGULARIZATION_REQUEST_TYPE = "Attendance Regularization";
+
+type RegularizationActor = {
+  userId: string;
+  employeeId: string;
+  employeeCode: string;
+  role: string;
+  name: string;
+};
+
+type RegularizationInput = {
+  date: string;
+  requestedStatus: string;
+  requestedPunchIn?: string;
+  requestedPunchOut?: string;
+  reason: string;
+};
+
+function validateRegularizationInput(input: RegularizationInput) {
+  const targetDate = startOfDay(new Date(`${input.date}T00:00:00Z`));
+  if (Number.isNaN(targetDate.getTime())) throw AppError.badRequest("A valid attendance date is required");
+  if (targetDate.getTime() >= startOfDay(new Date()).getTime()) {
+    throw AppError.badRequest("Regularization is allowed only for past attendance dates");
+  }
+
+  const punchIn = input.requestedPunchIn ? new Date(input.requestedPunchIn) : null;
+  const punchOut = input.requestedPunchOut ? new Date(input.requestedPunchOut) : null;
+  if (!punchIn || !punchOut || Number.isNaN(punchIn.getTime()) || Number.isNaN(punchOut.getTime())) {
+    throw AppError.badRequest("Valid requested punch-in and punch-out times are required");
+  }
+  if (punchOut <= punchIn) throw AppError.badRequest("Punch-out must be later than punch-in");
+  const hours = (punchOut.getTime() - punchIn.getTime()) / 3600000;
+  if (hours > 18) throw AppError.badRequest("Requested work duration cannot exceed 18 hours");
+  return { targetDate, punchIn, punchOut };
+}
+
+async function notifyEmployee(employeeId: string, title: string, body: string) {
+  await createInAppForEmployee({ employeeId, title, body, category: "Attendance Regularization", link: "/attendance" });
+}
+
+async function notifyHr(title: string, body: string) {
+  const recipients = await prisma.employee.findMany({
+    where: { user: { role: { name: { in: ["HR", "ADMIN"] } }, isActive: true } },
+    select: { id: true },
+  });
+  await Promise.all(recipients.map((employee) => notifyEmployee(employee.id, title, body)));
+}
+
+async function activeAttendanceDefinition() {
+  const definition = await prisma.workflowDefinition.findFirst({
+    where: { requestType: REGULARIZATION_REQUEST_TYPE, status: "Active" },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+  if (!definition) {
+    throw AppError.conflict("Attendance Regularization workflow is not installed. Install it from Workflow Library first.");
+  }
+  return definition;
+}
+
 export async function requestRegularization(
   employeeCode: string,
-  input: {
-    date: string;
-    requestedStatus: string;
-    requestedPunchIn?: string;
-    requestedPunchOut?: string;
-    reason: string;
-  },
-  actorEmployeeId?: string
+  input: RegularizationInput,
+  actor: RegularizationActor
 ) {
-  const empId = await resolveEmployeeId(employeeCode, actorEmployeeId);
-  const targetDate = startOfDay(new Date(input.date));
+  const empId = await resolveEmployeeId(employeeCode, actor.employeeId);
+  const { targetDate, punchIn, punchOut } = validateRegularizationInput(input);
 
-  // Find original punch if any
+  const duplicate = await prisma.attendanceRegularization.findFirst({
+    where: { employeeId: empId, date: targetDate, status: { in: REGULARIZATION_ACTIVE_STATUSES } },
+    select: { id: true, status: true },
+  });
+  if (duplicate) throw AppError.conflict(`An active regularization request already exists for this date (${duplicate.status})`);
+
+  const monthStart = new Date(Date.UTC(targetDate.getUTCFullYear(), targetDate.getUTCMonth(), 1));
+  const monthEnd = new Date(Date.UTC(targetDate.getUTCFullYear(), targetDate.getUTCMonth() + 1, 1));
+  const monthlyRequestCount = await prisma.attendanceRegularization.count({
+    where: { employeeId: empId, date: { gte: monthStart, lt: monthEnd } },
+  });
+  const definition = await activeAttendanceDefinition();
+
   const existingPunch = await prisma.attendancePunch.findUnique({
     where: { employeeId_punchDate: { employeeId: empId, punchDate: targetDate } },
   });
-
   const originalStatus = existingPunch?.status || "Absent";
+
+  const workflow = await workflowService.submitRequest(definition.id, employeeCode, {
+    source_module: "Attendance",
+    attendance_date: input.date,
+    monthly_request_count: monthlyRequestCount + 1,
+  });
 
   const reg = await prisma.attendanceRegularization.create({
     data: {
@@ -330,12 +404,22 @@ export async function requestRegularization(
       date: targetDate,
       originalStatus,
       requestedStatus: input.requestedStatus || "Present",
-      requestedPunchIn: input.requestedPunchIn ? new Date(input.requestedPunchIn) : null,
-      requestedPunchOut: input.requestedPunchOut ? new Date(input.requestedPunchOut) : null,
+      requestedPunchIn: punchIn,
+      requestedPunchOut: punchOut,
       reason: input.reason,
-      status: "Pending",
+      status: "Submitted",
+      workflowInstanceId: workflow.data.id,
+      history: {
+        create: { actorEmployeeId: actor.employeeId, action: "SUBMIT", toStatus: "Submitted", comment: input.reason },
+      },
     },
   });
+
+  const manager = await prisma.employee.findUnique({ where: { id: empId }, select: { reportingManagerId: true } });
+  if (manager?.reportingManagerId) {
+    await notifyEmployee(manager.reportingManagerId, "Attendance correction awaiting review", `${actor.name} submitted a correction for ${input.date}.`);
+  }
+  await writeAuditLog({ actorUserId: actor.userId, action: "CREATE", entityType: "AttendanceRegularization", entityId: reg.id, newValue: { status: reg.status, date: input.date } });
 
   return { data: reg };
 }
@@ -364,6 +448,11 @@ export async function listRegularizations(filters: { employeeId?: string; status
       employee: {
         select: { employeeCode: true, firstName: true, lastName: true, avatarUrl: true, department: { select: { name: true } } },
       },
+      history: {
+        include: { actor: { select: { employeeCode: true, firstName: true, lastName: true } } },
+        orderBy: { createdAt: "asc" },
+      },
+      workflowInstance: { select: { id: true, status: true, currentStepIndex: true } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -385,43 +474,101 @@ export async function listRegularizations(filters: { employeeId?: string; status
       decisionNotes: r.decisionNotes,
       decidedAt: r.decidedAt ? r.decidedAt.toISOString() : null,
       createdAt: r.createdAt.toISOString(),
+      updatedAt: r.updatedAt.toISOString(),
+      workflow: r.workflowInstance,
+      history: r.history.map((item) => ({
+        id: item.id,
+        action: item.action,
+        fromStatus: item.fromStatus,
+        toStatus: item.toStatus,
+        comment: item.comment,
+        actorName: item.actor ? `${item.actor.firstName} ${item.actor.lastName}` : "System",
+        actorEmployeeId: item.actor?.employeeCode ?? null,
+        createdAt: item.createdAt.toISOString(),
+      })),
     })),
   };
 }
 
-export async function decideRegularization(
+export async function actOnRegularization(
   id: string,
-  decision: { status: "Approved" | "Rejected"; decisionNotes?: string },
-  actorUserId?: string
+  decision: { action: "APPROVE" | "REJECT" | "REQUEST_MORE_DETAILS"; comment?: string },
+  actor: RegularizationActor
 ) {
   const reg = await prisma.attendanceRegularization.findUnique({
     where: { id },
-    include: { employee: true },
+    include: { employee: { select: { employeeCode: true, firstName: true, lastName: true, reportingManagerId: true } } },
   });
   if (!reg) throw AppError.notFound("Regularization request not found");
-  if (reg.status !== "Pending") {
-    throw AppError.conflict(`Request has already been ${reg.status.toLowerCase()}`);
+  if (["Approved", "Rejected"].includes(reg.status)) throw AppError.conflict(`Request is already ${reg.status.toLowerCase()}`);
+  if (reg.employeeId === actor.employeeId) throw AppError.forbidden("You cannot approve your own attendance correction");
+  if (!reg.workflowInstanceId) throw AppError.conflict("This request is not linked to a workflow instance");
+
+  const isManager = actor.role === "MANAGER";
+  const isHr = actor.role === "HR" || actor.role === "ADMIN";
+  if (isManager && reg.employee.reportingManagerId !== actor.employeeId) {
+    throw AppError.forbidden("Managers can act only on requests from their direct reports");
+  }
+  if (!isManager && !isHr) throw AppError.forbidden("Only the reporting manager or HR can act on this request");
+
+  if (decision.action !== "APPROVE" && !decision.comment?.trim()) {
+    throw AppError.badRequest("A comment is required when rejecting or requesting more details");
   }
 
-  const isApproved = decision.status === "Approved";
+  if (decision.action === "REQUEST_MORE_DETAILS") {
+    if (!isManager || !["Submitted", "Resubmitted"].includes(reg.status)) {
+      throw AppError.badRequest("More details can be requested only by the reporting manager during manager review");
+    }
+    const updated = await prisma.$transaction(async (tx) => {
+      const row = await tx.attendanceRegularization.update({
+        where: { id },
+        data: { status: "More Details Required", decisionNotes: decision.comment, approverId: actor.employeeId },
+      });
+      await tx.attendanceRegularizationHistory.create({
+        data: { regularizationId: id, actorEmployeeId: actor.employeeId, action: decision.action, fromStatus: reg.status, toStatus: row.status, comment: decision.comment },
+      });
+      return row;
+    });
+    await notifyEmployee(reg.employeeId, "Attendance correction needs more details", decision.comment!);
+    await writeAuditLog({ actorUserId: actor.userId, action: "UPDATE", entityType: "AttendanceRegularization", entityId: id, oldValue: { status: reg.status }, newValue: { status: updated.status, comment: decision.comment } });
+    return { data: updated };
+  }
 
-  const updatedReg = await prisma.attendanceRegularization.update({
-    where: { id },
-    data: {
-      status: decision.status,
-      decisionNotes: decision.decisionNotes || (isApproved ? "Approved by manager" : "Rejected"),
-      approverId: actorUserId || null,
-      decidedAt: new Date(),
-    },
-  });
+  if (isManager && !["Submitted", "Resubmitted"].includes(reg.status)) throw AppError.badRequest("This request is not awaiting manager review");
+  if (isHr && reg.status !== "Manager Approved") throw AppError.badRequest("HR can act only after manager approval");
 
-  // If approved, update the attendance punch
-  if (isApproved) {
-    const punchIn = reg.requestedPunchIn || new Date(`${formatDate(reg.date)}T09:00:00Z`);
-    const punchOut = reg.requestedPunchOut || new Date(`${formatDate(reg.date)}T18:00:00Z`);
-    const actualHours = Math.round(((punchOut.getTime() - punchIn.getTime()) / (1000 * 60 * 60)) * 100) / 100;
+  const workflowAction = decision.action === "APPROVE" ? "approve" : "reject";
+  await workflowService.actOnStep(reg.workflowInstanceId, actor.employeeCode, actor.name, workflowAction, decision.comment, { bypassRoleApprover: isHr });
 
-    await prisma.attendancePunch.upsert({
+  if (decision.action === "REJECT") {
+    const updated = await prisma.$transaction(async (tx) => {
+      const row = await tx.attendanceRegularization.update({ where: { id }, data: { status: "Rejected", decisionNotes: decision.comment, approverId: actor.employeeId, decidedAt: new Date() } });
+      await tx.attendanceRegularizationHistory.create({ data: { regularizationId: id, actorEmployeeId: actor.employeeId, action: "REJECT", fromStatus: reg.status, toStatus: "Rejected", comment: decision.comment } });
+      return row;
+    });
+    await notifyEmployee(reg.employeeId, "Attendance correction rejected", decision.comment!);
+    await writeAuditLog({ actorUserId: actor.userId, action: "REJECT", entityType: "AttendanceRegularization", entityId: id, oldValue: { status: reg.status }, newValue: { status: "Rejected", comment: decision.comment } });
+    return { data: updated };
+  }
+
+  if (isManager) {
+    const updated = await prisma.$transaction(async (tx) => {
+      const row = await tx.attendanceRegularization.update({ where: { id }, data: { status: "Manager Approved", decisionNotes: decision.comment || "Approved by reporting manager", approverId: actor.employeeId } });
+      await tx.attendanceRegularizationHistory.create({ data: { regularizationId: id, actorEmployeeId: actor.employeeId, action: "MANAGER_APPROVE", fromStatus: reg.status, toStatus: "Manager Approved", comment: decision.comment } });
+      return row;
+    });
+    await notifyHr("Attendance correction awaiting HR verification", `${reg.employee.firstName} ${reg.employee.lastName}'s correction requires final verification.`);
+    await writeAuditLog({ actorUserId: actor.userId, action: "APPROVE", entityType: "AttendanceRegularization", entityId: id, oldValue: { status: reg.status }, newValue: { status: updated.status } });
+    return { data: updated };
+  }
+
+  const punchIn = reg.requestedPunchIn!;
+  const punchOut = reg.requestedPunchOut!;
+  const actualHours = Math.round(((punchOut.getTime() - punchIn.getTime()) / 3600000) * 100) / 100;
+  const overtimeHours = Math.max(0, Math.round((actualHours - 8) * 100) / 100);
+
+  const updated = await prisma.$transaction(async (tx) => {
+    await tx.attendancePunch.upsert({
       where: {
         employeeId_punchDate: { employeeId: reg.employeeId, punchDate: reg.date },
       },
@@ -430,6 +577,7 @@ export async function decideRegularization(
         punchIn,
         punchOut,
         actualHours,
+        overtimeHours,
       },
       create: {
         employeeId: reg.employeeId,
@@ -438,19 +586,46 @@ export async function decideRegularization(
         punchIn,
         punchOut,
         actualHours,
+        overtimeHours,
         scheduledHours: 8.0,
       },
     });
+    const row = await tx.attendanceRegularization.update({ where: { id }, data: { status: "Approved", decisionNotes: decision.comment || "Verified by HR", approverId: actor.employeeId, decidedAt: new Date() } });
+    await tx.attendanceRegularizationHistory.create({ data: { regularizationId: id, actorEmployeeId: actor.employeeId, action: "HR_APPROVE", fromStatus: reg.status, toStatus: "Approved", comment: decision.comment } });
+    return row;
+  });
+  await notifyEmployee(reg.employeeId, "Attendance correction approved", `Your attendance for ${formatDate(reg.date)} has been updated after HR verification.`);
+  await writeAuditLog({
+    actorUserId: actor.userId,
+    action: "APPROVE",
+    entityType: "AttendanceRegularization",
+    entityId: id,
+    oldValue: { status: reg.status },
+    newValue: { status: "Approved", attendanceStatus: reg.requestedStatus, actualHours },
+  });
+  return { data: updated };
+}
 
-    writeAuditLog({
-      action: "UPDATE",
-      entityType: "AttendancePunch",
-      entityId: reg.id,
-      newValue: { employeeId: reg.employeeId, date: formatDate(reg.date), status: reg.requestedStatus },
+export async function resubmitRegularization(id: string, input: RegularizationInput, actor: RegularizationActor) {
+  const reg = await prisma.attendanceRegularization.findUnique({ where: { id } });
+  if (!reg) throw AppError.notFound("Regularization request not found");
+  if (reg.employeeId !== actor.employeeId) throw AppError.forbidden("You can resubmit only your own request");
+  if (reg.status !== "More Details Required") throw AppError.conflict("Only a request awaiting more details can be resubmitted");
+  const { targetDate, punchIn, punchOut } = validateRegularizationInput(input);
+  if (targetDate.getTime() !== reg.date.getTime()) throw AppError.badRequest("The attendance date cannot be changed during resubmission");
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const row = await tx.attendanceRegularization.update({
+      where: { id },
+      data: { requestedStatus: input.requestedStatus, requestedPunchIn: punchIn, requestedPunchOut: punchOut, reason: input.reason, status: "Resubmitted", decisionNotes: null },
     });
-  }
-
-  return { data: updatedReg };
+    await tx.attendanceRegularizationHistory.create({ data: { regularizationId: id, actorEmployeeId: actor.employeeId, action: "RESUBMIT", fromStatus: reg.status, toStatus: "Resubmitted", comment: input.reason } });
+    return row;
+  });
+  const manager = await prisma.employee.findUnique({ where: { id: reg.employeeId }, select: { reportingManagerId: true } });
+  if (manager?.reportingManagerId) await notifyEmployee(manager.reportingManagerId, "Attendance correction resubmitted", `${actor.name} added the requested details.`);
+  await writeAuditLog({ actorUserId: actor.userId, action: "UPDATE", entityType: "AttendanceRegularization", entityId: id, oldValue: { status: reg.status }, newValue: { status: updated.status } });
+  return { data: updated };
 }
 
 /* -------------------------------------------------------------------------- */

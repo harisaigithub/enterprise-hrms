@@ -43,6 +43,7 @@ import {
   requestRegularization,
   getRegularizations,
   decideRegularization,
+  resubmitRegularization,
 } from "../../services/employeeService";
 import { useAuth } from "../../context/AuthContext";
 import { attendanceStatusMeta } from "../../mock/attendance";
@@ -607,11 +608,12 @@ export default function Attendance() {
     }
   }, [todayStr, storageKey]);
 
+  const authenticatedEmployeeCode = user?.id;
   const fetchAttendance = useCallback(() => {
-    if (!user?.id) return;
+    if (!authenticatedEmployeeCode) return;
     setLoading(true);
     Promise.all([
-      getMyAttendance({ employeeId: user.id, month, year }),
+      getMyAttendance({ employeeId: authenticatedEmployeeCode, month, year }),
       getTeamSummary(),
     ])
       .then(([recRes, sumRes]) => {
@@ -624,10 +626,11 @@ export default function Attendance() {
         console.error("Attendance fetch error:", err);
       })
       .finally(() => setLoading(false));
-  }, [user?.id, month, year, syncWithServerRecords]);
+  }, [authenticatedEmployeeCode, month, year, syncWithServerRecords]);
 
   useEffect(() => {
-    fetchAttendance();
+    const timer = window.setTimeout(fetchAttendance, 0);
+    return () => window.clearTimeout(timer);
   }, [fetchAttendance]);
 
   // Regularization States
@@ -640,6 +643,7 @@ export default function Attendance() {
   const [regReason, setRegReason] = useState("");
   const [submittingReg, setSubmittingReg] = useState(false);
   const [regularizationsList, setRegularizationsList] = useState([]);
+  const [editingRegularization, setEditingRegularization] = useState(null);
 
   const loadRegularizations = useCallback(async () => {
     try {
@@ -660,8 +664,9 @@ export default function Attendance() {
     try {
       await requestRegularization({
         date: regDate,
-        punchIn: `${regDate}T${regCheckIn}:00Z`,
-        punchOut: `${regDate}T${regCheckOut}:00Z`,
+        requestedStatus: "Present",
+        requestedPunchIn: `${regDate}T${regCheckIn}:00.000Z`,
+        requestedPunchOut: `${regDate}T${regCheckOut}:00.000Z`,
         reason: regReason.trim(),
       });
       setShowRegularizeModal(false);
@@ -675,12 +680,51 @@ export default function Attendance() {
     }
   };
 
-  const handleDecideRegularization = async (id, status) => {
+  const handleDecideRegularization = async (id, action) => {
+    const needsComment = action !== "APPROVE";
+    const comment = needsComment
+      ? window.prompt(action === "REJECT" ? "Enter the mandatory rejection reason:" : "What additional details are required?")
+      : window.prompt("Optional approval note:", "");
+    if (needsComment && !comment?.trim()) return;
     try {
-      await decideRegularization(id, { status });
+      await decideRegularization(id, { action, comment: comment?.trim() || undefined });
       loadRegularizations();
+      fetchAttendance();
     } catch (err) {
       alert(err.message || "Failed to decide regularization");
+    }
+  };
+
+  const beginResubmit = (reg) => {
+    setEditingRegularization(reg);
+    setRegDate(reg.date);
+    setRegCheckIn(reg.requestedPunchIn || "09:30");
+    setRegCheckOut(reg.requestedPunchOut || "18:30");
+    setRegReason(reg.reason || "");
+    setShowRegularizeModal(true);
+  };
+
+  const handleResubmit = async (e) => {
+    e.preventDefault();
+    if (!regReason.trim()) return alert("Please provide the requested details");
+    setSubmittingReg(true);
+    try {
+      await resubmitRegularization(editingRegularization.id, {
+        date: regDate,
+        requestedStatus: editingRegularization.requestedStatus || "Present",
+        requestedPunchIn: `${regDate}T${regCheckIn}:00.000Z`,
+        requestedPunchOut: `${regDate}T${regCheckOut}:00.000Z`,
+        reason: regReason.trim(),
+      });
+      setShowRegularizeModal(false);
+      setEditingRegularization(null);
+      setRegReason("");
+      await loadRegularizations();
+      alert("Regularization request resubmitted to your manager.");
+    } catch (err) {
+      alert(err.message || "Failed to resubmit regularization");
+    } finally {
+      setSubmittingReg(false);
     }
   };
 
@@ -1014,8 +1058,8 @@ export default function Attendance() {
           </div>
         )}
 
-        {/* ── Sub-tabs for Managers / HR ── */}
-        {isManagerOrHR && (
+        {/* ── Attendance and regularization workflow views ── */}
+        {
           <div style={{ display: "flex", gap: "8px", marginBottom: "20px", borderBottom: "1px solid var(--border)", paddingBottom: "10px" }}>
             <button
               onClick={() => setActiveAttendanceView("my")}
@@ -1048,16 +1092,16 @@ export default function Attendance() {
                 cursor: "pointer",
               }}
             >
-              👥 Team Regularization Requests ({regularizationsList.length})
+              {isManagerOrHR ? "👥 Team Regularization Requests" : "📝 My Regularization Requests"} ({regularizationsList.length})
             </button>
           </div>
-        )}
+        }
 
         {activeAttendanceView === "team_regularization" ? (
           <div style={{ background: "var(--card)", borderRadius: "var(--radius-lg)", border: "1px solid var(--border)", boxShadow: "var(--shadow-sm)", overflow: "hidden" }}>
             <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
-              <h3 style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Team Regularization Requests</h3>
-              <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--subtext)" }}>Review and approve missed check-in and checkout punches</p>
+              <h3 style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>{isManagerOrHR ? "Team Regularization Requests" : "My Regularization Requests"}</h3>
+              <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--subtext)" }}>Employee → Manager review → HR verification → attendance update</p>
             </div>
             {regularizationsList.length === 0 ? (
               <EmptyState icon={Clock} title="No pending regularization requests" subtitle="Your direct reports have not submitted any pending regularization requests." />
@@ -1079,8 +1123,8 @@ export default function Attendance() {
                     {regularizationsList.map((reg) => (
                       <tr key={reg.id} style={{ borderBottom: "1px solid var(--border)" }}>
                         <td style={{ padding: "12px 16px", fontWeight: 600 }}>
-                          {reg.employee ? `${reg.employee.firstName} ${reg.employee.lastName}` : "Employee"}
-                          <p style={{ margin: "2px 0 0", fontSize: "11px", color: "var(--subtext)" }}>{reg.employee?.employeeCode}</p>
+                          {reg.employeeName || "Employee"}
+                          <p style={{ margin: "2px 0 0", fontSize: "11px", color: "var(--subtext)" }}>{reg.employeeId}</p>
                         </td>
                         <td style={{ padding: "12px 16px" }}>
                           {new Date(reg.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
@@ -1089,26 +1133,40 @@ export default function Attendance() {
                         <td style={{ padding: "12px 16px", fontFamily: "monospace" }}>{reg.requestedPunchOut ? fmtTime(reg.requestedPunchOut) : "—"}</td>
                         <td style={{ padding: "12px 16px", color: "var(--label)" }}>{reg.reason}</td>
                         <td style={{ padding: "12px 16px" }}>
-                          <span style={{ fontSize: "11px", fontWeight: 700, padding: "2px 8px", borderRadius: "4px", background: reg.status === "Approved" ? "var(--green-light)" : reg.status === "Rejected" ? "var(--red-light)" : "#fffbeb", color: reg.status === "Approved" ? "var(--green)" : reg.status === "Rejected" ? "var(--red)" : "#d97706" }}>
+                          <span title={reg.decisionNotes || reg.history?.at(-1)?.comment || ""} style={{ fontSize: "11px", fontWeight: 700, padding: "2px 8px", borderRadius: "4px", background: reg.status === "Approved" ? "var(--green-light)" : reg.status === "Rejected" ? "var(--red-light)" : "#fffbeb", color: reg.status === "Approved" ? "var(--green)" : reg.status === "Rejected" ? "var(--red)" : "#d97706" }}>
                             {reg.status}
                           </span>
+                          {reg.history?.length > 0 && <p style={{ margin: "4px 0 0", fontSize: "10px", color: "var(--subtext)" }}>{reg.history.length} timeline event(s)</p>}
                         </td>
                         <td style={{ padding: "12px 16px", textAlign: "right" }}>
-                          {reg.status === "Pending" ? (
-                            <div style={{ display: "inline-flex", gap: "6px" }}>
+                          {user?.role === "MANAGER" && ["Submitted", "Resubmitted"].includes(reg.status) && reg.employeeId !== user.id ? (
+                            <div style={{ display: "inline-flex", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" }}>
                               <button
-                                onClick={() => handleDecideRegularization(reg.id, "Approved")}
+                                onClick={() => handleDecideRegularization(reg.id, "APPROVE")}
                                 style={{ padding: "5px 10px", background: "var(--green)", color: "#fff", border: "none", borderRadius: "4px", fontSize: "11.5px", fontWeight: 700, cursor: "pointer" }}
                               >
                                 Approve
                               </button>
                               <button
-                                onClick={() => handleDecideRegularization(reg.id, "Rejected")}
+                                onClick={() => handleDecideRegularization(reg.id, "REQUEST_MORE_DETAILS")}
+                                style={{ padding: "5px 10px", background: "#d97706", color: "#fff", border: "none", borderRadius: "4px", fontSize: "11.5px", fontWeight: 700, cursor: "pointer" }}
+                              >
+                                More Details
+                              </button>
+                              <button
+                                onClick={() => handleDecideRegularization(reg.id, "REJECT")}
                                 style={{ padding: "5px 10px", background: "var(--red)", color: "#fff", border: "none", borderRadius: "4px", fontSize: "11.5px", fontWeight: 700, cursor: "pointer" }}
                               >
                                 Reject
                               </button>
                             </div>
+                          ) : ["HR", "ADMIN"].includes(user?.role) && reg.status === "Manager Approved" && reg.employeeId !== user.id ? (
+                            <div style={{ display: "inline-flex", gap: "6px" }}>
+                              <button onClick={() => handleDecideRegularization(reg.id, "APPROVE")} style={{ padding: "5px 10px", background: "var(--green)", color: "#fff", border: "none", borderRadius: "4px", fontSize: "11.5px", fontWeight: 700, cursor: "pointer" }}>Verify</button>
+                              <button onClick={() => handleDecideRegularization(reg.id, "REJECT")} style={{ padding: "5px 10px", background: "var(--red)", color: "#fff", border: "none", borderRadius: "4px", fontSize: "11.5px", fontWeight: 700, cursor: "pointer" }}>Reject</button>
+                            </div>
+                          ) : reg.status === "More Details Required" && reg.employeeId === user?.id ? (
+                            <button onClick={() => beginResubmit(reg)} style={{ padding: "5px 10px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: "4px", fontSize: "11.5px", fontWeight: 700, cursor: "pointer" }}>Edit & Resubmit</button>
                           ) : (
                             <span style={{ fontSize: "11px", color: "var(--subtext)" }}>Decided</span>
                           )}
@@ -1353,8 +1411,8 @@ export default function Attendance() {
 
       {/* Modal: Request Regularization */}
       {showRegularizeModal && (
-        <Modal isOpen={showRegularizeModal} title="Request Attendance Regularization" onClose={() => setShowRegularizeModal(false)} maxWidth="480px">
-          <form onSubmit={handleRegularizeSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+        <Modal isOpen={showRegularizeModal} title={editingRegularization ? "Add Details & Resubmit" : "Request Attendance Regularization"} onClose={() => { setShowRegularizeModal(false); setEditingRegularization(null); }} maxWidth="480px">
+          <form onSubmit={editingRegularization ? handleResubmit : handleRegularizeSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
               <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Date to Regularize *</label>
               <input
@@ -1362,6 +1420,7 @@ export default function Attendance() {
                 required
                 value={regDate}
                 onChange={(e) => setRegDate(e.target.value)}
+                disabled={!!editingRegularization}
                 style={{ height: "36px", padding: "0 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontSize: "13px" }}
               />
             </div>
@@ -1401,7 +1460,7 @@ export default function Attendance() {
             <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "10px" }}>
               <button
                 type="button"
-                onClick={() => setShowRegularizeModal(false)}
+                onClick={() => { setShowRegularizeModal(false); setEditingRegularization(null); }}
                 style={{ padding: "8px 16px", background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontSize: "13px", cursor: "pointer" }}
               >
                 Cancel
@@ -1411,7 +1470,7 @@ export default function Attendance() {
                 disabled={submittingReg}
                 style={{ padding: "8px 20px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
               >
-                {submittingReg ? "Submitting…" : "Submit Request"}
+                {submittingReg ? "Submitting…" : editingRegularization ? "Resubmit Request" : "Submit Request"}
               </button>
             </div>
           </form>

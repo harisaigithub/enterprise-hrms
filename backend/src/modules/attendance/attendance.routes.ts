@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { validate } from "../../middlewares/validate";
 import { authenticate } from "../../middlewares/auth";
-import { requirePermission } from "../../middlewares/rbac";
+import { requirePermission, requireRole } from "../../middlewares/rbac";
 import * as attendanceController from "./attendance.controller";
 
 const router = Router();
@@ -28,6 +28,24 @@ const startBreakBodySchema = z.object({
 
 const endBreakBodySchema = z.object({}).strict();
 
+const regularizationBodySchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must use YYYY-MM-DD"),
+  requestedStatus: z.enum(["Present", "Late", "Half-Day", "WFH"]),
+  requestedPunchIn: z.string().datetime(),
+  requestedPunchOut: z.string().datetime(),
+  reason: z.string().trim().min(10).max(1000),
+}).strict();
+
+const regularizationListSchema = z.object({
+  employeeId: z.string().optional(),
+  status: z.enum(["Submitted", "More Details Required", "Resubmitted", "Manager Approved", "Approved", "Rejected"]).optional(),
+});
+
+const regularizationActionSchema = z.object({
+  action: z.enum(["APPROVE", "REJECT", "REQUEST_MORE_DETAILS"]),
+  comment: z.string().trim().max(1000).optional(),
+}).strict();
+
 // GET /api/attendance — attendance:read
 router.get("/", authenticate, requirePermission("attendance:read"), validate({ query: listQuerySchema }), attendanceController.list);
 
@@ -45,9 +63,10 @@ router.post("/break-start", authenticate, requirePermission("attendance:write"),
 router.post("/break-end", authenticate, requirePermission("attendance:write"), validate({ body: endBreakBodySchema }), attendanceController.doEndBreak);
 
 // Regularization routes
-router.get("/regularizations", authenticate, attendanceController.listRegularizations);
-router.post("/regularize", authenticate, attendanceController.requestRegularization);
-router.patch("/regularizations/:id/decide", authenticate, attendanceController.decideRegularization);
+router.get("/regularizations", authenticate, requirePermission("attendance:read"), validate({ query: regularizationListSchema }), attendanceController.listRegularizations);
+router.post("/regularize", authenticate, requirePermission("attendance:write"), validate({ body: regularizationBodySchema }), attendanceController.requestRegularization);
+router.patch("/regularizations/:id/act", authenticate, requirePermission("attendance:write"), requireRole("MANAGER", "HR", "ADMIN"), validate({ body: regularizationActionSchema }), attendanceController.decideRegularization);
+router.patch("/regularizations/:id/resubmit", authenticate, requirePermission("attendance:write"), requireRole("EMPLOYEE", "MANAGER", "HR", "ADMIN"), validate({ body: regularizationBodySchema }), attendanceController.resubmitRegularization);
 
 // Shift routes
 router.get("/shifts", authenticate, attendanceController.listShifts);
