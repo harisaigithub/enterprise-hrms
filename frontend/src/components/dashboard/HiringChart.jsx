@@ -8,7 +8,7 @@
   Legend,
   CartesianGrid,
 } from "recharts";
-import { hiringChartData } from "../../mock/HiringChart";
+import { hiringChartData } from "../../mock/hiringChart";
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;

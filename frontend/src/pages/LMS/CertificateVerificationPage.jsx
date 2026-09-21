@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { ShieldCheck, ShieldX } from "lucide-react";
-import { verifyCertificate } from "../../services/Lmsservice";
+import { verifyCertificate } from "../../services/lmsService";
 
 export default function CertificateVerificationPage() {
   const { token } = useParams();

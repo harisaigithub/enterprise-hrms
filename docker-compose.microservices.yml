@@ -1,68 +1,988 @@
+# version: "3.9"
+
+# services:
+#   db:
+#     image: postgres:16-alpine
+#     container_name: hrms-postgres-micro
+#     restart: unless-stopped
+#     environment:
+#       POSTGRES_USER: hrms_admin
+#       POSTGRES_PASSWORD: hrms_password
+#       POSTGRES_DB: hrms_db
+#     ports:
+#       - "5433:5432"
+#     volumes:
+#       - hrms_pgdata_micro:/var/lib/postgresql/data
+#     healthcheck:
+#       test: ["CMD-SHELL", "pg_isready -U hrms_admin -d hrms_db"]
+#       interval: 5s
+#       timeout: 5s
+#       retries: 10
+
+#   auth-service:
+#     build:
+#       context: ./backend
+#       dockerfile: Dockerfile
+#     container_name: hrms-auth-service
+#     restart: unless-stopped
+#     env_file:
+#       - ./backend/.env
+#     environment:
+#       DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
+#       SERVICE_NAME: "auth"
+#     depends_on:
+#       db:
+#         condition: service_healthy
+#     command: sh -c "npx prisma migrate deploy && npm run prisma:seed && node dist/index.js"
+
+#   employees-service:
+#     build:
+#       context: ./backend
+#       dockerfile: Dockerfile
+#     container_name: hrms-employees-service
+#     restart: unless-stopped
+#     env_file:
+#       - ./backend/.env
+#     environment:
+#       DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
+#       SERVICE_NAME: "employees"
+#     depends_on:
+#       db:
+#         condition: service_healthy
+#     command: sh -c "node dist/index.js"
+
+#   # Expand this pattern for other domains: attendance-service, payroll-service, etc.
+
+#   api-gateway:
+#     image: nginx:alpine
+#     container_name: hrms-api-gateway
+#     ports:
+#       - "4000:80"
+#     volumes:
+#       - ./nginx.microservices.conf:/etc/nginx/nginx.conf:ro
+#     depends_on:
+#       - auth-service
+#       - employees-service
+
+# volumes:
+#   hrms_pgdata_micro:
+
+
 version: "3.9"
 
 services:
+
+  # =========================================================
+  # DATABASE
+  # =========================================================
+
   db:
     image: postgres:16-alpine
     container_name: hrms-postgres-micro
     restart: unless-stopped
+
     environment:
       POSTGRES_USER: hrms_admin
       POSTGRES_PASSWORD: hrms_password
       POSTGRES_DB: hrms_db
+
     ports:
       - "5433:5432"
+
     volumes:
       - hrms_pgdata_micro:/var/lib/postgresql/data
+
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U hrms_admin -d hrms_db"]
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 10s
+
+
+  # =========================================================
+  # MINIO
+  # =========================================================
+
+  minio:
+    image: minio/minio:latest
+    container_name: hrms-minio-micro
+    restart: unless-stopped
+
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+
+    command: server /data --console-address ":9001"
+
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+    volumes:
+      - hrms_minio_micro:/data
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "-f",
+          "http://localhost:9000/minio/health/live"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+
+  # =========================================================
+  # AUTH SERVICE
+  # =========================================================
 
   auth-service:
     build:
       context: ./backend
       dockerfile: Dockerfile
+
     container_name: hrms-auth-service
     restart: unless-stopped
+
     env_file:
       - ./backend/.env
+
     environment:
+      NODE_ENV: production
+
       DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
+
       SERVICE_NAME: "auth"
+
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin123"
+
+      CORS_ORIGINS: "http://localhost:5173"
+
     depends_on:
       db:
         condition: service_healthy
-    command: sh -c "npx prisma migrate deploy && npm run prisma:seed && node dist/index.js"
+      minio:
+        condition: service_healthy
+
+    command: >
+      sh -c "
+      npx prisma migrate deploy &&
+      npm run prisma:seed &&
+      node dist/index.js
+      "
+
+
+  # =========================================================
+  # ORGANIZATION SERVICE
+  # =========================================================
+
+  organization-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    container_name: hrms-organization-service
+    restart: unless-stopped
+
+    env_file:
+      - ./backend/.env
+
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
+      SERVICE_NAME: "organization"
+
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin123"
+
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+    command: node dist/index.js
+
+
+  # =========================================================
+  # EMPLOYEES SERVICE
+  # =========================================================
 
   employees-service:
     build:
       context: ./backend
       dockerfile: Dockerfile
+
     container_name: hrms-employees-service
     restart: unless-stopped
+
     env_file:
       - ./backend/.env
+
     environment:
+      NODE_ENV: production
       DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
       SERVICE_NAME: "employees"
+
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin123"
+
     depends_on:
       db:
         condition: service_healthy
-    command: sh -c "node dist/index.js"
+      minio:
+        condition: service_healthy
 
-  # Expand this pattern for other domains: attendance-service, payroll-service, etc.
+    command: node dist/index.js
+
+
+  # =========================================================
+  # RECRUITMENT SERVICE
+  # =========================================================
+
+  recruitment-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    container_name: hrms-recruitment-service
+    restart: unless-stopped
+
+    env_file:
+      - ./backend/.env
+
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
+      SERVICE_NAME: "recruitment"
+
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin123"
+
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+    command: node dist/index.js
+
+
+  # =========================================================
+  # ATTENDANCE SERVICE
+  # =========================================================
+
+  attendance-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    container_name: hrms-attendance-service
+    restart: unless-stopped
+
+    env_file:
+      - ./backend/.env
+
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
+      SERVICE_NAME: "attendance"
+
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin123"
+
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+    command: node dist/index.js
+
+
+  # =========================================================
+  # LEAVE SERVICE
+  # =========================================================
+
+  leave-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    container_name: hrms-leave-service
+    restart: unless-stopped
+
+    env_file:
+      - ./backend/.env
+
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
+      SERVICE_NAME: "leave"
+
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin123"
+
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+    command: node dist/index.js
+
+
+  # =========================================================
+  # PAYROLL SERVICE
+  # =========================================================
+
+  payroll-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    container_name: hrms-payroll-service
+    restart: unless-stopped
+
+    env_file:
+      - ./backend/.env
+
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
+      SERVICE_NAME: "payroll"
+
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin123"
+
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+    command: node dist/index.js
+
+
+  # =========================================================
+  # SEARCH SERVICE
+  # =========================================================
+
+  search-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    container_name: hrms-search-service
+    restart: unless-stopped
+
+    env_file:
+      - ./backend/.env
+
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
+      SERVICE_NAME: "search"
+
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin123"
+
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+    command: node dist/index.js
+
+
+  # =========================================================
+  # WORKFLOW SERVICE
+  # =========================================================
+
+  workflow-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    container_name: hrms-workflow-service
+    restart: unless-stopped
+
+    env_file:
+      - ./backend/.env
+
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
+      SERVICE_NAME: "workflow"
+
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin123"
+
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+    command: node dist/index.js
+
+
+  # =========================================================
+  # PERFORMANCE SERVICE
+  # =========================================================
+
+  performance-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    container_name: hrms-performance-service
+    restart: unless-stopped
+
+    env_file:
+      - ./backend/.env
+
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
+      SERVICE_NAME: "performance"
+
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin123"
+
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+    command: node dist/index.js
+
+
+  # =========================================================
+  # HELPDESK SERVICE
+  # =========================================================
+
+  helpdesk-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    container_name: hrms-helpdesk-service
+    restart: unless-stopped
+
+    env_file:
+      - ./backend/.env
+
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
+      SERVICE_NAME: "helpdesk"
+
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin123"
+
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+    command: node dist/index.js
+
+
+  # =========================================================
+  # ONBOARDING SERVICE
+  # =========================================================
+
+  onboarding-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    container_name: hrms-onboarding-service
+    restart: unless-stopped
+
+    env_file:
+      - ./backend/.env
+
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
+      SERVICE_NAME: "onboarding"
+
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin123"
+
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+    command: node dist/index.js
+
+
+  # =========================================================
+  # LMS SERVICE
+  # =========================================================
+
+  lms-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    container_name: hrms-lms-service
+    restart: unless-stopped
+
+    env_file:
+      - ./backend/.env
+
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
+      SERVICE_NAME: "lms"
+
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin123"
+
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+    command: node dist/index.js
+
+
+  # =========================================================
+  # TASK SERVICE
+  # =========================================================
+
+  task-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    container_name: hrms-task-service
+    restart: unless-stopped
+
+    env_file:
+      - ./backend/.env
+
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
+      SERVICE_NAME: "task"
+
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin123"
+
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+    command: node dist/index.js
+
+
+  # =========================================================
+  # ASSET SERVICE
+  # =========================================================
+
+  asset-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    container_name: hrms-asset-service
+    restart: unless-stopped
+
+    env_file:
+      - ./backend/.env
+
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
+      SERVICE_NAME: "asset"
+
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin123"
+
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+    command: node dist/index.js
+
+
+  # =========================================================
+  # SEPARATION SERVICE
+  # =========================================================
+
+  separation-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    container_name: hrms-separation-service
+    restart: unless-stopped
+
+    env_file:
+      - ./backend/.env
+
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
+      SERVICE_NAME: "separation"
+
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin123"
+
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+    command: node dist/index.js
+
+
+  # =========================================================
+  # POLICIES SERVICE
+  # =========================================================
+
+  policies-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    container_name: hrms-policies-service
+    restart: unless-stopped
+
+    env_file:
+      - ./backend/.env
+
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
+      SERVICE_NAME: "policies"
+
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin123"
+
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+    command: node dist/index.js
+
+
+  # =========================================================
+  # COMPLIANCE SERVICE
+  # =========================================================
+
+  compliance-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    container_name: hrms-compliance-service
+    restart: unless-stopped
+
+    env_file:
+      - ./backend/.env
+
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
+      SERVICE_NAME: "compliance"
+
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin123"
+
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+    command: node dist/index.js
+
+
+  # =========================================================
+  # REPORTS SERVICE
+  # =========================================================
+
+  reports-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    container_name: hrms-reports-service
+    restart: unless-stopped
+
+    env_file:
+      - ./backend/.env
+
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
+      SERVICE_NAME: "reports"
+
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin123"
+
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+    command: node dist/index.js
+
+
+  # =========================================================
+  # DASHBOARD SERVICE
+  # =========================================================
+
+  dashboard-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    container_name: hrms-dashboard-service
+    restart: unless-stopped
+
+    env_file:
+      - ./backend/.env
+
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
+      SERVICE_NAME: "dashboard"
+
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin123"
+
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+    command: node dist/index.js
+
+
+  # =========================================================
+  # NOTIFICATIONS SERVICE
+  # =========================================================
+
+  notifications-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    container_name: hrms-notifications-service
+    restart: unless-stopped
+
+    env_file:
+      - ./backend/.env
+
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
+      SERVICE_NAME: "notifications"
+
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin123"
+
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+    command: node dist/index.js
+
+
+  # =========================================================
+  # REQUESTS SERVICE
+  # =========================================================
+
+  requests-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    container_name: hrms-requests-service
+    restart: unless-stopped
+
+    env_file:
+      - ./backend/.env
+
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
+      SERVICE_NAME: "requests"
+
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin123"
+
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+    command: node dist/index.js
+
+
+  # =========================================================
+  # EXPENSE SERVICE
+  # =========================================================
+
+  expense-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    container_name: hrms-expense-service
+    restart: unless-stopped
+
+    env_file:
+      - ./backend/.env
+
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
+      SERVICE_NAME: "expense"
+
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin123"
+
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+    command: node dist/index.js
+
+
+  # =========================================================
+  # API GATEWAY
+  # =========================================================
 
   api-gateway:
     image: nginx:alpine
     container_name: hrms-api-gateway
+    restart: unless-stopped
+
     ports:
       - "4000:80"
+
     volumes:
       - ./nginx.microservices.conf:/etc/nginx/nginx.conf:ro
+
     depends_on:
       - auth-service
+      - organization-service
       - employees-service
+      - recruitment-service
+      - attendance-service
+      - leave-service
+      - payroll-service
+      - search-service
+      - workflow-service
+      - performance-service
+      - helpdesk-service
+      - onboarding-service
+      - lms-service
+      - task-service
+      - asset-service
+      - separation-service
+      - policies-service
+      - compliance-service
+      - reports-service
+      - dashboard-service
+      - notifications-service
+      - requests-service
+      - expense-service
+
+  # =========================================================
+  # FRONTEND
+  # =========================================================
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:4000/api
+    container_name: hrms-frontend-micro
+    ports:
+      - "5173:80"
+    depends_on:
+      - api-gateway
 
 volumes:
   hrms_pgdata_micro:
+  hrms_minio_micro:
