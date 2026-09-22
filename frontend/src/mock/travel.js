@@ -7,6 +7,8 @@ export const TRAVEL_MODES = ["Air", "Rail", "Road"];
 export const requestStatusMeta = {
   "Pending Manager Approval": { color: "#d97706", bg: "#fffbeb" },
   "Pending Finance Approval": { color: "#d97706", bg: "#fffbeb" },
+  "More Details Required": { color: "#d97706", bg: "#fffbeb" },
+  Resubmitted: { color: "#2563eb", bg: "#eff6ff" },
   Rejected: { color: "#dc2626", bg: "#fef2f2" },
   Approved: { color: "#0284c7", bg: "#f0f9ff" },
   "Booking In Progress": { color: "#dc2626", bg: "#fef2f2" },
@@ -19,7 +21,7 @@ export const requestStatusMeta = {
 // and the cost threshold above which Finance approval is also required.
 export const travelPolicy = {
   advanceMaxPercent: 70,
-  financeApprovalThreshold: 100000,
+  financeApprovalThreshold: 10000,
   classByGrade: { L2: "Economy", L3: "Economy", L4: "Business", L5: "Business" },
   perDiemByGrade: { L2: 1500, L3: 1800, L4: 2500, L5: 3000 },
 };

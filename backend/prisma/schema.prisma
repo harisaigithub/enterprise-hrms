@@ -319,6 +319,8 @@ model Employee {
   expenseClaimHistory       ExpenseClaimHistory[]
   correctingEntriesCreated  ExpenseCorrectingEntry[] @relation("CorrectingEntryCreator")
   correctingEntriesApproved ExpenseCorrectingEntry[] @relation("CorrectingEntryApprover")
+  travelRequests            TravelRequest[]          @relation("TravelRequester")
+  travelActions             TravelRequestHistory[]   @relation("TravelHistoryActor")
 
   @@index([departmentId])
   @@index([designationId])
@@ -728,6 +730,7 @@ model WorkflowInstance {
   events                    WorkflowEvent[]
   expenseClaims             ExpenseClaim[]             @relation("ExpenseClaimWorkflow")
   attendanceRegularizations AttendanceRegularization[]
+  travelRequests            TravelRequest[]
 
   @@index([requesterId])
   @@index([status])
@@ -2069,12 +2072,64 @@ model ExpenseClaim {
   receipts           ExpenseReceipt[]
   history            ExpenseClaimHistory[]
   workflowInstance   WorkflowInstance?        @relation("ExpenseClaimWorkflow", fields: [workflowInstanceId], references: [id], onDelete: SetNull)
+  travelRequest      TravelRequest?
 
   @@index([employeeId])
   @@index([status])
   @@index([approvalStage])
   @@index([expenseDate])
   @@map("expense_claims")
+}
+
+model TravelRequest {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requestNumber        String    @unique @map("request_number") @db.VarChar(30)
+  employeeId           String    @map("employee_id") @db.Uuid
+  workflowInstanceId   String?   @unique @map("workflow_instance_id") @db.Uuid
+  linkedExpenseClaimId String?   @unique @map("linked_expense_claim_id") @db.Uuid
+  destination          String    @db.VarChar(160)
+  startDate            DateTime  @map("start_date") @db.Date
+  endDate              DateTime  @map("end_date") @db.Date
+  purpose              String    @db.Text
+  mode                 String    @db.VarChar(20)
+  estimatedCost        Decimal   @map("estimated_cost") @db.Decimal(12, 2)
+  isInternational      Boolean   @default(false) @map("is_international")
+  status               String    @default("Pending Manager Approval") @db.VarChar(50)
+  decisionNotes        String?   @map("decision_notes") @db.Text
+  managerApprovedAt    DateTime? @map("manager_approved_at") @db.Timestamp(6)
+  financeApprovedAt    DateTime? @map("finance_approved_at") @db.Timestamp(6)
+  booking              Json?     @db.JsonB
+  advance              Json?     @db.JsonB
+  settlement           Json?     @db.JsonB
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt            DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  employee           Employee               @relation("TravelRequester", fields: [employeeId], references: [id], onDelete: Restrict)
+  workflowInstance   WorkflowInstance?      @relation(fields: [workflowInstanceId], references: [id], onDelete: SetNull)
+  linkedExpenseClaim ExpenseClaim?          @relation(fields: [linkedExpenseClaimId], references: [id], onDelete: SetNull)
+  history            TravelRequestHistory[]
+
+  @@index([employeeId, createdAt])
+  @@index([status])
+  @@index([startDate, endDate])
+  @@map("travel_requests")
+}
+
+model TravelRequestHistory {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  requestId String   @map("request_id") @db.Uuid
+  actorId   String?  @map("actor_id") @db.Uuid
+  action    String   @db.VarChar(50)
+  oldStatus String?  @map("old_status") @db.VarChar(50)
+  newStatus String   @map("new_status") @db.VarChar(50)
+  comment   String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  request TravelRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  actor   Employee?     @relation("TravelHistoryActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([requestId, createdAt])
+  @@map("travel_request_history")
 }
 
 model ExpenseReceipt {

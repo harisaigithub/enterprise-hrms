@@ -23,6 +23,7 @@ import dashboardRoutes from "../modules/dashboard/dashboard.routes";
 import notificationRoutes from "../modules/notifications/notifications.routes";
 import requestRoutes from "../modules/requests/request.routes";
 import expenseRoutes from "../modules/expense/expense.routes";
+import travelRoutes from "../modules/travel/travel.routes";
 
 
 
@@ -60,6 +61,7 @@ if (!serviceName || serviceName === "dashboard") router.use("/dashboard", dashbo
 if (!serviceName || serviceName === "notifications") router.use("/notifications", notificationRoutes);
 if (!serviceName || serviceName === "requests") router.use("/requests", requestRoutes);
 if (!serviceName || serviceName === "expense") router.use("/expense", expenseRoutes);
+if (!serviceName || serviceName === "travel") router.use("/travel", travelRoutes);
 
 
 export default router;

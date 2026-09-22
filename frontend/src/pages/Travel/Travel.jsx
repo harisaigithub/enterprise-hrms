@@ -22,6 +22,7 @@ import StatusBadge from "../../components/shared/StatusBadge";
 import Spinner from "../../components/shared/Spinner";
 import EmptyState from "../../components/shared/EmptyState";
 import Modal from "../../components/shared/Modal";
+import { useAuth } from "../../context/AuthContext";
 import {
   getAllRequests,
   raiseRequest,
@@ -34,10 +35,11 @@ import {
   resolveSettlementBalance,
   closeZeroBalanceSettlement,
   getMaskedPassportRef,
+  resubmitRequest,
+  requestMoreDetails,
 } from "../../services/travelService";
-import { TRAVEL_MODES, requestStatusMeta, travelPolicy, employeeGradeDirectory } from "../../mock/travel";
+import { TRAVEL_MODES, requestStatusMeta, travelPolicy } from "../../mock/travel";
 
-const ME = { id: "EMP001", name: "Matsya Singh", grade: "L4" };
 const fmtDate = (d) => new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 const fmtINR = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
 
@@ -109,7 +111,7 @@ function TabNav({ tabs, active, onChange }) {
 }
 
 function RequestSummaryCard({ req, children }) {
-  const meta = requestStatusMeta[req.status];
+  const meta = requestStatusMeta[req.status] || { color: "#475569", bg: "#f1f5f9" };
   return (
     <div style={{ ...cardStyle, padding: "16px 18px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px", marginBottom: "6px" }}>
@@ -125,6 +127,8 @@ function RequestSummaryCard({ req, children }) {
         {req.isInternational && <span style={{ fontSize: "10.5px", fontWeight: 700, color: "#7c3aed", background: "#f5f3ff", padding: "2px 8px", borderRadius: "99px" }}>International</span>}
         {req.advance && <span style={{ fontSize: "10.5px", fontWeight: 700, color: "#16a34a", background: "#f0fdf4", padding: "2px 8px", borderRadius: "99px" }}>Advance {fmtINR(req.advance.amount)}</span>}
         {req.booking?.reference && <span style={{ fontSize: "10.5px", fontWeight: 700, color: "var(--subtext)", background: "var(--background)", padding: "2px 8px", borderRadius: "99px" }}>{req.booking.reference}</span>}
+        {req.requestNumber && <span style={{ fontSize: "10.5px", fontWeight: 700, color: "var(--primary)", background: "#ecfeff", padding: "2px 8px", borderRadius: "99px" }}>{req.requestNumber}</span>}
+        {req.history?.length > 0 && <span style={{ fontSize: "10.5px", color: "var(--subtext)" }}>{req.history.length} audit events</span>}
       </div>
       {req.booking?.bookingFailed && (
         <p style={{ fontSize: "11.5px", color: "var(--red)", display: "flex", alignItems: "center", gap: "5px", marginBottom: "8px" }}>
@@ -138,6 +142,19 @@ function RequestSummaryCard({ req, children }) {
           {req.settlement.resolution && ` • resolved via ${req.settlement.resolution.method}`}
         </p>
       )}
+      {req.history?.length > 0 && (
+        <details style={{ marginBottom: "10px" }}>
+          <summary style={{ fontSize: "12px", fontWeight: 700, color: "var(--primary)", cursor: "pointer" }}>Status history</summary>
+          <div style={{ borderLeft: "2px solid var(--border)", margin: "8px 0 0 4px", paddingLeft: "12px", display: "grid", gap: "7px" }}>
+            {req.history.map((event) => (
+              <div key={event.id} style={{ fontSize: "11.5px", color: "var(--subtext)" }}>
+                <strong style={{ color: "var(--label)" }}>{event.newStatus}</strong> by {event.actorName}
+                {event.comment ? ` — ${event.comment}` : ""}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
       {children}
     </div>
   );
@@ -145,7 +162,7 @@ function RequestSummaryCard({ req, children }) {
 
 /* ---------------------------------- My Travel tab ---------------------------------- */
 
-function RaiseRequestModal({ isOpen, onClose, onSaved }) {
+function RaiseRequestModal({ isOpen, onClose, onSaved, request = null }) {
   const [destination, setDestination] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -157,8 +174,22 @@ function RaiseRequestModal({ isOpen, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    if (!isOpen) return;
+    const timer = setTimeout(() => {
+      setDestination(request?.destination || "");
+      setStartDate(request?.startDate || "");
+      setEndDate(request?.endDate || "");
+      setPurpose(request?.purpose || "");
+      setMode(request?.mode || TRAVEL_MODES[0]);
+      setEstimatedCost(request?.estimatedCost || "");
+      setIsInternational(Boolean(request?.isInternational));
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [isOpen, request]);
+
+  useEffect(() => {
     if (isInternational) {
-      getMaskedPassportRef(ME.id).then((res) => setPassportRef(res.data));
+      getMaskedPassportRef().then((res) => setPassportRef(res.data));
     }
   }, [isInternational]);
 
@@ -166,11 +197,11 @@ function RaiseRequestModal({ isOpen, onClose, onSaved }) {
     e.preventDefault();
     if (!destination.trim() || !startDate || !endDate || !purpose.trim() || !estimatedCost) return;
     setSaving(true);
-    const res = await raiseRequest({
-      employeeId: ME.id, employeeName: ME.name, grade: ME.grade,
+    const payload = {
       destination: destination.trim(), startDate, endDate, purpose: purpose.trim(),
       mode, estimatedCost, isInternational,
-    });
+    };
+    const res = request ? await resubmitRequest(request.id, payload) : await raiseRequest(payload);
     setSaving(false);
     onSaved(res.data);
     onClose();
@@ -178,7 +209,7 @@ function RaiseRequestModal({ isOpen, onClose, onSaved }) {
   };
 
   return (
-    <Modal isOpen={isOpen} title="Raise Travel Request" onClose={onClose}>
+    <Modal isOpen={isOpen} title={request ? "Edit & Resubmit Travel Request" : "Raise Travel Request"} onClose={onClose}>
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           {fieldLabel("Destination *")}
@@ -222,7 +253,7 @@ function RaiseRequestModal({ isOpen, onClose, onSaved }) {
         )}
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Submitting..." : "Submit Request"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Submitting..." : request ? "Resubmit Request" : "Submit Request"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -270,11 +301,12 @@ function SubmitSettlementModal({ isOpen, onClose, request, onSaved }) {
   );
 }
 
-function MyTravelTab({ requests, onRequestAdded, onRequestUpdated }) {
+function MyTravelTab({ requests, onRequestAdded, onRequestUpdated, employeeId }) {
   const [showRaise, setShowRaise] = useState(false);
   const [settleTarget, setSettleTarget] = useState(null);
+  const [editTarget, setEditTarget] = useState(null);
 
-  const myRequests = requests.filter((r) => r.employeeId === ME.id);
+  const myRequests = requests.filter((r) => r.employeeId === employeeId);
 
   return (
     <div>
@@ -294,12 +326,18 @@ function MyTravelTab({ requests, onRequestAdded, onRequestUpdated }) {
                   Submit Settlement
                 </button>
               )}
+              {req.status === "More Details Required" && (
+                <button onClick={() => setEditTarget(req)} style={{ fontSize: "12px", fontWeight: 700, color: "#d97706", border: "none", background: "none", cursor: "pointer" }}>
+                  Edit & Resubmit
+                </button>
+              )}
             </RequestSummaryCard>
           ))}
         </div>
       )}
 
       <RaiseRequestModal isOpen={showRaise} onClose={() => setShowRaise(false)} onSaved={onRequestAdded} />
+      <RaiseRequestModal isOpen={!!editTarget} request={editTarget} onClose={() => setEditTarget(null)} onSaved={onRequestUpdated} />
       <SubmitSettlementModal isOpen={!!settleTarget} onClose={() => setSettleTarget(null)} request={settleTarget} onSaved={onRequestUpdated} />
     </div>
   );
@@ -307,16 +345,20 @@ function MyTravelTab({ requests, onRequestAdded, onRequestUpdated }) {
 
 /* ---------------------------------- Approvals tab ---------------------------------- */
 
-function ApprovalsTab({ requests, onRequestUpdated }) {
-  const pendingManager = requests.filter((r) => r.status === "Pending Manager Approval");
-  const pendingFinance = requests.filter((r) => r.status === "Pending Finance Approval");
+function ApprovalsTab({ requests, onRequestUpdated, role }) {
+  const pendingManager = role === "MANAGER" ? requests.filter((r) => ["Pending Manager Approval", "Resubmitted"].includes(r.status)) : [];
+  const pendingFinance = ["HR", "ADMIN"].includes(role) ? requests.filter((r) => r.status === "Pending Finance Approval") : [];
 
   const handleManagerDecision = async (id, approved) => {
-    const res = await managerDecision(id, approved, "Alice Quinn");
+    const comment = approved ? window.prompt("Approval comment (optional):") || undefined : window.prompt("Rejection reason (required):");
+    if (!approved && !comment?.trim()) return;
+    const res = await managerDecision(id, approved, undefined, comment);
     if (res.data.request) onRequestUpdated(res.data.request);
   };
   const handleFinanceDecision = async (id, approved) => {
-    const res = await financeDecision(id, approved, "Finance Desk");
+    const comment = approved ? window.prompt("Finance comment (optional):") || undefined : window.prompt("Rejection reason (required):");
+    if (!approved && !comment?.trim()) return;
+    const res = await financeDecision(id, approved, undefined, comment);
     if (res.data.request) onRequestUpdated(res.data.request);
   };
 
@@ -345,6 +387,9 @@ function ApprovalsTab({ requests, onRequestUpdated }) {
                   </button>
                   <button onClick={() => handleManagerDecision(req.id, false)} style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "12px", fontWeight: 700, color: "var(--red)", border: "none", background: "none", cursor: "pointer" }}>
                     <XCircle size={14} /> Reject
+                  </button>
+                  <button onClick={async () => { const comment = window.prompt("What details are missing? (required)"); if (!comment?.trim()) return; const res = await requestMoreDetails(req.id, comment); if (res.data.request) onRequestUpdated(res.data.request); }} style={{ fontSize: "12px", fontWeight: 700, color: "#d97706", border: "none", background: "none", cursor: "pointer" }}>
+                    More Details
                   </button>
                 </div>
               </div>
@@ -520,10 +565,7 @@ function TravelDeskTab({ requests, onRequestUpdated }) {
   const settlementsToClose = requests.filter((r) => r.status === "Settlement Submitted");
 
   const handleApiBooking = async (req) => {
-    // Simulated 50/50 failure for requests not already in a failed state, to
-    // demonstrate the manual fallback path from 15.8.
-    const simulateFailure = req.status !== "Booking In Progress" && Math.random() < 0.4;
-    const res = await attemptApiBooking(req.id, { simulateFailure });
+    const res = await attemptApiBooking(req.id, { simulateFailure: false });
     if (res.data.request) onRequestUpdated(res.data.request);
   };
 
@@ -640,12 +682,13 @@ const TABS = [
 ];
 
 export default function Travel() {
+  const { user, role } = useAuth();
   const [activeTab, setActiveTab] = useState("myTravel");
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState([]);
+  const tabs = TABS.filter((tab) => tab.key === "myTravel" || (tab.key === "approvals" && ["MANAGER", "HR", "ADMIN"].includes(role)) || (tab.key === "travelDesk" && ["HR", "ADMIN"].includes(role)));
 
   useEffect(() => {
-    setLoading(true);
     getAllRequests()
       .then((res) => setRequests(res.data))
       .finally(() => setLoading(false));
@@ -671,14 +714,14 @@ export default function Travel() {
     <MainLayout>
       <div style={{ maxWidth: "1480px", margin: "0 auto" }}>
         <PageHeader title="Travel Management" subtitle="Requests, approvals, bookings, advances and expense settlement" />
-        <TabNav tabs={TABS} active={activeTab} onChange={setActiveTab} />
+        <TabNav tabs={tabs} active={activeTab} onChange={setActiveTab} />
 
         {activeTab === "myTravel" && (
-          <MyTravelTab requests={requests} onRequestAdded={handleRequestAdded} onRequestUpdated={handleRequestUpdated} />
+          <MyTravelTab requests={requests} employeeId={user?.id} onRequestAdded={handleRequestAdded} onRequestUpdated={handleRequestUpdated} />
         )}
 
         {activeTab === "approvals" && (
-          <ApprovalsTab requests={requests} onRequestUpdated={handleRequestUpdated} />
+          <ApprovalsTab requests={requests} role={role} onRequestUpdated={handleRequestUpdated} />
         )}
 
         {activeTab === "travelDesk" && (
