@@ -3,7 +3,7 @@ import { z } from "zod";
 import multer from "multer";
 import { validate } from "../../middlewares/validate";
 import { authenticate } from "../../middlewares/auth";
-import { requirePermission, requireRole } from "../../middlewares/rbac";
+import { requireEmployeeScope, requirePermission, requireRole } from "../../middlewares/rbac";
 import * as employeeController from "./employee.controller";
 
 const router = Router();
@@ -96,37 +96,37 @@ router.get("/:id/salary/history", authenticate, requirePermission("employees:rea
 router.put("/:id/salary", authenticate, requirePermission("employees:write"), employeeController.upsertSalary);
 
 // POST /api/employees/:id/avatar — Upload avatar
-router.post("/:id/avatar", authenticate, upload.single("avatar"), employeeController.uploadAvatar);
+router.post("/:id/avatar", authenticate, requireEmployeeScope(), upload.single("avatar"), employeeController.uploadAvatar);
 
 // DELETE /api/employees/:id/avatar — Remove avatar
-router.delete("/:id/avatar", authenticate, employeeController.removeAvatar);
+router.delete("/:id/avatar", authenticate, requireEmployeeScope(), employeeController.removeAvatar);
 
 // GET /api/employees/:id/documents — List employee documents
-router.get("/:id/documents", authenticate, employeeController.listDocuments);
+router.get("/:id/documents", authenticate, requireEmployeeScope(), employeeController.listDocuments);
 
 // POST /api/employees/:id/documents — Upload an employee document
-router.post("/:id/documents", authenticate, upload.single("file"), employeeController.uploadDocument);
+router.post("/:id/documents", authenticate, requireEmployeeScope(), upload.single("file"), employeeController.uploadDocument);
 
 // PATCH /api/employees/:id/documents/:docId/verify — Verify or reject document (HR/Admin)
 router.patch("/:id/documents/:docId/verify", authenticate, requirePermission("employees:write"), employeeController.verifyDocument);
 
 // DELETE /api/employees/:id/documents/:docId — Delete an employee document
-router.delete("/:id/documents/:docId", authenticate, employeeController.deleteDocument);
+router.delete("/:id/documents/:docId", authenticate, requireEmployeeScope(), employeeController.deleteDocument);
 
 // GET /api/employees/:id/emergency-contacts
-router.get("/:id/emergency-contacts", authenticate, employeeController.listEmergencyContacts);
+router.get("/:id/emergency-contacts", authenticate, requireEmployeeScope(), employeeController.listEmergencyContacts);
 
 // POST /api/employees/:id/emergency-contacts
-router.post("/:id/emergency-contacts", authenticate, employeeController.addEmergencyContact);
+router.post("/:id/emergency-contacts", authenticate, requireEmployeeScope(), employeeController.addEmergencyContact);
 
 // PUT /api/employees/:id/emergency-contacts/:contactId
-router.put("/:id/emergency-contacts/:contactId", authenticate, employeeController.updateEmergencyContact);
+router.put("/:id/emergency-contacts/:contactId", authenticate, requireEmployeeScope(), employeeController.updateEmergencyContact);
 
 // DELETE /api/employees/:id/emergency-contacts/:contactId
-router.delete("/:id/emergency-contacts/:contactId", authenticate, employeeController.deleteEmergencyContact);
+router.delete("/:id/emergency-contacts/:contactId", authenticate, requireEmployeeScope(), employeeController.deleteEmergencyContact);
 
 // GET /api/employees/:id/movements — Movement and lifecycle history
-router.get("/:id/movements", authenticate, employeeController.listMovements);
+router.get("/:id/movements", authenticate, requireEmployeeScope({ allowManager: true }), employeeController.listMovements);
 
 // POST /api/employees/:id/transfer — Transfer department
 router.post("/:id/transfer", authenticate, requirePermission("employees:write"), employeeController.transfer);

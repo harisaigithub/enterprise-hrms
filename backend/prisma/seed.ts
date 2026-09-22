@@ -23,7 +23,7 @@ const PERMISSIONS = [
   "lms:read", "lms:write",
   "assets:read", "assets:write",
   "tasks:read", "tasks:write",
-  "expenses:read", "expenses:write", "expenses:approve",
+  "expenses:read", "expenses:write", "expenses:approve", "expenses:manage",
   "travel:read", "travel:write", "travel:approve",
   "ess:read", "ess:write",
   "policies:read", "policies:write",
@@ -68,7 +68,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     "lms:read", "lms:write",
     "assets:read", "assets:write",
     "tasks:read", "tasks:write",
-    "expenses:read", "expenses:write", "expenses:approve",
+    "expenses:read", "expenses:write", "expenses:approve", "expenses:manage",
     "travel:read", "travel:write", "travel:approve",
     "ess:read", "ess:write",
     "policies:read", "policies:write",
@@ -125,7 +125,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     "lms:read", "lms:write",
     "assets:read", "assets:write",
 
-    "expenses:read", "expenses:write", "expenses:approve",
+    "expenses:read", "expenses:write", "expenses:approve", "expenses:manage",
     "travel:read", "travel:write", "travel:approve",
     "ess:read", "ess:write",
 

@@ -4,10 +4,13 @@ import {
 } from "./organizationManagement.controller";
 
 import { authenticate } from "../../middlewares/auth";
+import { requirePermission } from "../../middlewares/rbac";
 
 const router = Router();
 
-router.use(authenticate);
+router.use(authenticate, requirePermission("orgmanagement:read|orgmanagement:write"));
+
+const requireOrganizationWrite = requirePermission("orgmanagement:write");
 
 // =========================================================
 // COMPANY
@@ -22,6 +25,7 @@ router.get(
 
 router.put(
   "/company",
+  requireOrganizationWrite,
   organizationManagementController.updateCompany.bind(
     organizationManagementController
   )
@@ -40,6 +44,7 @@ router.get(
 
 router.post(
   "/business-units",
+  requireOrganizationWrite,
   organizationManagementController.addBusinessUnit.bind(
     organizationManagementController
   )
@@ -58,6 +63,7 @@ router.get(
 
 router.post(
   "/departments",
+  requireOrganizationWrite,
   organizationManagementController.addDepartment.bind(
     organizationManagementController
   )
@@ -76,6 +82,7 @@ router.get(
 
 router.post(
   "/locations",
+  requireOrganizationWrite,
   organizationManagementController.addLocation.bind(
     organizationManagementController
   )
@@ -83,6 +90,7 @@ router.post(
 
 router.put(
   "/locations/:id/deactivate",
+  requireOrganizationWrite,
   organizationManagementController.deactivateLocation.bind(
     organizationManagementController
   )
@@ -101,6 +109,7 @@ router.get(
 
 router.post(
   "/cost-centers",
+  requireOrganizationWrite,
   organizationManagementController.addCostCenter.bind(
     organizationManagementController
   )
@@ -119,6 +128,7 @@ router.get(
 
 router.post(
   "/designations",
+  requireOrganizationWrite,
   organizationManagementController.addDesignation.bind(
     organizationManagementController
   )
@@ -137,6 +147,7 @@ router.get(
 
 router.post(
   "/grades",
+  requireOrganizationWrite,
   organizationManagementController.addGrade.bind(
     organizationManagementController
   )
@@ -155,6 +166,7 @@ router.get(
 
 router.put(
   "/employees/:employeeId/reporting-manager",
+  requireOrganizationWrite,
   organizationManagementController.updateReportingManager.bind(
     organizationManagementController
   )
@@ -162,6 +174,7 @@ router.put(
 
 router.post(
   "/employees/bulk-reassign-department",
+  requireOrganizationWrite,
   organizationManagementController.bulkReassignDepartment.bind(
     organizationManagementController
   )
@@ -184,6 +197,7 @@ router.get(
 
 router.put(
   "/designations/:id",
+  requireOrganizationWrite,
   organizationManagementController.updateDesignation.bind(
     organizationManagementController
   )
@@ -209,6 +223,7 @@ router.get(
 
 router.post(
   "/holidays",
+  requireOrganizationWrite,
   organizationManagementController.addHoliday.bind(
     organizationManagementController
   )
@@ -216,6 +231,7 @@ router.post(
 
 router.delete(
   "/holidays/:id",
+  requireOrganizationWrite,
   organizationManagementController.deleteHoliday.bind(
     organizationManagementController
   )
