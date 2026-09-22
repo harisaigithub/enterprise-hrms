@@ -30,8 +30,8 @@ export default function Login() {
     setError("");
     setBusy(true);
     try {
-      await login(creds?.email || email, creds?.password || password);
-      navigate(from, { replace: true });
+      const user = await login(creds?.email || email, creds?.password || password);
+      navigate(user?.mustChangePassword ? "/change-password" : from, { replace: true });
     } catch (err) {
       setError(err.message || "Login failed. Check your credentials.");
     } finally {

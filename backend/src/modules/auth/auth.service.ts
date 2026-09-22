@@ -5,7 +5,12 @@ import { AppError } from "../../lib/errors";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../lib/jwt";
 import { randomToken, sha256 } from "../../lib/crypto";
 import { writeAuditLog } from "../../services/audit.service";
-import { env } from "../../config/env";
+import {
+  clearForcedPasswordReset,
+  getSecurityConfig,
+  getUserSecurityState,
+  validatePasswordPolicy,
+} from "../../services/security-policy.service";
 
 const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days (spec §23)
 
@@ -43,6 +48,7 @@ interface LoginUser {
     email: string;
     isActive: boolean;
     passwordHash: string;
+    passwordChangedAt: Date;
   };
   permissions: string[];
   roleName: string;
@@ -101,6 +107,15 @@ export async function login(email: string, password: string, ip?: string) {
 
   resetFailures(normalized);
 
+  const [securityConfig, userSecurity] = await Promise.all([
+    getSecurityConfig(),
+    getUserSecurityState(account.user.id),
+  ]);
+  const expiryDays = Number(securityConfig.passwordPolicy.expiryDays || 0);
+  const passwordExpired = expiryDays > 0
+    && account.user.passwordChangedAt.getTime() + expiryDays * 86_400_000 < Date.now();
+  const mustChangePassword = Boolean(userSecurity.forcePasswordResetPending || passwordExpired);
+
   await prisma.user.update({ where: { id: account.user.id }, data: { lastLogin: new Date() } });
 
   const accessToken = signAccessToken({
@@ -113,9 +128,9 @@ export async function login(email: string, password: string, ip?: string) {
     firstName: account.employee?.firstName,
     lastName: account.employee?.lastName,
     name: account.employee ? `${account.employee.firstName} ${account.employee.lastName}` : undefined,
-  });
+  }, Number(securityConfig.sessionPolicy.tokenLifetimeMinutes || 60));
 
-  const refreshToken = await issueRefreshToken(account.user.id);
+  const refreshToken = await issueRefreshToken(account.user.id, Number(securityConfig.sessionPolicy.maxConcurrentSessions || 3));
   const avatar = account.employee?.avatarUrl || (account.employee
     ? `https://i.pravatar.cc/150?img=${Number(account.employee.employeeCode.replace(/\D/g, "")) || 1}`
     : "");
@@ -136,6 +151,7 @@ export async function login(email: string, password: string, ip?: string) {
       avatar,
       role: account.roleName,
       designation: account.employee?.designation?.title ?? "",
+      mustChangePassword,
     },
     token: accessToken,
     refreshToken,
@@ -143,7 +159,20 @@ export async function login(email: string, password: string, ip?: string) {
   };
 }
 
-async function issueRefreshToken(userId: string): Promise<string> {
+async function issueRefreshToken(userId: string, maxConcurrentSessions = 3): Promise<string> {
+  const maxSessions = Math.max(1, Math.min(20, Math.trunc(maxConcurrentSessions)));
+  const active = await prisma.refreshToken.findMany({
+    where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
+    orderBy: { createdAt: "asc" },
+    select: { id: true },
+  });
+  const overflow = active.length - maxSessions + 1;
+  if (overflow > 0) {
+    await prisma.refreshToken.updateMany({
+      where: { id: { in: active.slice(0, overflow).map((item) => item.id) } },
+      data: { revokedAt: new Date() },
+    });
+  }
   const jti = randomToken();
   await prisma.refreshToken.create({
     data: {
@@ -175,6 +204,7 @@ export async function refresh(refreshToken: string) {
     throw AppError.unauthorized("Account is inactive or no longer exists");
   }
 
+  const securityConfig = await getSecurityConfig();
   const accessToken = signAccessToken({
     sub: account.user.id,
     userId: account.user.id,
@@ -185,8 +215,8 @@ export async function refresh(refreshToken: string) {
     firstName: account.employee?.firstName,
     lastName: account.employee?.lastName,
     name: account.employee ? `${account.employee.firstName} ${account.employee.lastName}` : undefined,
-  });
-  const newRefreshToken = await issueRefreshToken(account.user.id);
+  }, Number(securityConfig.sessionPolicy.tokenLifetimeMinutes || 60));
+  const newRefreshToken = await issueRefreshToken(account.user.id, Number(securityConfig.sessionPolicy.maxConcurrentSessions || 3));
 
   writeAuditLog({
     action: "REFRESH",
@@ -218,11 +248,13 @@ export async function changePassword(userId: string, currentPassword: string, ne
   if (!(await verifyPassword(currentPassword, user.passwordHash))) {
     throw AppError.unauthorized("Current password is incorrect");
   }
-  if (newPassword.length < 8) {
-    throw AppError.badRequest("New password must be at least 8 characters");
+  await validatePasswordPolicy(newPassword);
+  if (await verifyPassword(newPassword, user.passwordHash)) {
+    throw AppError.badRequest("New password must be different from the current password");
   }
   const hash = await hashPassword(newPassword);
-  await prisma.user.update({ where: { id: userId }, data: { passwordHash: hash } });
+  await prisma.user.update({ where: { id: userId }, data: { passwordHash: hash, passwordChangedAt: new Date() } });
+  await clearForcedPasswordReset(userId);
   // Invalidate all existing refresh tokens after password change (spec §23).
   await prisma.refreshToken.updateMany({ where: { userId }, data: { revokedAt: new Date() } });
   writeAuditLog({ action: "UPDATE", entityType: "User", entityId: userId, newValue: { passwordChanged: true } });

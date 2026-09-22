@@ -4,6 +4,7 @@ import { sendSuccess } from "../../lib/response";
 import * as authService from "./auth.service";
 import { AppError } from "../../lib/errors";
 import { prisma } from "../../lib/prisma";
+import { passwordChangeRequired } from "../../services/security-policy.service";
 
 export const login = asyncHandler(async (req: Request, res: Response) => {
   const ip = req.ip ?? req.socket.remoteAddress ?? "";
@@ -52,6 +53,7 @@ export const me = asyncHandler(async (req: Request, res: Response) => {
       avatar,
       role: user.role.name,
       designation: user.employee?.designation?.title ?? "",
+      mustChangePassword: await passwordChangeRequired(user.id, user.passwordChangedAt),
     },
     permissions: req.auth.permissions,
   });

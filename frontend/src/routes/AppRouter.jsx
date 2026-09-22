@@ -13,6 +13,7 @@ import DashboardRouter from "./DashboardRouter";
 
 // ── Eagerly loaded (critical path) ─────────────────────────────────────────
 import Login from "../pages/Auth/Login";
+import ChangePassword from "../pages/Auth/ChangePassword";
 
 // ── Lazily loaded modules ────────────────────────────────────────────────────
 const Employees = lazy(() => import("../pages/Employees/Employees"));
@@ -60,6 +61,7 @@ export default function AppRouter() {
           <Routes>
           {/* Public */}
           <Route path="/login" element={<Login />} />
+          <Route path="/change-password" element={<RequireAuth><ChangePassword /></RequireAuth>} />
           <Route path="/careers" element={<CandidatePortal />} />
           <Route path="/candidate/offer/:token" element={<CandidatePortal />} />
 

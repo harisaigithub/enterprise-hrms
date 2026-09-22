@@ -207,6 +207,7 @@ model User {
   roleId       String    @map("role_id") @db.Uuid
   isActive     Boolean   @default(true) @map("is_active")
   lastLogin    DateTime? @map("last_login")
+  passwordChangedAt DateTime @default(now()) @map("password_changed_at") @db.Timestamp(6)
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
 
   role                         Role                     @relation(fields: [roleId], references: [id], onDelete: Restrict)

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { validate } from "../../middlewares/validate";
 import { authenticate } from "../../middlewares/auth";
 import { requirePermission, requireRole } from "../../middlewares/rbac";
+import { requireAllowedIp } from "../../middlewares/securityPolicy";
 import * as payrollController from "./payroll.controller";
 
 const router = Router();
@@ -23,7 +24,7 @@ router.post("/runs/:id/process", authenticate, requirePermission("payroll:write"
 // POST /api/payroll/runs/:id/approve — payroll:approve (four-eyes)
 router.post("/runs/:id/approve", authenticate, requirePermission("payroll:approve"), requireRole("ADMIN"), payrollController.approve);
 router.post("/runs/:id/reject", authenticate, requirePermission("payroll:approve"), requireRole("ADMIN"), validate({ body: z.object({ reason: z.string().trim().min(10).max(1000) }).strict() }), payrollController.reject);
-router.post("/runs/:id/release", authenticate, requirePermission("payroll:write"), requireRole("ADMIN"), payrollController.release);
+router.post("/runs/:id/release", authenticate, requirePermission("payroll:write"), requireRole("ADMIN"), requireAllowedIp("payroll-release"), payrollController.release);
 
 // POST /api/payroll/runs/:id/lock — payroll:write
 router.post("/runs/:id/lock", authenticate, requirePermission("payroll:write"), requireRole("ADMIN"), payrollController.lock);

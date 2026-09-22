@@ -20,8 +20,11 @@ export interface RefreshTokenPayload {
   jti: string; // unique token id (stored hashed in DB)
 }
 
-export function signAccessToken(payload: AccessTokenPayload): string {
-  const options: SignOptions = { expiresIn: env.JWT_ACCESS_EXPIRES_IN as jwt.SignOptions["expiresIn"] };
+export function signAccessToken(payload: AccessTokenPayload, lifetimeMinutes?: number): string {
+  const expiresIn = lifetimeMinutes
+    ? `${Math.max(5, Math.min(1440, Math.trunc(lifetimeMinutes)))}m`
+    : env.JWT_ACCESS_EXPIRES_IN;
+  const options: SignOptions = { expiresIn: expiresIn as jwt.SignOptions["expiresIn"] };
   return jwt.sign(payload, env.JWT_ACCESS_SECRET, options);
 }
 

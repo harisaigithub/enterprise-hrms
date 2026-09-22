@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { verifyAccessToken } from "../lib/jwt";
 import { AppError } from "../lib/errors";
 import { prisma } from "../lib/prisma";
+import { passwordChangeRequired } from "../services/security-policy.service";
 
 /**
  * JWT verification middleware. Rejects if the token is missing/invalid or the
@@ -18,10 +19,17 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
 
     const user = await prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, isActive: true },
+      select: { id: true, isActive: true, passwordChangedAt: true },
     });
     if (!user || !user.isActive) {
       throw AppError.unauthorized("Account is inactive");
+    }
+
+    const resetAllowed = req.originalUrl.includes("/auth/change-password")
+      || req.originalUrl.includes("/auth/logout")
+      || req.originalUrl.includes("/auth/me");
+    if (!resetAllowed && await passwordChangeRequired(user.id, user.passwordChangedAt)) {
+      throw AppError.forbidden("Password change is required before continuing");
     }
 
     req.auth = payload;
