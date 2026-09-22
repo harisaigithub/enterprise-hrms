@@ -3,7 +3,7 @@ import { z } from "zod";
 import multer from "multer";
 import { validate } from "../../middlewares/validate";
 import { authenticate } from "../../middlewares/auth";
-import { requirePermission } from "../../middlewares/rbac";
+import { requirePermission, requireRole } from "../../middlewares/rbac";
 import * as employeeController from "./employee.controller";
 
 const router = Router();
@@ -57,10 +57,19 @@ router.get(
   employeeController.list
 );
 
+router.post(
+  "/bulk/validate",
+  authenticate,
+  requireRole("ADMIN", "HR"),
+  requirePermission("employees:write"),
+  employeeController.validateBulk
+);
+
 // POST /api/employees/bulk — Bulk employee creation
 router.post(
   "/bulk",
   authenticate,
+  requireRole("ADMIN", "HR"),
   requirePermission("employees:write"),
   employeeController.bulkCreate
 );

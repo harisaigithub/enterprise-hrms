@@ -77,8 +77,15 @@ export const bulkCreate = asyncHandler(async (req: Request, res: Response) => {
   if (!Array.isArray(items) || items.length === 0) {
     throw AppError.badRequest("Payload must be a non-empty array of employee records");
   }
-  const result = await employeeService.bulkCreateEmployees(items);
-  sendSuccess(res, result.data, undefined, 201);
+  const result = await employeeService.bulkCreateEmployees(items, req.auth?.sub);
+  sendSuccess(res, result.data, undefined, result.data.totalCreated > 0 ? 201 : 200);
+});
+
+export const validateBulk = asyncHandler(async (req: Request, res: Response) => {
+  const items = Array.isArray(req.body) ? req.body : req.body.employees;
+  if (!Array.isArray(items) || items.length === 0) throw AppError.badRequest("Payload must be a non-empty array of employee records");
+  const result = await employeeService.validateBulkEmployees(items);
+  sendSuccess(res, result.data);
 });
 
 export const uploadAvatar = asyncHandler(async (req: Request, res: Response) => {

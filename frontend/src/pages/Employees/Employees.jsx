@@ -48,6 +48,7 @@ import {
   getEmployeeSalary,
   upsertEmployeeSalary,
   bulkImportEmployees,
+  validateBulkEmployees,
   uploadEmployeeAvatar,
   removeEmployeeAvatar,
   getEmployeeDocuments,
@@ -1129,6 +1130,8 @@ function BulkImportModal({ isOpen, onClose, onImported }) {
   const [parsedRows, setParsedRows] = useState([]);
   const [parseError, setParseError] = useState("");
   const [importing, setImporting] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [validation, setValidation] = useState(null);
   const [importResult, setImportResult] = useState(null);
   const fileInputRef = useRef(null);
 
@@ -1137,6 +1140,8 @@ function BulkImportModal({ isOpen, onClose, onImported }) {
     setParsedRows([]);
     setParseError("");
     setImporting(false);
+    setValidating(false);
+    setValidation(null);
     setImportResult(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -1148,11 +1153,8 @@ function BulkImportModal({ isOpen, onClose, onImported }) {
 
   const downloadSampleCsv = () => {
     const csvContent =
-`firstName,lastName,email,phone,designation,department,location,employmentType,guardianName,guardianPhone,managerCode
-Aarav,Sharma,aarav.sharma@example.com,+91 98765 43210,Senior Software Engineer,Engineering,"Bengaluru, Karnataka, India",Full-Time,Rajesh Sharma,+91 98111 22233,EMP001
-Priya,Patel,priya.patel@example.com,+91 98765 43211,Product Manager,Product,"Mumbai, Maharashtra, India",Full-Time,Sunita Patel,+91 98222 33344,EMP002
-Rohan,Verma,rohan.verma@example.com,+91 98765 43212,DevOps Engineer,Infrastructure,"Hyderabad, Telangana, India",Full-Time,Kavita Verma,+91 98333 44455,
-Ananya,Iyer,ananya.iyer@example.com,+91 98765 43213,UI/UX Designer,Design,"Pune, Maharashtra, India",Full-Time,Suresh Iyer,+91 98444 55566,EMP001`;
+`firstName,lastName,email,phone,designation,department,location,employmentType,dateOfJoining,guardianName,guardianPhone,managerCode
+Aarav,Sharma,aarav.sharma@example.com,+91 98765 43210,Senior Software Engineer,Engineering,"Bengaluru, Karnataka, India",Full-Time,2026-09-23,Rajesh Sharma,+91 98111 22233,EMP-2026-00001`;
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -1213,6 +1215,8 @@ Ananya,Iyer,ananya.iyer@example.com,+91 98765 43213,UI/UX Designer,Design,"Pune,
       "hub location": "location",
       employmenttype: "employmentType",
       "employment type": "employmentType",
+      dateofjoining: "dateOfJoining",
+      "date of joining": "dateOfJoining",
       guardianname: "guardianName",
       "guardian name": "guardianName",
       guardianphone: "guardianPhone",
@@ -1231,11 +1235,12 @@ Ananya,Iyer,ananya.iyer@example.com,+91 98765 43213,UI/UX Designer,Design,"Pune,
         firstName: "",
         lastName: "",
         email: "",
-        phone: "+91-",
-        designation: "Software Engineer",
-        department: "Engineering",
-        location: "Bengaluru, Karnataka, India",
+        phone: "",
+        designation: "",
+        department: "",
+        location: "",
         employmentType: "Full-Time",
+        dateOfJoining: "",
         guardianName: "",
         guardianPhone: "",
         managerId: "",
@@ -1263,20 +1268,31 @@ Ananya,Iyer,ananya.iyer@example.com,+91 98765 43213,UI/UX Designer,Design,"Pune,
   const handleFileChange = (e) => {
     const selected = e.target.files?.[0];
     if (!selected) return;
+    if (selected.size > 5 * 1024 * 1024) {
+      setParseError("CSV file must be 5 MB or smaller.");
+      return;
+    }
     setFile(selected);
     setParseError("");
     setImportResult(null);
+    setValidation(null);
 
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
         const text = evt.target?.result;
         if (typeof text !== "string") throw new Error("Could not read file text");
         const rows = parseCsvText(text);
         setParsedRows(rows);
+        setValidating(true);
+        const result = await validateBulkEmployees(rows);
+        setValidation(result.data);
       } catch (err) {
         setParseError(err.message || "Failed to parse CSV file.");
         setParsedRows([]);
+      }
+      finally {
+        setValidating(false);
       }
     };
     reader.onerror = () => {
@@ -1292,8 +1308,13 @@ Ananya,Iyer,ananya.iyer@example.com,+91 98765 43213,UI/UX Designer,Design,"Pune,
     setParseError("");
     try {
       const res = await bulkImportEmployees(parsedRows);
-      setImportResult(res.data);
-      onImported();
+      if (!res.data.valid) {
+        setValidation(res.data);
+        setParseError("Import blocked because one or more rows failed validation.");
+      } else {
+        setImportResult(res.data);
+        onImported();
+      }
     } catch (err) {
       setParseError(err.message || "Bulk import failed");
     } finally {
@@ -1425,7 +1446,7 @@ Ananya,Iyer,ananya.iyer@example.com,+91 98765 43213,UI/UX Designer,Design,"Pune,
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
               <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--text)" }}>
-                Ready to Import ({parsedRows.length} Employee{parsedRows.length !== 1 ? "s" : ""})
+                {validating ? "Validating against HRMS…" : validation?.valid ? `Validated (${parsedRows.length} employees)` : `Validation required (${parsedRows.length} rows)`}
               </span>
               <button
                 type="button"
@@ -1469,6 +1490,19 @@ Ananya,Iyer,ananya.iyer@example.com,+91 98765 43213,UI/UX Designer,Design,"Pune,
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {validation && !validation.valid && !importResult && (
+          <div style={{ background: "var(--red-light)", border: "1px solid rgba(220,38,38,.2)", borderRadius: "var(--radius-sm)", padding: "12px" }}>
+            <strong style={{ color: "var(--red)" }}>Import blocked: {validation.errors.length} validation error{validation.errors.length !== 1 ? "s" : ""}</strong>
+            <div style={{ maxHeight: "140px", overflowY: "auto", marginTop: "8px" }}>
+              {validation.errors.map((err, index) => (
+                <div key={`${err.row}-${err.field}-${index}`} style={{ fontSize: "12px", padding: "3px 0", color: "var(--text)" }}>
+                  Row {err.row} · {err.field}: {err.error}
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -1528,7 +1562,7 @@ Ananya,Iyer,ananya.iyer@example.com,+91 98765 43213,UI/UX Designer,Design,"Pune,
           {!importResult ? (
             <button
               type="button"
-              disabled={importing || parsedRows.length === 0}
+              disabled={importing || validating || parsedRows.length === 0 || !validation?.valid}
               onClick={handleImport}
               style={{
                 display: "flex",
@@ -1541,12 +1575,12 @@ Ananya,Iyer,ananya.iyer@example.com,+91 98765 43213,UI/UX Designer,Design,"Pune,
                 borderRadius: "var(--radius-sm)",
                 fontSize: "13px",
                 fontWeight: 600,
-                cursor: importing || parsedRows.length === 0 ? "not-allowed" : "pointer",
-                opacity: importing || parsedRows.length === 0 ? 0.6 : 1,
+                cursor: importing || validating || parsedRows.length === 0 || !validation?.valid ? "not-allowed" : "pointer",
+                opacity: importing || validating || parsedRows.length === 0 || !validation?.valid ? 0.6 : 1,
               }}
             >
               <FileUp size={15} />
-              {importing ? "Importing…" : `Import ${parsedRows.length} Employee${parsedRows.length !== 1 ? "s" : ""}`}
+              {validating ? "Validating…" : importing ? "Importing atomically…" : `Import ${parsedRows.length} Employee${parsedRows.length !== 1 ? "s" : ""}`}
             </button>
           ) : (
             <button
@@ -2401,6 +2435,7 @@ export default function Employees() {
   const PAGE_SIZE = 8;
 
   const canManage = role === "HR" || role === "ADMIN" || role === "MANAGER";
+  const canBulkImport = role === "HR" || role === "ADMIN";
   const canRemove = role === "HR" || role === "ADMIN";
 
   const load = useCallback(async () => {
@@ -2444,6 +2479,7 @@ export default function Employees() {
         >
           {canManage && (
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              {canBulkImport && (
               <button
                 id="bulk-import-btn"
                 onClick={() => setShowBulkImport(true)}
@@ -2464,6 +2500,7 @@ export default function Employees() {
               >
                 <FileUp size={16} /> Bulk Upload
               </button>
+              )}
 
               <button
                 id="add-employee-btn"

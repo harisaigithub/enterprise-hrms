@@ -47,6 +47,11 @@ export const bulkImportEmployees = async (employees) => {
   return res.data;
 };
 
+export const validateBulkEmployees = async (employees) => {
+  const res = await api.post("/employees/bulk/validate", { employees });
+  return res.data;
+};
+
 export const uploadEmployeeAvatar = async (id, file) => {
   const formData = new FormData();
   formData.append("avatar", file);

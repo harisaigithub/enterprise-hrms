@@ -1093,35 +1093,162 @@ export async function recordPromotion(
   return { data: { movement, employee: serializeEmployeeList([updated])[0] } };
 }
 
-export async function bulkCreateEmployees(items: CreateEmployeeInput[]) {
-  const results: any[] = [];
-  const errors: any[] = [];
+const BULK_IMPORT_LIMIT = 500;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const BULK_EMPLOYMENT_TYPES = new Set(["Full-Time", "Part-Time", "Contract", "Intern"]);
 
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    try {
-      if (!item.firstName || !item.lastName) {
-        throw new Error("First name and last name are required");
-      }
-      const created = await createEmployee(item);
-      results.push(created.data);
-    } catch (err: any) {
-      errors.push({
-        row: i + 1,
-        name: `${item.firstName || ""} ${item.lastName || ""}`.trim(),
-        email: item.email,
-        error: err.message || "Failed to create employee",
-      });
-    }
+type BulkImportError = { row: number; field: string; value?: string; error: string };
+
+export async function validateBulkEmployees(items: CreateEmployeeInput[]) {
+  if (items.length > BULK_IMPORT_LIMIT) {
+    throw AppError.badRequest(`A maximum of ${BULK_IMPORT_LIMIT} employees can be imported at once.`);
   }
+
+  const errors: BulkImportError[] = [];
+  const normalized = items.map((item) => ({
+    ...item,
+    firstName: String(item.firstName ?? "").trim(),
+    lastName: String(item.lastName ?? "").trim(),
+    email: String(item.email ?? "").trim().toLowerCase(),
+    phone: String(item.phone ?? "").trim(),
+    designation: String(item.designation ?? "").trim(),
+    department: String(item.department ?? "").trim(),
+    location: String(item.location ?? "").trim(),
+    managerId: String(item.managerId ?? "").trim(),
+    employmentType: String(item.employmentType ?? "Full-Time").trim(),
+  }));
+
+  const seenEmails = new Map<string, number>();
+  const seenPhones = new Map<string, number>();
+  const addError = (row: number, field: string, error: string, value?: string) =>
+    errors.push({ row: row + 2, field, value, error });
+
+  normalized.forEach((item, index) => {
+    if (!item.firstName) addError(index, "firstName", "First name is required.");
+    if (!item.lastName) addError(index, "lastName", "Last name is required.");
+    if (!item.email || !EMAIL_RE.test(item.email)) addError(index, "email", "A valid email is required.", item.email);
+    if (!item.department) addError(index, "department", "Department is required.");
+    if (!item.designation) addError(index, "designation", "Designation is required.");
+    if (!item.location) addError(index, "location", "Location is required.");
+    if (!BULK_EMPLOYMENT_TYPES.has(item.employmentType)) {
+      addError(index, "employmentType", "Use Full-Time, Part-Time, Contract, or Intern.", item.employmentType);
+    }
+    if (item.dateOfJoining && Number.isNaN(new Date(item.dateOfJoining).getTime())) {
+      addError(index, "dateOfJoining", "Use a valid date in YYYY-MM-DD format.", item.dateOfJoining);
+    }
+    if (item.email) {
+      const firstRow = seenEmails.get(item.email);
+      if (firstRow !== undefined) addError(index, "email", `Duplicate email in CSV (also row ${firstRow + 2}).`, item.email);
+      else seenEmails.set(item.email, index);
+    }
+    if (item.phone) {
+      const firstRow = seenPhones.get(item.phone);
+      if (firstRow !== undefined) addError(index, "phone", `Duplicate phone in CSV (also row ${firstRow + 2}).`, item.phone);
+      else seenPhones.set(item.phone, index);
+    }
+  });
+
+  const [users, employees, departments, designations, locations, managers] = await Promise.all([
+    prisma.user.findMany({ where: { email: { in: [...seenEmails.keys()] } }, select: { email: true } }),
+    prisma.employee.findMany({
+      where: { OR: [
+        { personalEmail: { in: [...seenEmails.keys()] } },
+        { personalMobile: { in: [...seenPhones.keys()].filter(Boolean) } },
+      ] },
+      select: { personalEmail: true, personalMobile: true },
+    }),
+    prisma.department.findMany({ select: { id: true, name: true } }),
+    prisma.designation.findMany({ select: { id: true, title: true } }),
+    prisma.location.findMany({ select: { id: true, name: true } }),
+    prisma.employee.findMany({
+      where: { employeeCode: { in: normalized.map((i) => i.managerId).filter(Boolean) } },
+      select: { id: true, employeeCode: true, status: true },
+    }),
+  ]);
+
+  const existingEmails = new Set([
+    ...users.map((u) => u.email.toLowerCase()),
+    ...employees.map((e) => e.personalEmail?.toLowerCase()).filter(Boolean) as string[],
+  ]);
+  const existingPhones = new Set(employees.map((e) => e.personalMobile).filter(Boolean));
+  const departmentMap = new Map(departments.map((v) => [v.name.toLowerCase(), v.id]));
+  const designationMap = new Map(designations.map((v) => [v.title.toLowerCase(), v.id]));
+  const locationMap = new Map(locations.map((v) => [v.name.toLowerCase(), v.id]));
+  const managerMap = new Map(managers.map((v) => [v.employeeCode.toLowerCase(), v]));
+
+  normalized.forEach((item, index) => {
+    if (existingEmails.has(item.email)) addError(index, "email", "Email already exists.", item.email);
+    if (item.phone && existingPhones.has(item.phone)) addError(index, "phone", "Phone already exists.", item.phone);
+    if (item.department && !departmentMap.has(item.department.toLowerCase())) addError(index, "department", "Department was not found.", item.department);
+    if (item.designation && !designationMap.has(item.designation.toLowerCase())) addError(index, "designation", "Designation was not found.", item.designation);
+    if (item.location && !locationMap.has(item.location.toLowerCase())) addError(index, "location", "Location was not found.", item.location);
+    if (item.managerId) {
+      const manager = managerMap.get(item.managerId.toLowerCase());
+      if (!manager) addError(index, "managerCode", "Manager employee code was not found.", item.managerId);
+      else if (["Inactive", "Terminated"].includes(manager.status)) addError(index, "managerCode", "Manager is not active.", item.managerId);
+    }
+  });
 
   return {
     data: {
-      created: results,
-      totalCreated: results.length,
+      valid: errors.length === 0,
+      totalRows: normalized.length,
+      validRows: errors.length === 0 ? normalized.length : new Set(normalized.map((_, i) => i + 2).filter((r) => !errors.some((e) => e.row === r))).size,
       errors,
-      totalRows: items.length,
     },
+    normalized,
+    refs: { departmentMap, designationMap, locationMap, managerMap },
   };
+}
+
+export async function bulkCreateEmployees(items: CreateEmployeeInput[], actorUserId?: string) {
+  const validation = await validateBulkEmployees(items);
+  if (!validation.data.valid) return { data: { ...validation.data, totalCreated: 0, created: [] } };
+
+  const role = await prisma.role.findUnique({ where: { name: "EMPLOYEE" }, select: { id: true } });
+  if (!role) throw AppError.conflict("EMPLOYEE role is not configured.");
+  const passwordHashes = await Promise.all(validation.normalized.map((item) => hashPassword(item.password ?? "Welcome@123")));
+  const currentYear = new Date().getFullYear();
+  const prefix = `EMP-${currentYear}-`;
+  const latest = await prisma.employee.findFirst({ where: { employeeCode: { startsWith: prefix } }, orderBy: { employeeCode: "desc" }, select: { employeeCode: true } });
+  let sequence = latest ? Number(latest.employeeCode.replace(prefix, "")) + 1 : await prisma.employee.count() + 1;
+
+  const created = await prisma.$transaction(async (tx) => {
+    const rows: Array<{ id: string; employeeCode: string; firstName: string; lastName: string; personalEmail: string | null }> = [];
+    for (let index = 0; index < validation.normalized.length; index++) {
+      const item = validation.normalized[index];
+      const joinDate = item.dateOfJoining ? new Date(item.dateOfJoining) : new Date();
+      const expectedConfirmationDate = new Date(joinDate);
+      expectedConfirmationDate.setMonth(expectedConfirmationDate.getMonth() + 6);
+      const user = await tx.user.create({ data: { email: item.email, passwordHash: passwordHashes[index], roleId: role.id } });
+      const employeeCode = `${prefix}${String(sequence++).padStart(5, "0")}`;
+      const manager = item.managerId ? validation.refs.managerMap.get(item.managerId.toLowerCase()) : undefined;
+      const employee = await tx.employee.create({
+        data: {
+          userId: user.id, employeeCode, firstName: item.firstName, lastName: item.lastName,
+          personalEmail: item.email, personalMobile: item.phone || null,
+          guardianName: item.guardianName || null, guardianPhone: item.guardianPhone || null,
+          departmentId: validation.refs.departmentMap.get(item.department.toLowerCase()),
+          designationId: validation.refs.designationMap.get(item.designation.toLowerCase()),
+          locationId: validation.refs.locationMap.get(item.location.toLowerCase()),
+          reportingManagerId: manager?.id ?? null, dateOfJoining: joinDate,
+          employmentType: item.employmentType, status: "Active", expectedConfirmationDate,
+        },
+        select: { id: true, employeeCode: true, firstName: true, lastName: true, personalEmail: true },
+      });
+      await tx.employeeMovement.create({ data: {
+        employeeId: employee.id, movementType: "STATUS_CHANGE", newStatus: "Active",
+        newDepartmentId: validation.refs.departmentMap.get(item.department.toLowerCase()),
+        newDesignationId: validation.refs.designationMap.get(item.designation.toLowerCase()),
+        newManagerId: manager?.id ?? null, effectiveDate: joinDate,
+        reason: "Created through validated bulk employee import", requestedById: actorUserId ?? null, approvedById: actorUserId ?? null,
+      } });
+      rows.push(employee);
+    }
+    return rows;
+  }, { maxWait: 10_000, timeout: 60_000 });
+
+  void writeAuditLog({ actorUserId, action: "CREATE", entityType: "EmployeeBulkImport", newValue: { totalCreated: created.length, employeeCodes: created.map((e) => e.employeeCode) } });
+  return { data: { valid: true, totalRows: items.length, validRows: items.length, totalCreated: created.length, errors: [], created } };
 }
 
