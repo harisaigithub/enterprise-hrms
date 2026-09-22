@@ -45,6 +45,16 @@ export const approvePayrollRun = async (payrollRunId) => {
   return res.data;
 };
 
+export const rejectPayrollRun = async (payrollRunId, reason) => {
+  const res = await api.post(`/payroll/runs/${payrollRunId}/reject`, { reason });
+  return res.data;
+};
+
+export const releasePayrollRun = async (payrollRunId) => {
+  const res = await api.post(`/payroll/runs/${payrollRunId}/release`);
+  return res.data;
+};
+
 export const lockPayrollRun = async (payrollRunId) => {
   const res = await api.post(`/payroll/runs/${payrollRunId}/lock`);
   return res.data;

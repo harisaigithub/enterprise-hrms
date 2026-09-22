@@ -19,7 +19,6 @@ import {
   CalendarDays,
   CreditCard,
   Printer,
-  TrendingUp,
   Download,
   Calendar,
   Wallet,
@@ -27,7 +26,6 @@ import {
   Percent,
   Receipt,
   Layers,
-  ChevronDown,
   Lock,
 } from "lucide-react";
 import MainLayout from "../../components/layout/MainLayout";
@@ -39,16 +37,16 @@ import { useAuth } from "../../context/AuthContext";
 import {
   getPayslips,
   getPayrollRuns,
-  getPayslip,
-  runPayroll,
   processPayrollRun,
   approvePayrollRun,
+  rejectPayrollRun,
+  releasePayrollRun,
   lockPayrollRun,
   printPayslip,
   printAnnualStatement,
   printForm16,
 } from "../../services/payrollService";
-import { payrollStatusMeta, getUserPayslips, payrollRuns as mockPayrollRuns } from "../../mock/payroll";
+import { payrollStatusMeta } from "../../mock/payroll";
 
 const fmt = (n) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n || 0);
@@ -532,7 +530,6 @@ function YearlyPayrollView({ payslips, onViewSlip }) {
     let pf = 0;
     let tax = 0;
     let pt = 0;
-    let otherDeductions = 0;
 
     payslips.forEach((s) => {
       gross += s.earnings?.total || 0;
@@ -540,7 +537,6 @@ function YearlyPayrollView({ payslips, onViewSlip }) {
       pf += s.deductions?.providentFund || 0;
       tax += s.deductions?.incomeTax || 0;
       pt += s.deductions?.professionalTax || 0;
-      otherDeductions += (s.deductions?.total || 0) - (s.deductions?.providentFund || 0) - (s.deductions?.incomeTax || 0);
     });
 
     return { gross, net, pf, tax, pt, totalDeductions: gross - net };
@@ -754,26 +750,28 @@ export default function Payroll() {
 
   // Check if current user has admin / HR payroll management access
   const canManagePayroll = permissions?.includes("payroll:write") || permissions?.includes("payroll:approve");
+  const normalizedRole = String(user?.role || "").toUpperCase();
+  const canPreparePayroll = permissions?.includes("payroll:write") && ["HR", "ADMIN"].includes(normalizedRole);
+  const canApprovePayroll = permissions?.includes("payroll:approve") && normalizedRole === "ADMIN";
+  const canReleasePayroll = permissions?.includes("payroll:write") && normalizedRole === "ADMIN";
   const [adminTab, setAdminTab] = useState("my_payslips"); // "my_payslips" | "payroll_runs"
   const [payrollRunsList, setPayrollRunsList] = useState([]);
+  const [payrollError, setPayrollError] = useState("");
 
   useEffect(() => {
-    setLoading(true);
-    const userFallback = getUserPayslips(user);
     getPayslips(user?.id)
       .then((res) => {
-        const list = res.data?.length > 0 ? res.data : userFallback;
-        setPayslips(list);
+        setPayslips(res.data || []);
       })
-      .catch(() => {
-        setPayslips(userFallback);
+      .catch((error) => {
+        setPayrollError(error.message || "Payroll data could not be loaded.");
       })
       .finally(() => setLoading(false));
 
     if (canManagePayroll) {
       getPayrollRuns()
-        .then((res) => setPayrollRunsList(res.data?.length > 0 ? res.data : mockPayrollRuns))
-        .catch(() => setPayrollRunsList(mockPayrollRuns));
+        .then((res) => setPayrollRunsList(res.data || []))
+        .catch((error) => setPayrollError(error.message || "Payroll runs could not be loaded."));
     }
   }, [user, canManagePayroll]);
 
@@ -800,6 +798,7 @@ export default function Payroll() {
                 : `Annual Compensation & Tax Computation Statement for FY ${financialYear}`
             }
           />
+          {payrollError && <div style={{ padding: "10px 14px", marginBottom: "14px", color: "var(--red)", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "var(--radius-sm)", fontSize: "12.5px" }}>{payrollError}</div>}
 
           {/* Controls Bar */}
           <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
@@ -948,7 +947,7 @@ export default function Payroll() {
                             <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "12px", color: "var(--subtext)", fontWeight: 600 }}>
                               <Lock size={12} /> Locked & Immutable
                             </span>
-                          ) : run.status === "Draft" ? (
+                          ) : run.status === "Draft" && canPreparePayroll ? (
                             <button
                               onClick={async () => {
                                 try {
@@ -960,19 +959,18 @@ export default function Payroll() {
                             >
                               Process Run
                             </button>
+                          ) : run.status === "Processing" && canApprovePayroll ? (
+                            <div style={{ display: "inline-flex", gap: "6px" }}>
+                              <button onClick={async () => { try { await approvePayrollRun(run.id); getPayrollRuns().then((res) => setPayrollRunsList(res.data || [])); } catch (e) { alert(e.message || "Failed to approve"); } }} style={{ padding: "6px 12px", background: "var(--green)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Approve Run</button>
+                              <button onClick={async () => { const reason = window.prompt("Rejection reason (minimum 10 characters)"); if (!reason) return; try { await rejectPayrollRun(run.id, reason); getPayrollRuns().then((res) => setPayrollRunsList(res.data || [])); } catch (e) { alert(e.message || "Failed to reject"); } }} style={{ padding: "6px 12px", background: "none", color: "var(--red)", border: "1px solid var(--red)", borderRadius: "var(--radius-sm)", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Reject</button>
+                            </div>
                           ) : run.status === "Processing" ? (
-                            <button
-                              onClick={async () => {
-                                try {
-                                  await approvePayrollRun(run.id);
-                                  getPayrollRuns().then((res) => setPayrollRunsList(res.data || []));
-                                } catch (e) { alert(e.message || "Failed to approve"); }
-                              }}
-                              style={{ padding: "6px 12px", background: "var(--green)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
-                            >
-                              Approve Run
-                            </button>
-                          ) : (
+                            <span style={{ fontSize: "12px", color: "var(--subtext)", fontWeight: 600 }}>Awaiting Admin Approval</span>
+                          ) : run.status === "Approved" && canReleasePayroll ? (
+                            <button onClick={async () => { if (!window.confirm(`Release payroll ${run.id} for payment?`)) return; try { await releasePayrollRun(run.id); getPayrollRuns().then((res) => setPayrollRunsList(res.data || [])); } catch (e) { alert(e.message || "Failed to release"); } }} style={{ padding: "6px 12px", background: "var(--green)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Release Payment</button>
+                          ) : run.status === "Approved" ? (
+                            <span style={{ fontSize: "12px", color: "var(--subtext)", fontWeight: 600 }}>Awaiting Admin Release</span>
+                          ) : run.status === "Paid" && canReleasePayroll ? (
                             <button
                               onClick={async () => {
                                 if (!window.confirm(`Lock payroll run ${run.id}? Once locked, it cannot be modified.`)) return;
@@ -985,6 +983,8 @@ export default function Payroll() {
                             >
                               <Lock size={12} /> Lock Run
                             </button>
+                          ) : (
+                            <span style={{ fontSize: "12px", color: "var(--subtext)", fontWeight: 600 }}>No action available</span>
                           )}
                         </td>
                       </tr>

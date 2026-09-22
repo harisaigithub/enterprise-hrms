@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { validate } from "../../middlewares/validate";
 import { authenticate } from "../../middlewares/auth";
-import { requirePermission } from "../../middlewares/rbac";
+import { requirePermission, requireRole } from "../../middlewares/rbac";
 import * as payrollController from "./payroll.controller";
 
 const router = Router();
@@ -18,13 +18,15 @@ router.get("/runs", authenticate, requirePermission("payroll:read"), payrollCont
 router.get("/runs/:id", authenticate, requirePermission("payroll:read"), payrollController.runDetail);
 
 // POST /api/payroll/runs/:id/process — payroll:write (Admin only in frontend matrix)
-router.post("/runs/:id/process", authenticate, requirePermission("payroll:write"), payrollController.process);
+router.post("/runs/:id/process", authenticate, requirePermission("payroll:write"), requireRole("HR", "ADMIN"), payrollController.process);
 
 // POST /api/payroll/runs/:id/approve — payroll:approve (four-eyes)
-router.post("/runs/:id/approve", authenticate, requirePermission("payroll:approve"), payrollController.approve);
+router.post("/runs/:id/approve", authenticate, requirePermission("payroll:approve"), requireRole("ADMIN"), payrollController.approve);
+router.post("/runs/:id/reject", authenticate, requirePermission("payroll:approve"), requireRole("ADMIN"), validate({ body: z.object({ reason: z.string().trim().min(10).max(1000) }).strict() }), payrollController.reject);
+router.post("/runs/:id/release", authenticate, requirePermission("payroll:write"), requireRole("ADMIN"), payrollController.release);
 
 // POST /api/payroll/runs/:id/lock — payroll:write
-router.post("/runs/:id/lock", authenticate, requirePermission("payroll:write"), payrollController.lock);
+router.post("/runs/:id/lock", authenticate, requirePermission("payroll:write"), requireRole("ADMIN"), payrollController.lock);
 
 // GET /api/payroll/payslips — payroll:read
 router.get("/payslips", authenticate, requirePermission("payroll:read"), validate({ query: payslipQuerySchema }), payrollController.payslips);

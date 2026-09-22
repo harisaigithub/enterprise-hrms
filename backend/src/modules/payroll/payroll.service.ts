@@ -26,7 +26,11 @@ import {
   buildPayslipAmounts,
 } from "../../serializers/payroll.serializer";
 
-const RUN_INCLUDE = { approvedByEmployee: { select: { employeeCode: true } } };
+const RUN_INCLUDE = {
+  preparedByEmployee: { select: { employeeCode: true } },
+  approvedByEmployee: { select: { employeeCode: true } },
+  releasedByEmployee: { select: { employeeCode: true } },
+};
 const SLIP_INCLUDE = {
   employee: { select: { employeeCode: true, firstName: true, lastName: true } },
   payrollRun: true,
@@ -85,7 +89,7 @@ export async function getPayslip(id: string) {
  * active employees from their active salary structure, and move to Processing.
  * High-impact action — requires payroll:write + four-eyes via approve.
  */
-export async function processPayrollRun(id: string, actorEmployeeId?: string) {
+export async function processPayrollRun(id: string, actorEmployeeId: string, actorUserId: string) {
   const parsed = parseRunPublicId(id);
   const run = await prisma.payrollRun.findUnique({
     where: { month_year: { month: parsed.month, year: parsed.year } },
@@ -153,6 +157,13 @@ export async function processPayrollRun(id: string, actorEmployeeId?: string) {
       where: { id: run.id },
       data: {
         status: "Processing",
+        preparedBy: actorEmployeeId,
+        preparedAt: new Date(),
+        approvedBy: null,
+        approvedAt: null,
+        releasedBy: null,
+        releasedAt: null,
+        rejectionReason: null,
         totalEmployees: valid.length,
         grossPayroll: Math.round(gross),
         totalDeductions: Math.round(deductions),
@@ -166,7 +177,7 @@ export async function processPayrollRun(id: string, actorEmployeeId?: string) {
     action: "UPDATE",
     entityType: "PayrollRun",
     entityId: run.id,
-    actorUserId: actorEmployeeId ?? undefined,
+    actorUserId,
     oldValue: { status: "Draft" },
     newValue: { status: "Processing", totalEmployees: valid.length, grossPayroll: gross, netPayroll: net },
   });
@@ -180,7 +191,7 @@ export async function processPayrollRun(id: string, actorEmployeeId?: string) {
  * Approve a processed run (four-eyes / second-person approval). Requires
  * payroll:approve permission — enforced at route level.
  */
-export async function approvePayrollRun(id: string, approverEmployeeId: string) {
+export async function approvePayrollRun(id: string, approverEmployeeId: string, actorUserId: string) {
   const parsed = parseRunPublicId(id);
   const run = await prisma.payrollRun.findUnique({
     where: { month_year: { month: parsed.month, year: parsed.year } },
@@ -189,38 +200,64 @@ export async function approvePayrollRun(id: string, approverEmployeeId: string) 
   if (run.status !== "Processing") {
     throw AppError.conflict(`Only Processing runs can be approved (current: ${run.status})`);
   }
+  if (run.preparedBy === approverEmployeeId) {
+    throw AppError.forbidden("Four-eyes control: the payroll preparer cannot approve the same run");
+  }
 
   const updated = await prisma.payrollRun.update({
     where: { id: run.id },
     data: {
-      status: "Paid",
-      processedOn: new Date(),
+      status: "Approved",
       approvedBy: approverEmployeeId,
+      approvedAt: new Date(),
     },
     include: RUN_INCLUDE,
-  });
-
-  await prisma.payslip.updateMany({
-    where: { payrollRunId: run.id },
-    data: { status: "Paid", paidOn: new Date(), paymentMode: "Bank Transfer" },
   });
 
   writeAuditLog({
     action: "APPROVE",
     entityType: "PayrollRun",
     entityId: run.id,
-    actorUserId: approverEmployeeId ?? undefined,
+    actorUserId,
     oldValue: { status: "Processing" },
-    newValue: { status: "Paid" },
+    newValue: { status: "Approved", fourEyesVerified: true },
   });
 
+  return { data: serializePayrollRunList([updated])[0] };
+}
+
+export async function rejectPayrollRun(id: string, reason: string, actorEmployeeId: string, actorUserId: string) {
+  const parsed = parseRunPublicId(id);
+  const run = await prisma.payrollRun.findUnique({ where: { month_year: { month: parsed.month, year: parsed.year } } });
+  if (!run) throw AppError.notFound("Payroll run not found");
+  if (run.status !== "Processing") throw AppError.conflict(`Only Processing runs can be rejected (current: ${run.status})`);
+  if (run.preparedBy === actorEmployeeId) throw AppError.forbidden("The payroll preparer cannot review their own run");
+  const updated = await prisma.$transaction(async (tx) => {
+    await tx.payslip.deleteMany({ where: { payrollRunId: run.id } });
+    return tx.payrollRun.update({ where: { id: run.id }, data: { status: "Draft", rejectionReason: reason.trim(), approvedBy: null, approvedAt: null }, include: RUN_INCLUDE });
+  });
+  await writeAuditLog({ action: "REJECT", entityType: "PayrollRun", entityId: run.id, actorUserId, oldValue: { status: "Processing" }, newValue: { status: "Draft", reason: reason.trim() } });
+  return { data: serializePayrollRunList([updated])[0] };
+}
+
+export async function releasePayrollRun(id: string, actorEmployeeId: string, actorUserId: string) {
+  const parsed = parseRunPublicId(id);
+  const run = await prisma.payrollRun.findUnique({ where: { month_year: { month: parsed.month, year: parsed.year } } });
+  if (!run) throw AppError.notFound("Payroll run not found");
+  if (run.status !== "Approved") throw AppError.conflict(`Only Approved runs can be released (current: ${run.status})`);
+  const now = new Date();
+  const updated = await prisma.$transaction(async (tx) => {
+    await tx.payslip.updateMany({ where: { payrollRunId: run.id }, data: { status: "Paid", paidOn: now, paymentMode: "Bank Transfer" } });
+    return tx.payrollRun.update({ where: { id: run.id }, data: { status: "Paid", processedOn: now, releasedBy: actorEmployeeId, releasedAt: now }, include: RUN_INCLUDE });
+  });
+  await writeAuditLog({ action: "UPDATE", entityType: "PayrollRun", entityId: run.id, actorUserId, oldValue: { status: "Approved" }, newValue: { status: "Paid", released: true } });
   return { data: serializePayrollRunList([updated])[0] };
 }
 
 /**
  * Lock a payroll run. Once LOCKED, no recalculations, edits, or payslip additions can be made.
  */
-export async function lockPayrollRun(id: string, actorEmployeeId?: string) {
+export async function lockPayrollRun(id: string, actorUserId: string) {
   const parsed = parseRunPublicId(id);
   const run = await prisma.payrollRun.findUnique({
     where: { month_year: { month: parsed.month, year: parsed.year } },
@@ -229,6 +266,7 @@ export async function lockPayrollRun(id: string, actorEmployeeId?: string) {
   if (run.status === "Locked") {
     return { data: serializePayrollRunList([run])[0] };
   }
+  if (run.status !== "Paid") throw AppError.conflict(`Only Paid runs can be locked (current: ${run.status})`);
 
   const updated = await prisma.payrollRun.update({
     where: { id: run.id },
@@ -242,7 +280,7 @@ export async function lockPayrollRun(id: string, actorEmployeeId?: string) {
     action: "UPDATE",
     entityType: "PayrollRun",
     entityId: run.id,
-    actorUserId: actorEmployeeId ?? undefined,
+    actorUserId,
     oldValue: { status: run.status },
     newValue: { status: "Locked" },
   });

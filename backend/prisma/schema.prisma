@@ -291,6 +291,8 @@ model Employee {
   salaryStructures                SalaryStructure[]
   payslips                        Payslip[]
   approvedRuns                    PayrollRun[]                      @relation("PayrollRunApprovedBy")
+  preparedRuns                    PayrollRun[]                      @relation("PayrollRunPreparedBy")
+  releasedRuns                    PayrollRun[]                      @relation("PayrollRunReleasedBy")
   workflowRequests                WorkflowInstance[]
   attendanceRegularizationHistory AttendanceRegularizationHistory[]
 
@@ -653,18 +655,28 @@ model PayrollRun {
   year            Int
   status          String    @default("Draft") @db.VarChar(20)
   processedOn     DateTime? @map("processed_on") @db.Date
+  preparedBy      String?   @map("prepared_by") @db.Uuid
+  preparedAt      DateTime? @map("prepared_at") @db.Timestamp(6)
   approvedBy      String?   @map("approved_by") @db.Uuid
+  approvedAt      DateTime? @map("approved_at") @db.Timestamp(6)
+  releasedBy      String?   @map("released_by") @db.Uuid
+  releasedAt      DateTime? @map("released_at") @db.Timestamp(6)
+  rejectionReason String?   @map("rejection_reason") @db.Text
   totalEmployees  Int       @default(0) @map("total_employees")
   grossPayroll    Decimal   @default(0) @map("gross_payroll") @db.Decimal(14, 2)
   totalDeductions Decimal   @default(0) @map("total_deductions") @db.Decimal(14, 2)
   netPayroll      Decimal   @default(0) @map("net_payroll") @db.Decimal(14, 2)
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
 
+  preparedByEmployee Employee? @relation("PayrollRunPreparedBy", fields: [preparedBy], references: [id], onDelete: SetNull)
   approvedByEmployee Employee? @relation("PayrollRunApprovedBy", fields: [approvedBy], references: [id], onDelete: SetNull)
+  releasedByEmployee Employee? @relation("PayrollRunReleasedBy", fields: [releasedBy], references: [id], onDelete: SetNull)
   payslips           Payslip[]
 
   @@unique([month, year])
   @@index([status])
+  @@index([preparedBy])
+  @@index([releasedBy])
   @@map("payroll_runs")
 }
 

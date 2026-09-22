@@ -15,7 +15,9 @@ export function periodLabel(run: { year: number; month: number }): string {
 }
 
 type RunWithRelations = PayrollRun & {
+  preparedByEmployee?: { employeeCode: string } | null;
   approvedByEmployee?: { employeeCode: string } | null;
+  releasedByEmployee?: { employeeCode: string } | null;
 };
 
 /** Payroll run DTO — matches mock/payroll.js (`id` is PR-YYYY-MM). */
@@ -27,7 +29,13 @@ export function serializePayrollRun(run: RunWithRelations) {
     year: run.year,
     status: run.status,
     processedOn: formatDate(run.processedOn),
+    preparedBy: run.preparedByEmployee?.employeeCode ?? null,
+    preparedAt: run.preparedAt?.toISOString() ?? null,
     approvedBy: run.approvedByEmployee?.employeeCode ?? null,
+    approvedAt: run.approvedAt?.toISOString() ?? null,
+    releasedBy: run.releasedByEmployee?.employeeCode ?? null,
+    releasedAt: run.releasedAt?.toISOString() ?? null,
+    rejectionReason: run.rejectionReason,
     totalEmployees: run.totalEmployees,
     grossPayroll: toNumber(run.grossPayroll),
     totalDeductions: toNumber(run.totalDeductions),
