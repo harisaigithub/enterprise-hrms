@@ -24,6 +24,7 @@ import notificationRoutes from "../modules/notifications/notifications.routes";
 import requestRoutes from "../modules/requests/request.routes";
 import expenseRoutes from "../modules/expense/expense.routes";
 import travelRoutes from "../modules/travel/travel.routes";
+import securityRoutes from "../modules/security/security.routes";
 
 
 
@@ -62,6 +63,7 @@ if (!serviceName || serviceName === "notifications") router.use("/notifications"
 if (!serviceName || serviceName === "requests") router.use("/requests", requestRoutes);
 if (!serviceName || serviceName === "expense") router.use("/expense", expenseRoutes);
 if (!serviceName || serviceName === "travel") router.use("/travel", travelRoutes);
+if (!serviceName || serviceName === "security") router.use("/security", securityRoutes);
 
 
 export default router;

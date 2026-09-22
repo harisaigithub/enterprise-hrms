@@ -37,11 +37,11 @@ import {
   deactivateUser,
   forcePasswordReset,
   revokeAllSessions,
-  useBreakGlass,
+  activateBreakGlass,
+  getPermissionCatalog,
   getSessions,
   getSecurityConfig,
   updatePasswordPolicy,
-  updateSsoConfig,
   updateIpRestriction,
   getKmsConfig,
   rotateKmsKey,
@@ -53,7 +53,7 @@ import {
   getAuditLog,
   verifyAuditChain,
 } from "../../services/securityService";
-import { PERMISSION_CATALOG, MFA_RESTRICTED_ROLE_IDS, userStatusMeta, severityMeta } from "../../mock/security";
+import { userStatusMeta, severityMeta } from "../../constants/security";
 
 const ME_NAME = "Matsya Singh";
 const fmtDateTime = (d) => (d ? new Date(d).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : " — ");
@@ -191,7 +191,7 @@ function BreakGlassModal({ isOpen, onClose, onUsed }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
-    const res = await useBreakGlass(justification.trim(), ME_NAME);
+    const res = await activateBreakGlass(justification.trim(), ME_NAME);
     setSaving(false);
     if (res.data.error) {
       setError(res.data.error);
@@ -294,11 +294,11 @@ function UsersPanel({ users, roles, sessions, onUserUpdated, onUserAdded, onBrea
   );
 }
 
-function GrantPermissionModal({ isOpen, onClose, role, onSaved }) {
+function GrantPermissionModal({ isOpen, onClose, role, onSaved, permissionCatalog }) {
   const [permission, setPermission] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const available = role ? PERMISSION_CATALOG.filter((p) => !role.permissions.includes(p)) : [];
+  const available = role ? permissionCatalog.filter((p) => !role.permissions.includes(p)) : [];
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -383,7 +383,7 @@ function MfaExceptionModal({ isOpen, onClose, role, onSaved }) {
   );
 }
 
-function RolesPanel({ roles, onRoleUpdated, onRoleAdded }) {
+function RolesPanel({ roles, permissionCatalog, onRoleUpdated, onRoleAdded }) {
   const [grantTarget, setGrantTarget] = useState(null);
   const [mfaExceptionTarget, setMfaExceptionTarget] = useState(null);
   const [deleteError, setDeleteError] = useState({});
@@ -396,7 +396,7 @@ function RolesPanel({ roles, onRoleUpdated, onRoleAdded }) {
   };
 
   const handleToggleMfa = async (role) => {
-    if (MFA_RESTRICTED_ROLE_IDS.includes(role.id) && role.mfaEnabled) {
+    if (role.mfaRestricted && role.mfaEnabled) {
       setMfaExceptionTarget(role);
       return;
     }
@@ -453,22 +453,22 @@ function RolesPanel({ roles, onRoleUpdated, onRoleAdded }) {
                 <span style={{ fontSize: "11px", color: "var(--subtext)", fontStyle: "italic" }}>No permissions granted yet</span>
               ) : (
                 role.permissions.map((p) => (
-                  <span key={p} onClick={() => handleRevoke(role.id, p)} title="Click to revoke" style={{ fontSize: "10.5px", fontWeight: 600, color: "var(--subtext)", background: "var(--background)", padding: "2px 8px", borderRadius: "99px", cursor: "pointer" }}>
-                    {p} ?
-                  </span>
+                  <button key={p} type="button" onClick={() => handleRevoke(role.id, p)} title={`Revoke ${p}`} aria-label={`Revoke ${p} from ${role.name}`} style={{ fontSize: "10.5px", fontWeight: 600, color: "var(--subtext)", background: "var(--background)", padding: "2px 8px", border: "none", borderRadius: "99px", cursor: "pointer" }}>
+                    {p} <span aria-hidden="true">&times;</span>
+                  </button>
                 ))
               )}
             </div>
             {deleteError[role.id] && <p style={{ fontSize: "11px", color: "var(--red)", marginBottom: "8px" }}>{deleteError[role.id]}</p>}
             <div style={{ display: "flex", gap: "12px" }}>
               <button onClick={() => setGrantTarget(role)} style={{ fontSize: "12px", fontWeight: 700, color: "var(--primary)", border: "none", background: "none", cursor: "pointer" }}>+ Grant permission</button>
-              <button onClick={() => handleDelete(role.id)} style={{ fontSize: "12px", fontWeight: 700, color: "var(--red)", border: "none", background: "none", cursor: "pointer" }}>Delete role</button>
+              {role.isCustom && <button onClick={() => handleDelete(role.id)} style={{ fontSize: "12px", fontWeight: 700, color: "var(--red)", border: "none", background: "none", cursor: "pointer" }}>Delete role</button>}
             </div>
           </div>
         ))}
       </div>
 
-      <GrantPermissionModal isOpen={!!grantTarget} onClose={() => setGrantTarget(null)} role={grantTarget} onSaved={onRoleUpdated} />
+      <GrantPermissionModal isOpen={!!grantTarget} onClose={() => setGrantTarget(null)} role={grantTarget} onSaved={onRoleUpdated} permissionCatalog={permissionCatalog} />
       <MfaExceptionModal isOpen={!!mfaExceptionTarget} onClose={() => setMfaExceptionTarget(null)} role={mfaExceptionTarget} onSaved={onRoleUpdated} />
     </div>
   );
@@ -666,7 +666,7 @@ function EncryptionBackupTab({ kmsConfig, backupJobs, restoreRequests, onKmsUpda
 
 /* ---------------------------------- Audit Log tab ---------------------------------- */
 
-function AuditLogTab({ entries, onRefresh }) {
+function AuditLogTab({ entries }) {
   const [verifying, setVerifying] = useState(false);
   const [verifyResult, setVerifyResult] = useState(null);
 
@@ -731,6 +731,7 @@ export default function Security() {
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [permissionCatalog, setPermissionCatalog] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [config, setConfig] = useState(null);
   const [kmsConfig, setKmsConfig] = useState(null);
@@ -738,17 +739,19 @@ export default function Security() {
   const [restoreRequests, setRestoreRequests] = useState([]);
   const [auditEntries, setAuditEntries] = useState([]);
   const [breakGlassAlert, setBreakGlassAlert] = useState(null);
+  const [pageError, setPageError] = useState("");
 
   useEffect(() => {
-    setLoading(true);
     Promise.all([
       getUsers(), getRoles(), getSessions(), getSecurityConfig(),
-      getKmsConfig(), getBackupJobs(), getRestoreRequests(), getAuditLog(),
+      getKmsConfig(), getBackupJobs(), getRestoreRequests(), getAuditLog(), getPermissionCatalog(),
     ])
-      .then(([u, r, s, c, kms, bk, rr, al]) => {
+      .then(([u, r, s, c, kms, bk, rr, al, pc]) => {
         setUsers(u.data); setRoles(r.data); setSessions(s.data); setConfig(c.data);
         setKmsConfig(kms.data); setBackupJobs(bk.data); setRestoreRequests(rr.data); setAuditEntries(al.data);
+        setPermissionCatalog(pc.data);
       })
+      .catch((error) => setPageError(error.message || "Security data could not be loaded."))
       .finally(() => setLoading(false));
   }, []);
 
@@ -813,6 +816,8 @@ export default function Security() {
       <div style={{ maxWidth: "1480px", margin: "0 auto" }}>
         <PageHeader title="Security & Administration" subtitle="Users, roles, authentication policy, and system-wide security configuration" />
 
+        {pageError && <div style={{ ...cardStyle, padding: "12px 16px", marginBottom: "16px", color: "var(--red)", background: "#fef2f2", border: "1px solid #fecaca" }}>{pageError}</div>}
+
         {breakGlassAlert && (
           <div style={{ ...cardStyle, padding: "12px 16px", marginBottom: "16px", background: "#fef2f2", border: "1px solid #fecaca", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -828,7 +833,7 @@ export default function Security() {
         {activeTab === "users" && (
           <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
             <UsersPanel users={users} roles={roles} sessions={sessions} onUserUpdated={handleUserUpdated} onUserAdded={handleUserAdded} onBreakGlassAlert={handleBreakGlassAlert} />
-            <RolesPanel roles={roles} onRoleUpdated={handleRoleUpdated} onRoleAdded={handleRoleAdded} />
+            <RolesPanel roles={roles} permissionCatalog={permissionCatalog} onRoleUpdated={handleRoleUpdated} onRoleAdded={handleRoleAdded} />
           </div>
         )}
 
@@ -848,7 +853,7 @@ export default function Security() {
         )}
 
         {activeTab === "audit" && (
-          <AuditLogTab entries={auditEntries} onRefresh={refreshAuditLog} />
+          <AuditLogTab entries={auditEntries} />
         )}
       </div>
     </MainLayout>

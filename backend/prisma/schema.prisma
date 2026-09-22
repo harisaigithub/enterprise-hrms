@@ -188,6 +188,18 @@ model RolePermission {
   @@map("role_permissions")
 }
 
+/// Persistent configuration and approval state for the Security Admin module.
+/// Identity, roles, permissions, sessions and audit events continue to use
+/// their normalized domain tables; only configurable JSON documents live here.
+model SecurityState {
+  key       String   @id @db.VarChar(80)
+  value     Json     @db.JsonB
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  @@map("security_state")
+}
+
 model User {
   id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email        String    @unique @db.VarChar(150)
