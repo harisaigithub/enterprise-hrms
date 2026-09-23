@@ -982,30 +982,6 @@ services:
         condition: service_healthy
     command: sh -c "node dist/index.js"
 
-
-  # =========================================================
-  # SECURITY SERVICE
-  # =========================================================
-
-  security-service:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: hrms-security-service
-    restart: unless-stopped
-    env_file:
-      - ./backend/.env
-    environment:
-      NODE_ENV: production
-      DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
-      SERVICE_NAME: "security"
-    depends_on:
-      db:
-        condition: service_healthy
-    command: node dist/index.js
-
-
-
   # =========================================================
   # EMPLOYEE SELF SERVICE
   # =========================================================
