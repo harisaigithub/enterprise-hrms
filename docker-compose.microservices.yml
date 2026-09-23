@@ -179,6 +179,43 @@ services:
 
 
   # =========================================================
+  # SECURITY SERVICE
+  # =========================================================
+
+  security-service:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    container_name: hrms-security-service
+    restart: unless-stopped
+
+    env_file:
+      - ./backend/.env
+
+    environment:
+      NODE_ENV: production
+
+      DATABASE_URL: "postgresql://hrms_admin:hrms_password@db:5432/hrms_db?schema=public"
+
+      SERVICE_NAME: "security"
+
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin123"
+
+      CORS_ORIGINS: "http://localhost:5173"
+
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+    command: node dist/index.js
+
+  # =========================================================
   # ORGANIZATION SERVICE
   # =========================================================
 
@@ -1007,6 +1044,7 @@ services:
 
     depends_on:
       - auth-service
+      - security-service
       - organization-service
       - employees-service
       - travel-service

@@ -346,6 +346,8 @@ async function main() {
   await prisma.leaveRequest.deleteMany();
   await prisma.leaveBalance.deleteMany();
   await prisma.leaveType.deleteMany();
+  await prisma.expenseClaim.deleteMany();
+  await prisma.travelRequest.deleteMany();
   await prisma.employee.deleteMany();
   await prisma.user.deleteMany();
   await prisma.rolePermission.deleteMany();
