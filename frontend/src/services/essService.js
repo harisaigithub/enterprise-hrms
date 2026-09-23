@@ -1,42 +1,31 @@
-/**
- * Employee Self Service — Module 16
- * Mirrors leaveService/attendanceService: async functions resolving to { data }.
- *
- * IMPORTANT: none of these functions take an arbitrary employeeId from the
- * caller for read/write of "my" data — they're wired to the session user
- * (ME.id in SelfService.jsx) exactly like Leave.jsx/Attendance.jsx hardcode
- * EMP001. In a real backend, employeeId must be derived server-side from the
- * authenticated session, never trusted from a client parameter (16.6).
- */
+import api from "./api";
 
-import {
-  _getOverview,
-  _getTaxDeclarations,
-  _submitTaxDeclaration,
-  _getLastExportRequest,
-  _requestDataExport,
-} from "../mock/ess";
-
-const resolve = (data, ms = 350) => new Promise((res) => setTimeout(() => res({ data }), ms));
-
-// Aggregates across modules; a single module being down degrades gracefully
-// (see payrollError on the returned object) instead of failing the whole call.
-export function getOverview(simulatePayrollDown = false) {
-  return resolve(_getOverview(simulatePayrollDown));
+export async function getOverview() {
+  const response = await api.get("/ess/overview");
+  return response.data;
 }
 
-export function getTaxDeclarations(employeeId) {
-  return resolve(_getTaxDeclarations(employeeId));
-}
-export function submitTaxDeclaration(entry) {
-  return resolve(_submitTaxDeclaration(entry));
+export async function getTaxDeclarations() {
+  const response = await api.get("/ess/tax-declarations");
+  return response.data;
 }
 
-export function getLastExportRequest(employeeId) {
-  return resolve(_getLastExportRequest(employeeId));
+export async function submitTaxDeclaration(entry) {
+  const response = await api.post("/ess/tax-declarations", {
+    financialYear: entry.financialYear,
+    section: entry.section,
+    investmentType: entry.investmentType,
+    amount: entry.amount,
+  });
+  return response.data;
 }
-// Throttled server-side (16.5.9) — returns { error } instead of a link if the
-// employee already requested an export within the throttle window.
-export function requestDataExport(employeeId) {
-  return resolve(_requestDataExport(employeeId));
+
+export async function getLastExportRequest() {
+  const response = await api.get("/ess/data-export/latest");
+  return response.data;
+}
+
+export async function requestDataExport() {
+  const response = await api.post("/ess/data-export");
+  return response.data;
 }

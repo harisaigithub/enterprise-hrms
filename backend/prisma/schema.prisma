@@ -337,11 +337,43 @@ model Employee {
   travelRequests            TravelRequest[]          @relation("TravelRequester")
   travelActions             TravelRequestHistory[]   @relation("TravelHistoryActor")
 
+  essTaxDeclarations        EssTaxDeclaration[]
+  essDataExportRequests     EssDataExportRequest[]
+
   @@index([departmentId])
   @@index([designationId])
   @@index([reportingManagerId])
   @@index([status])
   @@map("employees")
+}
+
+
+model EssTaxDeclaration {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId     String   @map("employee_id") @db.Uuid
+  financialYear  String   @map("financial_year") @db.VarChar(9)
+  section        String   @db.VarChar(20)
+  investmentType String   @map("investment_type") @db.VarChar(120)
+  amount         Decimal  @db.Decimal(12, 2)
+  proofStatus    String   @default("Pending") @map("proof_status") @db.VarChar(20)
+  submittedAt    DateTime @default(now()) @map("submitted_at") @db.Timestamp(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  @@index([employeeId, financialYear])
+  @@map("ess_tax_declarations")
+}
+
+model EssDataExportRequest {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employeeId  String    @map("employee_id") @db.Uuid
+  status      String    @default("Requested") @db.VarChar(20)
+  requestedAt DateTime  @default(now()) @map("requested_at") @db.Timestamp(6)
+  expiresAt   DateTime  @map("expires_at") @db.Timestamp(6)
+  downloadUrl String?   @map("download_url") @db.Text
+  completedAt DateTime? @map("completed_at") @db.Timestamp(6)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  @@index([employeeId, requestedAt])
+  @@map("ess_data_export_requests")
 }
 
 model EmployeeDocument {

@@ -6,6 +6,7 @@ import * as controller from "./dashboard.controller";
 const router = Router();
 router.get("/employee", authenticate, requireRole("EMPLOYEE", "MANAGER", "HR", "ADMIN"), requirePermission("dashboard:read"), controller.employee);
 router.get("/manager", authenticate, requireRole("MANAGER", "ADMIN"), requirePermission("dashboard:read"), controller.manager);
+router.get("/hr", authenticate, requireRole("HR", "ADMIN"), requirePermission("dashboard:read"), controller.hr);
 router.get(
   "/admin",
   authenticate,

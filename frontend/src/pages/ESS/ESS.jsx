@@ -19,7 +19,6 @@ import {
   GraduationCap,
   Laptop,
   LifeBuoy,
-  Users,
   AlertTriangle,
   Plus,
   ShieldCheck,
@@ -48,7 +47,7 @@ import {
   createEmployeeRequest,
   decideEmployeeRequest,
 } from "../../services/employeeService";
-import { proofStatusMeta, EXPORT_THROTTLE_DAYS, EXPORT_EXPIRY_HOURS } from "../../mock/ess";
+import { proofStatusMeta, EXPORT_THROTTLE_DAYS } from "../../mock/ess";
 
 const currency = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
 const fmtDateTime = (iso) => new Date(iso).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -173,15 +172,11 @@ function OverviewWidget({ icon: Icon, label, error, children }) {
   );
 }
 
-function OverviewTab({ overview, simulatePayrollDown, onToggleSimulate }) {
+function OverviewTab({ overview }) {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
         <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Quick Actions</h2>
-        <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11.5px", color: "var(--subtext)", cursor: "pointer" }}>
-          <input type="checkbox" checked={simulatePayrollDown} onChange={(e) => onToggleSimulate(e.target.checked)} />
-          Simulate Payroll module being down
-        </label>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "12px", marginBottom: "24px" }}>
@@ -359,7 +354,7 @@ function NewRequestModal({ isOpen, onClose, onSubmitted }) {
   const [permanentAddress, setPermanentAddress] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
-  const [country, setCountry] = useState("India");
+  const [country] = useState("India");
   const [postalCode, setPostalCode] = useState("");
 
   // Bank fields
@@ -626,7 +621,6 @@ function RequestCenterTab({ userRole }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("All");
-  const [subTab, setSubTab] = useState("my"); // "my" | "team"
   const [showModal, setShowModal] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
 
@@ -645,7 +639,7 @@ function RequestCenterTab({ userRole }) {
   };
 
   useEffect(() => {
-    fetchRequests();
+    queueMicrotask(fetchRequests);
   }, []);
 
   const handleDecide = async (id, status) => {
@@ -685,7 +679,7 @@ function RequestCenterTab({ userRole }) {
 
   const formatPayload = (payload) => {
     if (!payload || typeof payload !== "object") return "None";
-    const entries = Object.entries(payload).filter(([k, v]) => v !== null && v !== undefined && v !== "");
+    const entries = Object.entries(payload).filter(([, v]) => v !== null && v !== undefined && v !== "");
     if (entries.length === 0) return "No details provided";
     return entries.map(([k, v]) => `${k}: ${v}`).join(" • ");
   };
@@ -821,52 +815,21 @@ function RequestCenterTab({ userRole }) {
 
 /* ---------------------------------- Download My Data tab ---------------------------------- */
 
-function HierarchyView() {
-  return (
-    <div style={{ marginTop: "24px", paddingTop: "20px", borderTop: "1px solid var(--border)" }}>
-      <h3 style={{ fontSize: "13px", fontWeight: 700, marginBottom: "16px", display: "flex", alignItems: "center", gap: "6px", color: "var(--text)" }}>
-        <Users size={16} /> My Organization Hierarchy (Extracted from Download)
-      </h3>
-      <div style={{ display: "flex", flexDirection: "column", gap: "0px" }}>
-        {/* Manager */}
-        <div style={{ padding: "12px", background: "var(--card)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", maxWidth: "300px", marginLeft: "0px" }}>
-          <p style={{ fontSize: "11px", color: "var(--subtext)", fontWeight: 600, textTransform: "uppercase", marginBottom: "2px" }}>Manager</p>
-          <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>Anjali Desai</p>
-          <p style={{ fontSize: "12px", color: "var(--subtext)" }}>Engineering Manager</p>
-        </div>
-        <div style={{ width: "2px", height: "20px", background: "var(--border)", marginLeft: "24px" }}></div>
-        {/* Me */}
-        <div style={{ padding: "12px", background: "var(--primary)", borderRadius: "var(--radius-sm)", border: `1px solid var(--primary)`, maxWidth: "300px", marginLeft: "24px", color: "#fff" }}>
-          <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.8)", fontWeight: 600, textTransform: "uppercase", marginBottom: "2px" }}>Me</p>
-          <p style={{ fontSize: "13px", fontWeight: 600 }}>Matsya Singh</p>
-          <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.9)" }}>Senior Software Engineer</p>
-        </div>
-        <div style={{ width: "2px", height: "20px", background: "var(--border)", marginLeft: "48px" }}></div>
-        {/* Direct Report */}
-        <div style={{ padding: "12px", background: "var(--card)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", maxWidth: "300px", marginLeft: "48px" }}>
-          <p style={{ fontSize: "11px", color: "var(--subtext)", fontWeight: 600, textTransform: "uppercase", marginBottom: "2px" }}>Direct Report</p>
-          <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>Ravi Kumar</p>
-          <p style={{ fontSize: "12px", color: "var(--subtext)" }}>Software Engineer</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function DataExportTab({ lastRequest, onRequested }) {
   const [requesting, setRequesting] = useState(false);
   const [error, setError] = useState("");
 
   const handleRequest = async () => {
-    setRequesting(true);
-    setError("");
-    const res = await requestDataExport(ME.id);
-    setRequesting(false);
-    if (res.data?.error) {
-      setError(res.data.error);
-      return;
+    try {
+      setRequesting(true);
+      setError("");
+      const res = await requestDataExport();
+      onRequested(res.data);
+    } catch (err) {
+      setError(err?.message || "Unable to request the export. Please try again.");
+    } finally {
+      setRequesting(false);
     }
-    onRequested(res.data.request);
   };
 
   const isExpired = lastRequest && new Date(lastRequest.expiresAt) < new Date();
@@ -894,9 +857,16 @@ function DataExportTab({ lastRequest, onRequested }) {
               <Clock3 size={15} style={{ color: "var(--subtext)" }} />
               <span style={{ fontSize: "12.5px", color: "var(--subtext)" }}>Requested {fmtDateTime(lastRequest.requestedAt)}</span>
             </div>
-            {isExpired ? (
+            {lastRequest.status === "Requested" ? (
+              <>
+                <StatusBadge label="Export requested" color="#b45309" bg="#fffbeb" />
+                <p style={{ fontSize: "11.5px", color: "var(--subtext)", margin: "10px 0 0" }}>
+                  Your request is being prepared. A secure download link will appear here after processing.
+                </p>
+              </>
+            ) : isExpired ? (
               <StatusBadge label="Link expired" color="#64748b" bg="#f1f5f9" />
-            ) : (
+            ) : lastRequest.downloadUrl ? (
               <>
                 <StatusBadge label="Ready to download" color="#16a34a" bg="#f0fdf4" />
                 <p style={{ fontSize: "11.5px", color: "var(--subtext)", margin: "10px 0 14px" }}>
@@ -905,8 +875,9 @@ function DataExportTab({ lastRequest, onRequested }) {
                 <a href={lastRequest.downloadUrl} style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "13px", fontWeight: 700, color: "var(--primary)", textDecoration: "none" }}>
                   <DownloadCloud size={15} /> Download my data (.zip, encrypted)
                 </a>
-                <HierarchyView />
               </>
+            ) : (
+              <StatusBadge label={lastRequest.status || "Processing"} color="#b45309" bg="#fffbeb" />
             )}
 
             <div style={{ marginTop: "18px", paddingTop: "16px", borderTop: "1px solid var(--border)" }}>
@@ -938,7 +909,6 @@ export default function SelfService() {
   const [activeTab, setActiveTab] = useState("overview");
   const [loading, setLoading] = useState(true);
   const [overview, setOverview] = useState(null);
-  const [simulatePayrollDown, setSimulatePayrollDown] = useState(false);
   const [declarations, setDeclarations] = useState([]);
   const [lastExportRequest, setLastExportRequest] = useState(null);
 
@@ -946,20 +916,21 @@ export default function SelfService() {
   const userName = `${user?.firstName || "Current"} ${user?.lastName || "User"}`;
 
   useEffect(() => {
-    setLoading(true);
-    Promise.all([
-      getOverview(simulatePayrollDown).catch(() => ({ data: null })),
-      getTaxDeclarations(userId).catch(() => ({ data: [] })),
-      getLastExportRequest(userId).catch(() => ({ data: null }))
-    ])
-      .then(([ov, td, exp]) => {
-        setOverview(ov?.data || null);
-        setDeclarations(td?.data || []);
-        setLastExportRequest(exp?.data || null);
-      })
-      .finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [simulatePayrollDown, userId]);
+    queueMicrotask(() => {
+      setLoading(true);
+      Promise.all([
+        getOverview().catch(() => ({ data: null })),
+        getTaxDeclarations(userId).catch(() => ({ data: [] })),
+        getLastExportRequest(userId).catch(() => ({ data: null }))
+      ])
+        .then(([ov, td, exp]) => {
+          setOverview(ov?.data || null);
+          setDeclarations(td?.data || []);
+          setLastExportRequest(exp?.data || null);
+        })
+        .finally(() => setLoading(false));
+    });
+  }, [userId]);
 
   if (loading) {
     return (
@@ -976,7 +947,7 @@ export default function SelfService() {
         <TabNav tabs={TABS} active={activeTab} onChange={setActiveTab} />
 
         {activeTab === "overview" && (
-          <OverviewTab overview={overview} simulatePayrollDown={simulatePayrollDown} onToggleSimulate={setSimulatePayrollDown} />
+          <OverviewTab overview={overview} />
         )}
 
         {activeTab === "tax" && (

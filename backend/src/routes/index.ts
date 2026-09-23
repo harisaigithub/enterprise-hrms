@@ -26,6 +26,7 @@ import expenseRoutes from "../modules/expense/expense.routes";
 import travelRoutes from "../modules/travel/travel.routes";
 import securityRoutes from "../modules/security/security.routes";
 
+import essRoutes from "../modules/ess/ess.routes";
 
 
 const router = Router();
@@ -64,6 +65,7 @@ if (!serviceName || serviceName === "requests") router.use("/requests", requestR
 if (!serviceName || serviceName === "expense") router.use("/expense", expenseRoutes);
 if (!serviceName || serviceName === "travel") router.use("/travel", travelRoutes);
 if (!serviceName || serviceName === "security") router.use("/security", securityRoutes);
+if (!serviceName || serviceName === "ess") router.use("/ess", essRoutes);
 
 
 export default router;

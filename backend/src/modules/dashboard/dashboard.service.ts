@@ -175,6 +175,55 @@ cost: Number((Number(run.grossPayroll) / 10000000).toFixed(2)),
   };
 }
 
+export async function hrDashboard() {
+  const now = new Date();
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const previousMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+  const [stageGroups, people, activeCount, currentPayroll, previousPayroll, policies, pendingLeave, pendingExpenses, pendingOnboarding] = await Promise.all([
+    prisma.application.groupBy({ by: ["stage"], _count: { id: true } }),
+    prisma.employee.findMany({ where: { status: "Active", isSoftDeleted: false }, orderBy: { createdAt: "desc" }, take: 8, select: { firstName: true, lastName: true, avatarUrl: true } }),
+    prisma.employee.count({ where: { status: "Active", isSoftDeleted: false } }),
+    prisma.payrollRun.findFirst({ where: { year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 }, orderBy: { createdAt: "desc" } }),
+    prisma.payrollRun.findFirst({ where: { year: previousMonthStart.getUTCFullYear(), month: previousMonthStart.getUTCMonth() + 1 }, orderBy: { createdAt: "desc" } }),
+    prisma.policy.findMany({ where: { status: "Published" }, orderBy: { updatedAt: "desc" }, take: 3, select: { id: true, title: true, updatedAt: true } }),
+    prisma.leaveRequest.count({ where: { status: "Pending" } }),
+    prisma.expenseClaim.count({ where: { status: { in: ["Submitted", "Manager Pending", "Finance Pending"] } } }),
+    prisma.onboarding.count({ where: { status: { in: ["NOT_STARTED", "IN_PROGRESS"] } } }),
+  ]);
+
+  const stageCount = (names: string[]) => stageGroups.filter((row) => names.includes(row.stage.toLowerCase())).reduce((sum, row) => sum + row._count.id, 0);
+  const payroll = Number(currentPayroll?.grossPayroll ?? 0);
+  const previous = Number(previousPayroll?.grossPayroll ?? 0);
+  const payrollChange = previous > 0 ? ((payroll - previous) / previous) * 100 : 0;
+  const formatLakhs = (value: number) => `₹${(value / 100000).toFixed(2)}L`;
+
+  return {
+    hiringInsights: { stats: [
+      { title: "Applicants", value: String(stageCount(["applied"])), growth: "Live", color: "#4f46e5" },
+      { title: "Interviewing", value: String(stageCount(["screening", "interview"])), growth: "Live", color: "#7c3aed" },
+      { title: "Offer Extended", value: String(stageCount(["offer"])), growth: "Live", color: "#059669" },
+      { title: "Onboarded", value: String(stageCount(["hired"])), growth: "Live", color: "#0284c7" },
+    ] },
+    payroll: { title: "Payroll", totalPayroll: formatLakhs(payroll), description: "Total Payroll This Month", changePct: `${payrollChange >= 0 ? "+" : ""}${payrollChange.toFixed(1)}%`, changeLabel: "vs last month", buttonText: "Run Payroll" },
+    people: { total: activeCount, list: people.map((person) => ({ name: `${person.firstName} ${person.lastName}`.trim(), img: person.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(`${person.firstName} ${person.lastName}`)}` })) },
+    quickActions: { actions: [
+      { id: "add-employee", label: "Add Employee", iconName: "UserPlus", path: "/employees" },
+      { id: "post-job", label: "Post a Job", iconName: "Briefcase", path: "/recruitment" },
+      { id: "run-payroll", label: "Run Payroll", iconName: "Wallet", path: "/payroll" },
+      { id: "approve-leave", label: "Approve Leave", iconName: "CalendarCheck", path: "/leave" },
+      { id: "onboarding", label: "Onboarding", iconName: "ClipboardList", path: "/onboarding" },
+      { id: "reports", label: "Reports", iconName: "BarChart3", path: "/reports" },
+    ] },
+    resources: { list: policies.map((policy) => ({ name: policy.title, note: `Updated ${policy.updatedAt.toISOString().slice(0, 10)}`, link: "/policies" })) },
+    alerts: { list: [
+      ...(pendingExpenses ? [{ id: "expenses", severity: "warning", message: `${pendingExpenses} expense report(s) pending approval`, buttonText: "View Expense Reports", buttonPath: "/expenses" }] : []),
+      ...(pendingLeave ? [{ id: "leave", severity: "info", message: `${pendingLeave} leave request(s) pending approval`, buttonText: "View Requests", buttonPath: "/leave" }] : []),
+      ...(pendingOnboarding ? [{ id: "onboarding", severity: "warning", message: `${pendingOnboarding} onboarding record(s) need attention`, buttonText: "Open Onboarding", buttonPath: "/onboarding" }] : []),
+    ] },
+    asOf: monthStart.toISOString(),
+  };
+}
+
 export async function managerDashboard(userId: string, employeeId?: string, _role?: string) {
   const manager = await prisma.employee.findFirst({
     where: {

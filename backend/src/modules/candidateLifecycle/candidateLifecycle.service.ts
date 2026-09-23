@@ -197,13 +197,16 @@ export async function listLifecycleApplications() {
 }
 
 export async function firstApprove(applicationId: string, actorUserId: string, notes?: string) {
-  const application = await getApplication(applicationId);
-  if (application.approvalStatus !== "HR Review") throw AppError.badRequest("Application is not awaiting first approval");
-  return prisma.application.update({
-    where: { id: applicationId },
+  const result = await prisma.application.updateMany({
+    where: { id: applicationId, approvalStatus: "HR Review", firstApprovedBy: null },
     data: { approvalStatus: "Second Approval", firstApprovedBy: actorUserId, firstApprovedAt: new Date(), approvalNotes: notes },
-    include: lifecycleInclude,
   });
+  if (result.count !== 1) {
+    const existing = await prisma.application.findUnique({ where: { id: applicationId }, select: { id: true } });
+    if (!existing) throw AppError.notFound("Application not found");
+    throw AppError.conflict("Application was already processed or is not awaiting first approval");
+  }
+  return getApplication(applicationId);
 }
 
 export async function secondApprove(applicationId: string, actorUserId: string, input: any) {
@@ -256,6 +259,7 @@ export async function secondApprove(applicationId: string, actorUserId: string, 
 export async function rejectApplication(applicationId: string, actorUserId: string, reason: string) {
   const application = await getApplication(applicationId);
   if (["Employee Created", "Rejected"].includes(application.approvalStatus)) throw AppError.badRequest("Application can no longer be rejected");
+  if (application.offer?.status === "Accepted") throw AppError.badRequest("An accepted offer cannot be rejected; use the formal withdrawal process");
   return prisma.application.update({
     where: { id: applicationId },
     data: { stage: "Rejected", approvalStatus: "Rejected", approvalNotes: reason,
@@ -267,9 +271,15 @@ export async function rejectApplication(applicationId: string, actorUserId: stri
 export async function verifyDocument(documentId: string, actorUserId: string, input: any) {
   const document = await prisma.candidateDocument.findUnique({ where: { id: documentId } });
   if (!document) throw AppError.notFound("Document not found");
-  return prisma.candidateDocument.update({
-    where: { id: documentId },
-    data: { status: input.status, rejectionReason: input.status === "Rejected" ? input.reason : null, verifiedBy: actorUserId, verifiedAt: new Date() },
+  if (input.status === "Rejected" && !input.reason?.trim()) throw AppError.badRequest("A rejection reason is required");
+  return prisma.$transaction(async (tx: any) => {
+    const updated = await tx.candidateDocument.update({
+      where: { id: documentId },
+      data: { status: input.status, rejectionReason: input.status === "Rejected" ? input.reason.trim() : null, verifiedBy: actorUserId, verifiedAt: new Date() },
+    });
+    const remaining = await tx.candidateDocument.count({ where: { applicationId: document.applicationId, status: { not: "Verified" } } });
+    if (remaining === 0) await tx.application.update({ where: { id: document.applicationId }, data: { approvalStatus: "Ready for Employee Creation" } });
+    return updated;
   });
 }
 

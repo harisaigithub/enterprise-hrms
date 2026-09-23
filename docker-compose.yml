@@ -36,10 +36,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    command: >
-      sh -c "npx prisma migrate deploy &&
-             npm run prisma:seed &&
-             node dist/index.js"
+    # Migrations are safe and idempotent. Seeding is intentionally excluded:
+    # prisma/seed.ts resets business data and must only be run explicitly.
+    command: sh -c "npx prisma migrate deploy && node dist/index.js"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:4000/api/health || exit 1"]
       interval: 10s
