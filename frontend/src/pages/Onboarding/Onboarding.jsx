@@ -13,7 +13,7 @@ import StatusBadge from "../../components/shared/StatusBadge";
 import Spinner from "../../components/shared/Spinner";
 import EmptyState from "../../components/shared/EmptyState";
 import { getOnboardingRecords, getOnboardingSummary, updateChecklistItemStatus } from "../../services/onboardingService";
-import { checklistItemStatusMeta, checklistOwnerMeta, CHECKLIST_CATEGORIES } from "../../mock/onboarding";
+import { checklistItemStatusMeta, checklistOwnerMeta } from "../../mock/onboarding";
 
 function StatCard({ icon: Icon, label, value, color, bg }) {
   return (
@@ -63,7 +63,7 @@ function JoinerListItem({ record, active, onSelect }) {
   );
 }
 
-function ChecklistItemRow({ item, onChangeStatus }) {
+function ChecklistItemRow({ item, onChangeStatus, busy }) {
   const meta = checklistItemStatusMeta[item.status] || checklistItemStatusMeta.Pending;
   const ownerMeta = checklistOwnerMeta[item.owner] || checklistOwnerMeta.HR;
   const isBlocked = item.status === "Blocked";
@@ -96,21 +96,23 @@ function ChecklistItemRow({ item, onChangeStatus }) {
         <StatusBadge label={meta.label} color={meta.color} bg={meta.bg} />
       </div>
 
-      <button
-        onClick={() => onChangeStatus(item.id, isComplete ? "Pending" : "Complete")}
-        disabled={isBlocked}
-        title={isBlocked ? "Blocked until dependency is complete" : isComplete ? "Mark as pending" : "Mark as complete"}
+      <select
+        value={item.status}
+        onChange={(event) => onChangeStatus(item.id, event.target.value)}
+        disabled={isBlocked || busy}
+        title={isBlocked ? "Blocked until dependency is complete" : "Update checklist status"}
         style={{
-          flexShrink: 0, width: "26px", height: "26px", borderRadius: "50%",
-          border: `1.5px solid ${isBlocked ? "var(--border)" : isComplete ? "var(--green)" : "var(--border)"}`,
-          background: isComplete ? "var(--green)" : "transparent",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          cursor: isBlocked ? "not-allowed" : "pointer",
+          flexShrink: 0, minWidth: "142px", borderRadius: "7px", padding: "6px 8px",
+          border: "1px solid var(--border)", background: "var(--card)", color: "var(--text)",
+          cursor: isBlocked || busy ? "not-allowed" : "pointer",
           opacity: isBlocked ? 0.5 : 1,
         }}
       >
-        {isComplete && <CheckCircle2 size={16} style={{ color: "#fff" }} />}
-      </button>
+        {isBlocked && <option value="Blocked">Blocked</option>}
+        {!isBlocked && <option value="Pending">Pending</option>}
+        {!isBlocked && !isComplete && <option value="Pending Procurement">Pending Procurement</option>}
+        {!isBlocked && <option value="Complete">Complete</option>}
+      </select>
     </div>
   );
 }
@@ -120,25 +122,44 @@ export default function OnboardingChecklist() {
   const [summary, setSummary] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [busyItemId, setBusyItemId] = useState(null);
+  const [error, setError] = useState("");
 
-  const loadAll = () => {
-    setLoading(true);
-    Promise.all([getOnboardingRecords(), getOnboardingSummary()]).then(([recRes, sumRes]) => {
-      setRecords(recRes.data);
-      setSummary(sumRes.data);
-      setSelectedId((prev) => prev || recRes.data[0]?.employeeId || null);
-    }).finally(() => setLoading(false));
-  };
-
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => {
+    let active = true;
+    Promise.all([getOnboardingRecords(), getOnboardingSummary()])
+      .then(([recRes, sumRes]) => {
+        if (!active) return;
+        setRecords(recRes.data);
+        setSummary(sumRes.data);
+        setSelectedId(recRes.data[0]?.employeeId || null);
+      })
+      .catch((requestError) => {
+        if (active) setError(requestError.message || "Unable to load onboarding records");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
 
   const handleChangeStatus = async (itemId, status) => {
-    const res = await updateChecklistItemStatus(selectedId, itemId, status);
-    setRecords((prev) => prev.map((r) => (r.employeeId === selectedId ? res.data : r)));
-    getOnboardingSummary().then((sumRes) => setSummary(sumRes.data));
+    setError("");
+    setBusyItemId(itemId);
+    try {
+      const res = await updateChecklistItemStatus(selectedId, itemId, status);
+      setRecords((prev) => prev.map((r) => (r.employeeId === selectedId ? res.data : r)));
+      const sumRes = await getOnboardingSummary();
+      setSummary(sumRes.data);
+    } catch (requestError) {
+      setError(requestError.message || "Unable to update onboarding task");
+    } finally {
+      setBusyItemId(null);
+    }
   };
 
   const selected = records.find((r) => r.employeeId === selectedId);
+  const selectedCategories = [...new Set((selected?.items || []).map((item) => item.category))];
 
   if (loading) return <MainLayout><Spinner /></MainLayout>;
 
@@ -146,6 +167,12 @@ export default function OnboardingChecklist() {
     <MainLayout>
       <div style={{ maxWidth: "1480px", margin: "0 auto" }}>
         <PageHeader title="Onboarding" subtitle="Checklists for new joiners  •  Day 1 readiness" />
+
+        {error && (
+          <div style={{ marginBottom: "16px", padding: "11px 14px", borderRadius: "8px", background: "#fef2f2", color: "#b91c1c", border: "1px solid #fecaca", fontSize: "13px" }}>
+            {error}
+          </div>
+        )}
 
         {summary && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "14px", marginBottom: "24px" }}>
@@ -197,14 +224,14 @@ export default function OnboardingChecklist() {
 
                 {/* Checklist grouped by category */}
                 <div style={{ background: "var(--card)", borderRadius: "var(--radius-lg)", border: "1px solid var(--border)", boxShadow: "var(--shadow-sm)", padding: "8px 22px" }}>
-                  {CHECKLIST_CATEGORIES.map((category) => {
+                  {selectedCategories.map((category) => {
                     const items = selected.items.filter((i) => i.category === category);
                     if (items.length === 0) return null;
                     return (
                       <div key={category} style={{ padding: "16px 0" }}>
                         <p style={{ fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>{category}</p>
                         {items.map((item) => (
-                          <ChecklistItemRow key={item.id} item={item} onChangeStatus={handleChangeStatus} />
+                          <ChecklistItemRow key={item.id} item={item} onChangeStatus={handleChangeStatus} busy={busyItemId === item.id} />
                         ))}
                       </div>
                     );

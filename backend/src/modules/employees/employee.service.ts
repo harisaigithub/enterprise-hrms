@@ -6,6 +6,8 @@ import { writeAuditLog } from "../../services/audit.service";
 import { serializeEmployeeList } from "../../serializers/employee.serializer";
 import { parsePagination } from "../../lib/utils";
 import { saveUploadedFile, deleteStoredFile } from "../../lib/fileStorage";
+import { provisionOnboardingForEmployee } from "../onboarding/onboarding.service";
+import { createInAppForEmployee } from "../notifications/notifications.service";
 
 /** Safely convert a value to a Prisma Decimal-compatible number. */
 function toDecimal(v: unknown): number {
@@ -421,6 +423,20 @@ export async function createEmployee(input: CreateEmployeeInput, actorId?: strin
       approvedById: actorId ?? null,
     },
   });
+
+  await provisionOnboardingForEmployee({
+    employeeId: emp.id,
+    joinDate,
+    probationMonths: input.probationPeriodMonths ?? 6,
+    reportingManagerId,
+  });
+  void createInAppForEmployee({
+    employeeId: emp.id,
+    title: "Your onboarding checklist is ready",
+    body: "Complete your onboarding tasks before their due dates.",
+    category: "Onboarding Reminder",
+    link: "/onboarding",
+  }).catch(() => undefined);
 
   writeAuditLog({
     action: "CREATE",
@@ -1243,12 +1259,27 @@ export async function bulkCreateEmployees(items: CreateEmployeeInput[], actorUse
         newManagerId: manager?.id ?? null, effectiveDate: joinDate,
         reason: "Created through validated bulk employee import", requestedById: actorUserId ?? null, approvedById: actorUserId ?? null,
       } });
+      await provisionOnboardingForEmployee({
+        employeeId: employee.id,
+        joinDate,
+        probationMonths: item.probationPeriodMonths ?? 6,
+        reportingManagerId: manager?.id ?? null,
+      }, tx);
       rows.push(employee);
     }
     return rows;
   }, { maxWait: 10_000, timeout: 60_000 });
 
   void writeAuditLog({ actorUserId, action: "CREATE", entityType: "EmployeeBulkImport", newValue: { totalCreated: created.length, employeeCodes: created.map((e) => e.employeeCode) } });
+  for (const employee of created) {
+    void createInAppForEmployee({
+      employeeId: employee.id,
+      title: "Your onboarding checklist is ready",
+      body: "Complete your onboarding tasks before their due dates.",
+      category: "Onboarding Reminder",
+      link: "/onboarding",
+    }).catch(() => undefined);
+  }
   return { data: { valid: true, totalRows: items.length, validRows: items.length, totalCreated: created.length, errors: [], created } };
 }
 

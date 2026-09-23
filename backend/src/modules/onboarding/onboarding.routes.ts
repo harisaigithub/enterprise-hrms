@@ -9,6 +9,8 @@ import {
 
 import { authenticate } from "../../middlewares/auth";
 import { requirePermission } from "../../middlewares/rbac";
+import { validate } from "../../middlewares/validate";
+import { z } from "zod";
 
 const router = Router();
 
@@ -35,6 +37,7 @@ router.get(
 router.patch(
     "/:employeeId/checklist/:itemId",
     requirePermission("onboarding:write"),
+    validate({ body: z.object({ status: z.enum(["Pending", "Complete", "Pending Procurement"]) }).strict() }),
     updateChecklistStatus
 );
 

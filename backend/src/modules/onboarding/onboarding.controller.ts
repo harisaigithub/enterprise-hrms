@@ -42,7 +42,8 @@ export const updateChecklistStatus = async (
     const result = await updateChecklistItemStatus(
         req.params.employeeId,
         req.params.itemId,
-        req.body.status
+        req.body.status,
+        req.auth?.sub
     );
 
     res.json(result);
