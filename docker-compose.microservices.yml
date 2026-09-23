@@ -1024,7 +1024,6 @@ services:
       - organization-service
       - employees-service
       - travel-service
-      - security-service
       - ess-service
       - recruitment-service
       - attendance-service
