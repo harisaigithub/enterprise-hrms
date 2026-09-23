@@ -311,7 +311,7 @@ export const getReimbursementQueue = asyncHandler(async (req: Request, res: Resp
     status: q.status as any,
     page: q.page ? Number(q.page) : 1,
     limit: q.limit ? Number(q.limit) : 20,
-  });
+  }, { ...req.auth!, employeeId });
   sendSuccess(res, result.data, result.total);
 });
 
@@ -322,7 +322,13 @@ export const markPaid = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const getEmployeeReimbursementSummary = asyncHandler(async (req: Request, res: Response) => {
-  const employeeId = req.params.employeeId || (await resolveEmployeeId(req));
+  const actorEmployeeId = await resolveEmployeeId(req);
+  const requestedEmployeeId = req.params.employeeId;
+  const privileged = ["ADMIN", "HR", "FINANCE"].includes(req.auth!.role);
+  if (!privileged && requestedEmployeeId !== actorEmployeeId) {
+    throw AppError.forbidden("You can only view your own reimbursement summary");
+  }
+  const employeeId = privileged ? requestedEmployeeId : actorEmployeeId;
   const year = req.query.year ? Number(req.query.year) : undefined;
   const result = await reimbursementService.getEmployeeReimbursementSummary(employeeId, year);
   sendSuccess(res, result.data);
@@ -338,6 +344,7 @@ export const processPayrollReimbursements = asyncHandler(async (req: Request, re
 
 export const getClaimHistory = asyncHandler(async (req: Request, res: Response) => {
   const employeeId = await resolveEmployeeId(req);
+  await expenseService.getClaim(req.params.id, { ...req.auth!, employeeId });
   const history = await prisma.expenseClaimHistory.findMany({
     where: { claimId: req.params.id },
     orderBy: { createdAt: "desc" },

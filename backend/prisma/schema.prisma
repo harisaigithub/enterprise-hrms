@@ -2117,6 +2117,9 @@ model ExpenseClaim {
   correctingEntryId          String?   @unique @map("correcting_entry_id") @db.Uuid
   originalClaimId            String?   @map("original_claim_id") @db.Uuid
   workflowInstanceId         String?   @map("workflow_instance_id") @db.Uuid
+  reimbursementPayrollRunId String?   @map("reimbursement_payroll_run_id") @db.Uuid
+  reimbursementPaymentReference String? @map("reimbursement_payment_reference") @db.VarChar(120)
+  reimbursementPaidAt DateTime? @map("reimbursement_paid_at") @db.Timestamp(6)
   createdAt                  DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt                  DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
 
@@ -2135,6 +2138,7 @@ model ExpenseClaim {
   @@index([status])
   @@index([approvalStage])
   @@index([expenseDate])
+  @@index([reimbursementPayrollRunId])
   @@map("expense_claims")
 }
 

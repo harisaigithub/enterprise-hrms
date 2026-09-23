@@ -43,14 +43,15 @@ export async function queueForPayroll(
   const now = new Date();
 
   // Update claim status
-  const updated = await prisma.expenseClaim.update({
-    where: { id: claimId },
+  const queued = await prisma.expenseClaim.updateMany({
+    where: { id: claimId, status: "Approved", queuedForPayrollAt: null },
     data: {
       status: "Queued for Payroll",
       queuedForPayrollAt: now,
       approvalStage: "Payroll Queued",
     },
   });
+  if (queued.count !== 1) throw AppError.conflict("Claim was already queued or changed by another request");
 
   // Add to payroll reimbursement queue (could be a separate table or use payroll run)
   // For now, we track it on the claim itself and notify payroll team
@@ -122,7 +123,8 @@ export async function processPayrollReimbursements(
         data: {
           status: "Paid",
           approvalStage: "Paid",
-          // In production: link to payslip or payroll adjustment record
+          reimbursementPayrollRunId: payrollRunId,
+          reimbursementPaidAt: new Date(),
         },
       });
 
@@ -159,14 +161,17 @@ export async function processPayrollReimbursements(
 
 /** Get reimbursement queue status */
 export async function getReimbursementQueue(
-  filters: { employeeId?: string; status?: ReimbursementStatus; page?: number; limit?: number } = {}
+  filters: { employeeId?: string; status?: ReimbursementStatus; page?: number; limit?: number } = {},
+  actor?: AccessTokenPayload
 ) {
   const page = filters.page ?? 1;
   const limit = Math.min(filters.limit ?? 20, 100);
   const skip = (page - 1) * limit;
 
   const where: any = { status: { in: ["Approved", "Queued for Payroll"] } };
-  if (filters.employeeId) where.employeeId = filters.employeeId;
+  if (actor?.role === "EMPLOYEE") where.employeeId = actor.employeeId;
+  else if (actor?.role === "MANAGER") where.OR = [{ employeeId: actor.employeeId }, { employee: { reportingManagerId: actor.employeeId } }];
+  else if (filters.employeeId) where.employeeId = filters.employeeId;
   if (filters.status) where.status = filters.status;
 
   const [claims, total] = await Promise.all([
@@ -204,7 +209,7 @@ export async function getReimbursementQueue(
 /** Mark reimbursement as paid (manual override or after payroll run) */
 export async function markReimbursementPaid(
   claimId: string,
-  input: { payrollRunId?: string; paymentReference?: string; paidAt?: Date },
+  input: { payrollRunId?: string; paymentReference?: string; paidAt?: Date | string },
   actor?: AccessTokenPayload
 ) {
   const claim = await prisma.expenseClaim.findUnique({
@@ -217,27 +222,40 @@ export async function markReimbursementPaid(
     throw AppError.badRequest(`Claim must be queued or approved (current: ${claim.status})`);
   }
 
-  const paidAt = input.paidAt ?? new Date();
+  const paidAt = input.paidAt ? new Date(input.paidAt) : new Date();
+  if (Number.isNaN(paidAt.getTime())) {
+    throw AppError.badRequest("paidAt must be a valid ISO date/time");
+  }
 
-  const updated = await prisma.expenseClaim.update({
-    where: { id: claimId },
-    data: {
-      status: "Paid",
-      approvalStage: "Paid",
-      // In production: store payrollRunId and paymentReference
-    },
-  });
+  const updated = await prisma.$transaction(async (tx) => {
+    const paidClaim = await tx.expenseClaim.update({
+      where: { id: claimId },
+      data: {
+        status: "Paid",
+        approvalStage: "Paid",
+        reimbursementPayrollRunId: input.payrollRunId ?? null,
+        reimbursementPaymentReference: input.paymentReference ?? null,
+        reimbursementPaidAt: paidAt,
+      },
+    });
 
-  await prisma.expenseClaimHistory.create({
-    data: {
-      claimId: claim.id,
-      action: "MARKED_PAID",
-      actorId: actor?.employeeId ?? claim.employeeId,
-      actorName: actor?.name ?? "System",
-      oldStatus: claim.status,
-      newStatus: "Paid",
-      details: { payrollRunId: input.payrollRunId, paymentReference: input.paymentReference, paidAt: paidAt.toISOString() },
-    },
+    await tx.expenseClaimHistory.create({
+      data: {
+        claimId: claim.id,
+        action: "MARKED_PAID",
+        actorId: actor?.employeeId ?? claim.employeeId,
+        actorName: actor?.name ?? "System",
+        oldStatus: claim.status,
+        newStatus: "Paid",
+        details: {
+          payrollRunId: input.payrollRunId,
+          paymentReference: input.paymentReference,
+          paidAt: paidAt.toISOString(),
+        },
+      },
+    });
+
+    return paidClaim;
   });
 
   writeAuditLog({

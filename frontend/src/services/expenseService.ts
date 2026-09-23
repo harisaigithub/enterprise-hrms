@@ -67,7 +67,21 @@ export interface ExpenseClaim {
   rejectionReason?: string;
   rejectedBy?: string;
 
-  policyViolations: string[];
+  policyViolations: Array<
+    | string
+    | {
+        code?: string;
+        message?: string;
+        description?: string;
+        severity?: string;
+      }
+  >;
+
+  employee?: {
+    employeeCode?: string;
+    firstName?: string;
+    lastName?: string;
+  };
 
   duplicateWarning?: {
     type: "exact" | "near";

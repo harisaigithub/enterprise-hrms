@@ -252,11 +252,21 @@ export async function actOnClaim(
   if (!currentStep) throw AppError.badRequest("No pending workflow step");
 
   // Check if actor can act on this step
-  const isFinanceStep = currentStep.name.toLowerCase().includes("finance");
-  const isManagerStep = currentStep.name.toLowerCase().includes("manager");
+  const actorCode = actor.employeeCode ?? actor.employeeId!;
+  const currentStepName = currentStep.name.toLowerCase();
+  const isAssignedApprover = currentStep.approverId === actorCode;
+  const isFinanceStep =
+    currentStepName.includes("finance") ||
+    currentStep.approverId === "role-finance" ||
+    claim.status === "Finance Pending";
+  const isManagerStep =
+    currentStepName.includes("manager") ||
+    isAssignedApprover ||
+    ["Submitted", "Manager Pending"].includes(claim.status);
 
   const actorRoles = [actor.role];
   const canAct =
+    isAssignedApprover ||
     (isFinanceStep && ["FINANCE", "ADMIN", "HR"].some((r) => actorRoles.includes(r))) ||
     (isManagerStep && ["MANAGER", "ADMIN", "HR"].some((r) => actorRoles.includes(r))) ||
     actorRoles.includes("ADMIN");
@@ -273,7 +283,7 @@ export async function actOnClaim(
   // Act on workflow step
   const result = await actOnStep(
     claim.workflowInstanceId,
-    actor.employeeCode ?? actor.employeeId!,
+    actorCode,
     `${actor.firstName} ${actor.lastName}`.trim(),
     action,
     comments,
@@ -281,6 +291,13 @@ export async function actOnClaim(
   );
 
   const workflowStatus = result.data.status;
+  const nextStep = result.data.steps.find((step) => step.status === "Pending");
+  const nextStepName = nextStep?.name?.toLowerCase() ?? "";
+  const nextIsFinanceStep =
+    nextStepName.includes("finance") ||
+    nextStep?.approverId === "role-finance";
+  const nextIsManagerStep =
+    nextStepName.includes("manager");
 
   let newStatus: ExpenseClaimStatus;
   let newStage: string;
@@ -291,10 +308,10 @@ export async function actOnClaim(
   } else if (workflowStatus === "Approved") {
     newStatus = "Approved";
     newStage = "Approved";
-  } else if (isFinanceStep && workflowStatus === "In Progress") {
+  } else if (nextIsFinanceStep && workflowStatus === "In Progress") {
     newStatus = "Finance Pending";
     newStage = "Finance Review";
-  } else if (isManagerStep && workflowStatus === "In Progress") {
+  } else if (nextIsManagerStep && workflowStatus === "In Progress") {
     newStatus = "Manager Pending";
     newStage = "Manager Review";
   } else {

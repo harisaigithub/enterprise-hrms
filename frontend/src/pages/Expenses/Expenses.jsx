@@ -5,7 +5,7 @@
  * and in-modal approver review workflow.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Plus,
   AlertTriangle,
@@ -17,6 +17,8 @@ import {
   FileText,
   Download,
   ShieldCheck,
+  Send,
+  Trash2,
 } from "lucide-react";
 
 import MainLayout from "../../components/layout/MainLayout";
@@ -35,6 +37,7 @@ import {
   createDraft,
   uploadExpenseReceipt,
   getReceiptSignedUrl,
+  deleteDraft,
 } from "../../services/expenseService";
 
 import {
@@ -42,7 +45,7 @@ import {
   EXPENSE_POLICY,
   expenseStatusMeta,
   LOCKED_STATUSES,
-} from "../../mock/expenses";
+} from "../../constants/expenses";
 
 import { useAuth } from "../../context/AuthContext";
 
@@ -77,6 +80,36 @@ const getClaimDisplayId = (claim) => {
   return claim?.claimNumber || claim?.id || "—";
 };
 
+const getEmployeeName = (claim) => {
+  if (claim?.employeeName) return claim.employeeName;
+
+  const firstName = claim?.employee?.firstName || "";
+  const lastName = claim?.employee?.lastName || "";
+  const fullName = `${firstName} ${lastName}`.trim();
+
+  return fullName || "—";
+};
+
+const getApprovalStage = (claim) => {
+  if (claim?.isDraft || claim?.status === "Draft") return "Not submitted";
+  return claim?.approvalStage || "Pending review";
+};
+
+const getViolationMessage = (violation) => {
+  if (typeof violation === "string") return violation;
+  if (!violation || typeof violation !== "object") return "Policy check requires attention";
+
+  return (
+    violation.message ||
+    violation.description ||
+    violation.code ||
+    "Policy check requires attention"
+  );
+};
+
+const getApiErrorMessage = (error, fallback) =>
+  error?.response?.data?.message || error?.message || fallback;
+
 const calculateFileHash = async (file) => {
   if (!file) return "";
 
@@ -100,6 +133,10 @@ function ExpenseDetailModal({
   onReject,
   onViewReceipt,
   isApprover,
+  onSubmitDraft,
+  onDeleteDraft,
+  actionClaimId,
+  canManageDraft,
 }) {
   if (!claim) return null;
 
@@ -211,7 +248,7 @@ function ExpenseDetailModal({
                   : "—"}{" "}
               • Stage:{" "}
               <strong>
-                {claim.approvalStage || "Manager"} Review
+                {getApprovalStage(claim)}
               </strong>
             </p>
           </div>
@@ -276,7 +313,7 @@ function ExpenseDetailModal({
                 color: "var(--text)",
               }}
             >
-              {claim.employeeName || "—"}
+              {getEmployeeName(claim)}
             </p>
 
             <span
@@ -504,7 +541,7 @@ function ExpenseDetailModal({
                     }}
                   >
                     <AlertTriangle size={12} />
-                    {String(violation)}
+                    {getViolationMessage(violation)}
                   </span>
                 ))}
               </div>
@@ -598,6 +635,54 @@ function ExpenseDetailModal({
           }}
         >
           <div>
+            {claim.isDraft && canManageDraft && (
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button
+                  type="button"
+                  onClick={() => onSubmitDraft?.(claim)}
+                  disabled={actionClaimId === claim.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "8px 18px",
+                    background: "var(--primary)",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "var(--radius-sm)",
+                    fontWeight: 600,
+                    fontSize: "13px",
+                    cursor: actionClaimId === claim.id ? "not-allowed" : "pointer",
+                    opacity: actionClaimId === claim.id ? 0.7 : 1,
+                  }}
+                >
+                  <Send size={14} />
+                  {actionClaimId === claim.id ? "Submitting…" : "Submit Draft"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onDeleteDraft?.(claim)}
+                  disabled={actionClaimId === claim.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "8px 16px",
+                    background: "var(--red-light)",
+                    color: "var(--red)",
+                    border: "none",
+                    borderRadius: "var(--radius-sm)",
+                    fontWeight: 600,
+                    fontSize: "13px",
+                    cursor: actionClaimId === claim.id ? "not-allowed" : "pointer",
+                  }}
+                >
+                  <Trash2 size={14} />
+                  Delete Draft
+                </button>
+              </div>
+            )}
             {isApprover && !locked && (
               <div style={{ display: "flex", gap: "8px" }}>
                 <button
@@ -1191,7 +1276,7 @@ function ViolationFlags({ claim }) {
           }}
         >
           <AlertTriangle size={11} />
-          {String(violation)}
+          {getViolationMessage(violation)}
         </span>
       ))}
 
@@ -1391,10 +1476,24 @@ export default function Expenses() {
    * Backend already identifies the logged-in employee.
    */
   const currentEmpId =
-    user?.employeeCode ||
     user?.employeeId ||
+    user?.employeeCode ||
     user?.id ||
     "";
+
+  const authenticatedEmployeeId = user?.employeeId;
+  const authenticatedEmployeeCode = user?.employeeCode;
+
+  const isOwnClaim = useCallback(
+    (claim) =>
+      Boolean(
+        claim &&
+          ((authenticatedEmployeeId && claim.employeeId === authenticatedEmployeeId) ||
+            (authenticatedEmployeeCode &&
+              claim.employee?.employeeCode === authenticatedEmployeeCode))
+      ),
+    [authenticatedEmployeeId, authenticatedEmployeeCode]
+  );
 
   const currentEmpName = user?.firstName
     ? `${user.firstName} ${user.lastName || ""}`.trim()
@@ -1416,11 +1515,14 @@ export default function Expenses() {
   const [rejectTarget, setRejectTarget] =
     useState(null);
 
+  const [actionClaimId, setActionClaimId] =
+    useState(null);
+
   /* ---------------------------------------------------------------------- */
   /* Load claims                                                            */
   /* ---------------------------------------------------------------------- */
 
-  const loadAll = async () => {
+  const loadAll = useCallback(async () => {
     setLoading(true);
 
     try {
@@ -1446,14 +1548,17 @@ export default function Expenses() {
         return;
       }
 
-      const [
-        mineRes,
-        managerRes,
-        financeRes,
-      ] = await Promise.all([
+      const approvalPromises = [];
+      if (["MANAGER", "ADMIN", "HR"].includes(role)) {
+        approvalPromises.push(getPendingApprovals("Manager"));
+      }
+      if (["FINANCE", "ADMIN", "HR"].includes(role)) {
+        approvalPromises.push(getPendingApprovals("Finance"));
+      }
+
+      const [mineRes, ...approvalResults] = await Promise.all([
         minePromise,
-        getPendingApprovals("Manager"),
-        getPendingApprovals("Finance"),
+        ...approvalPromises,
       ]);
 
       setMyClaims(
@@ -1462,14 +1567,11 @@ export default function Expenses() {
           : []
       );
 
-      setApprovals([
-        ...(Array.isArray(managerRes)
-          ? managerRes
-          : []),
-        ...(Array.isArray(financeRes)
-          ? financeRes
-          : []),
-      ]);
+      setApprovals(
+        approvalResults.flatMap((result) =>
+          Array.isArray(result) ? result : []
+        )
+      );
     } catch (err) {
       console.error(
         "Failed to load expense claims:",
@@ -1481,7 +1583,7 @@ export default function Expenses() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [canApprove, role]);
 
   useEffect(() => {
     /*
@@ -1490,13 +1592,20 @@ export default function Expenses() {
      */
     if (!user) return;
 
-    loadAll();
-  }, [user, canApprove]);
+    const timeoutId = window.setTimeout(() => {
+      void loadAll();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [user, loadAll]);
 
   useEffect(() => {
     if (!canApprove && tab === "approvals") {
-      setTab("mine");
+      const timeoutId = window.setTimeout(() => setTab("mine"), 0);
+      return () => window.clearTimeout(timeoutId);
     }
+
+    return undefined;
   }, [canApprove, tab]);
 
   /* ---------------------------------------------------------------------- */
@@ -1519,10 +1628,44 @@ export default function Expenses() {
         err
       );
 
-      alert(
-        err?.response?.data?.message ||
-          "Failed to approve claim."
-      );
+      alert(getApiErrorMessage(err, "Failed to approve claim."));
+    }
+  };
+
+  const handleSubmitDraft = async (claim) => {
+    if (!claim?.id || !claim.isDraft) return;
+
+    setActionClaimId(claim.id);
+    try {
+      await submitExpenseClaim(claim.id);
+      setSelectedClaim(null);
+      await loadAll();
+    } catch (err) {
+      console.error("Failed to submit expense draft:", err);
+      alert(getApiErrorMessage(err, "Failed to submit expense draft."));
+    } finally {
+      setActionClaimId(null);
+    }
+  };
+
+  const handleDeleteDraft = async (claim) => {
+    if (!claim?.id || !claim.isDraft) return;
+
+    const confirmed = window.confirm(
+      `Delete draft ${getClaimDisplayId(claim)}? This cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setActionClaimId(claim.id);
+    try {
+      await deleteDraft(claim.id);
+      setSelectedClaim(null);
+      await loadAll();
+    } catch (err) {
+      console.error("Failed to delete expense draft:", err);
+      alert(getApiErrorMessage(err, "Failed to delete expense draft."));
+    } finally {
+      setActionClaimId(null);
     }
   };
 
@@ -1563,7 +1706,7 @@ export default function Expenses() {
   const tabs = [
     {
       id: "mine",
-      label: "My Claims",
+      label: ["ADMIN", "HR"].includes(role) ? "All Claims" : "My Claims",
     },
 
     ...(canApprove
@@ -1741,7 +1884,7 @@ export default function Expenses() {
                       "Status",
                       tab === "approvals"
                         ? "Actions"
-                        : "Receipt",
+                        : "Receipt / Actions",
                     ]
                       .filter(Boolean)
                       .map((header) => (
@@ -1886,8 +2029,7 @@ export default function Expenses() {
                                   fontWeight: 600,
                                 }}
                               >
-                                {claim.employeeName ||
-                                  "—"}
+                                {getEmployeeName(claim)}
                               </p>
 
                               <span
@@ -2221,6 +2363,56 @@ export default function Expenses() {
                                   —
                                 </span>
                               )}
+
+                              {claim.isDraft && isOwnClaim(claim) && (
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    gap: "6px",
+                                    marginTop: "8px",
+                                  }}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSubmitDraft(claim)}
+                                    disabled={actionClaimId === claim.id}
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: "4px",
+                                      padding: "6px 10px",
+                                      background: "var(--primary)",
+                                      color: "#fff",
+                                      border: "none",
+                                      borderRadius: "var(--radius-sm)",
+                                      fontWeight: 600,
+                                      fontSize: "12px",
+                                      cursor: actionClaimId === claim.id ? "not-allowed" : "pointer",
+                                    }}
+                                  >
+                                    <Send size={12} /> Submit
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteDraft(claim)}
+                                    disabled={actionClaimId === claim.id}
+                                    title="Delete draft"
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      padding: "6px 8px",
+                                      background: "var(--red-light)",
+                                      color: "var(--red)",
+                                      border: "none",
+                                      borderRadius: "var(--radius-sm)",
+                                      cursor: actionClaimId === claim.id ? "not-allowed" : "pointer",
+                                    }}
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </div>
+                              )}
                             </td>
                           )}
                         </tr>
@@ -2268,6 +2460,10 @@ export default function Expenses() {
           setRejectTarget(claim)
         }
         onViewReceipt={handleViewReceipt}
+        onSubmitDraft={handleSubmitDraft}
+        onDeleteDraft={handleDeleteDraft}
+        actionClaimId={actionClaimId}
+        canManageDraft={isOwnClaim(selectedClaim)}
         isApprover={
           canApprove &&
           tab === "approvals"
