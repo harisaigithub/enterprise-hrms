@@ -78,7 +78,7 @@ export async function getTasks(
 ) {
     try {
         const result =
-            await taskService.listTasks();
+            await taskService.listTasks(req.auth);
 
         res.status(200).json(result);
     } catch (error) {
@@ -150,7 +150,8 @@ export async function updateTaskStatus(
 
                     reason:
                         req.body.reason,
-                }
+                },
+                req.auth
             );
 
         res.status(200).json(result);
@@ -227,7 +228,8 @@ export async function getTaskHistory(
 
         const result =
             await taskService.listTaskHistory(
-                taskId
+                taskId,
+                req.auth
             );
 
         res.status(200).json(result);
@@ -251,7 +253,8 @@ export async function getTimeEntries(
 
         const result =
             await taskService.listTimeEntries(
-                taskId
+                taskId,
+                req.auth
             );
 
         res.status(200).json(result);
@@ -284,7 +287,8 @@ export async function createTimeEntry(
 
                     note:
                         req.body.note,
-                }
+                },
+                req.auth
             );
 
         res.status(201).json(result);
@@ -304,7 +308,8 @@ export async function getTaskTotalHours(
 
         const result =
             await taskService.getTaskTotalHours(
-                taskId
+                taskId,
+                req.auth
             );
 
         res.status(200).json(result);

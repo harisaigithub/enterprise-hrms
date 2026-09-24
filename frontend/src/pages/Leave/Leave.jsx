@@ -45,7 +45,7 @@ import {
   uploadLeaveDocument,
 } from "../../services/leaveService";
 import { useAuth } from "../../context/AuthContext";
-import { leaveStatusMeta } from "../../mock/leave";
+import { leaveStatusMeta } from "../../constants/leave";
 import "./Leave.css";
 
 const LEAVE_COLORS = ["#0f766e", "#7c3aed", "#0284c7", "#d97706", "#dc2626"];

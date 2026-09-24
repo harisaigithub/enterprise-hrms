@@ -825,7 +825,9 @@ export default function Tasks() {
     Promise.all([
       getProjects(),
       getTasks(),
-      getOrphanedTasks(),
+      canManageTasks
+        ? getOrphanedTasks()
+        : Promise.resolve({ data: [] }),
       getTaskMeta(),
     ])
       .then(([p, t, o, m]) => {
@@ -834,8 +836,14 @@ export default function Tasks() {
         setOrphaned(o.data);
         setTaskMeta(m.data);
       })
+      .catch((error) => {
+        console.error("Failed to load task management data:", error);
+        setProjects([]);
+        setTasks([]);
+        setOrphaned([]);
+      })
       .finally(() => setLoading(false));
-  }, [canRead]);
+  }, [canRead, canManageTasks]);
 
 
   if (!canRead) {

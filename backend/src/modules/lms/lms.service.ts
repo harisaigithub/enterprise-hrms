@@ -399,7 +399,8 @@ export async function submitQuiz(
     answers: {
         questionId: string;
         optionId: string;
-    }[]
+    }[],
+    actorEmployeeId: string
 ) {
     const enrollment =
         await prisma.courseEnrollment.findUnique({
@@ -423,6 +424,10 @@ export async function submitQuiz(
         throw AppError.notFound(
             "Course enrollment not found"
         );
+    }
+
+    if (enrollment.employeeId !== actorEmployeeId) {
+        throw AppError.forbidden("You can submit a quiz only for your own enrollment");
     }
 
     if (enrollment.status === "LOCKED") {
@@ -681,7 +686,8 @@ export async function submitQuiz(
 }
 
 export async function getQuiz(
-    enrollmentId: string
+    enrollmentId: string,
+    actorEmployeeId: string
 ) {
     const enrollment =
         await prisma.courseEnrollment.findUnique({
@@ -713,6 +719,10 @@ export async function getQuiz(
         throw AppError.notFound(
             "Enrollment not found"
         );
+    }
+
+    if (enrollment.employeeId !== actorEmployeeId) {
+        throw AppError.forbidden("You can view a quiz only for your own enrollment");
     }
 
     return {
@@ -1153,7 +1163,8 @@ export async function listCourseContents(
 
 export async function startCourseContent(
     enrollmentId: string,
-    contentId: string
+    contentId: string,
+    actorEmployeeId: string
 ) {
     const enrollment =
         await prisma.courseEnrollment.findUnique({
@@ -1162,6 +1173,7 @@ export async function startCourseContent(
             },
             select: {
                 id: true,
+                employeeId: true,
                 courseId: true,
                 status: true,
             },
@@ -1171,6 +1183,10 @@ export async function startCourseContent(
         throw AppError.notFound(
             "Course enrollment not found"
         );
+    }
+
+    if (enrollment.employeeId !== actorEmployeeId) {
+        throw AppError.forbidden("You can start content only for your own enrollment");
     }
 
     if (enrollment.status === "LOCKED") {
@@ -1239,7 +1255,8 @@ export async function startCourseContent(
 
 export async function completeCourseContent(
     enrollmentId: string,
-    contentId: string
+    contentId: string,
+    actorEmployeeId: string
 ) {
     const enrollment =
         await prisma.courseEnrollment.findUnique({
@@ -1248,6 +1265,7 @@ export async function completeCourseContent(
             },
             select: {
                 id: true,
+                employeeId: true,
                 courseId: true,
                 status: true,
             },
@@ -1257,6 +1275,10 @@ export async function completeCourseContent(
         throw AppError.notFound(
             "Course enrollment not found"
         );
+    }
+
+    if (enrollment.employeeId !== actorEmployeeId) {
+        throw AppError.forbidden("You can complete content only for your own enrollment");
     }
 
     if (enrollment.status === "LOCKED") {
@@ -1332,7 +1354,8 @@ export async function completeCourseContent(
 }
 
 export async function getEnrollmentContent(
-    enrollmentId: string
+    enrollmentId: string,
+    actorEmployeeId: string
 ) {
     const enrollment =
         await prisma.courseEnrollment.findUnique({
@@ -1357,6 +1380,10 @@ export async function getEnrollmentContent(
         throw AppError.notFound(
             "Course enrollment not found"
         );
+    }
+
+    if (enrollment.employeeId !== actorEmployeeId) {
+        throw AppError.forbidden("You can view content only for your own enrollment");
     }
 
     const progressMap = new Map(

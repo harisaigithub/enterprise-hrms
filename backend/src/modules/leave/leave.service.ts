@@ -249,14 +249,29 @@ async function getRequestForAction(requestId: string) {
   return request;
 }
 
-export async function approveLeave(requestId: string, approverEmployeeId: string, comments?: string) {
+async function assertLeaveDecisionScope(request: any, approverEmployeeId: string, role: string) {
+  if (request.employeeId === approverEmployeeId) {
+    throw AppError.forbidden("You cannot decide your own leave request");
+  }
+  if (role === "MANAGER") {
+    const employee = await prisma.employee.findUnique({
+      where: { id: request.employeeId },
+      select: { reportingManagerId: true },
+    });
+    if (employee?.reportingManagerId !== approverEmployeeId) {
+      throw AppError.forbidden("Managers can decide leave only for their direct reports");
+    }
+  } else if (!['ADMIN', 'HR'].includes(role)) {
+    throw AppError.forbidden("You are not authorized to decide leave requests");
+  }
+}
+
+export async function approveLeave(requestId: string, approverEmployeeId: string, role: string, comments?: string) {
   const request = await getRequestForAction(requestId);
   if (request.status !== "Pending") throw AppError.conflict(`Only pending requests can be approved (current: ${request.status})`);
 
   // No self-approval (maker-checker).
-  if (request.employeeId === approverEmployeeId) {
-    throw AppError.forbidden("You cannot approve your own leave request");
-  }
+  await assertLeaveDecisionScope(request, approverEmployeeId, role);
 
   const days = countWeekdays(request.startDate, request.endDate);
   const updated = await prisma.$transaction(async (tx: any) => {
@@ -292,15 +307,13 @@ export async function approveLeave(requestId: string, approverEmployeeId: string
   return { data: { id: updated.id, status: "Approved", comments: comments ?? "" } };
 }
 
-export async function rejectLeave(requestId: string, approverEmployeeId: string, comments?: string) {
+export async function rejectLeave(requestId: string, approverEmployeeId: string, role: string, comments?: string) {
   const rejectionReason = comments?.trim();
   if (!rejectionReason) throw AppError.badRequest("Rejection reason is required");
   const request = await getRequestForAction(requestId);
   if (request.status !== "Pending") throw AppError.conflict(`Only pending requests can be rejected (current: ${request.status})`);
 
-  if (request.employeeId === approverEmployeeId) {
-    throw AppError.forbidden("You cannot reject your own leave request");
-  }
+  await assertLeaveDecisionScope(request, approverEmployeeId, role);
 
   const updated = await prisma.leaveRequest.update({
     where: { id: request.id },

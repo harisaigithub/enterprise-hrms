@@ -18,7 +18,7 @@ import {
   getMyTickets, getAgentQueue, getAllQueueNames, raiseTicket, resolveTicket, reopenTicket,
   addTicketComment, assignTicket, updateTicketStatus,
 } from "../../services/helpdeskService";
-import { TICKET_CATEGORIES, ticketStatusMeta } from "../../mock/helpdesk";
+import { TICKET_CATEGORIES, ticketStatusMeta } from "../../constants/helpdesk";
 
 const fmtDateTime = (d) => new Date(d).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 const cleanText = (value) => typeof value === "string" ? value.replaceAll(" • ", "-") : value;
@@ -384,13 +384,14 @@ export default function Helpdesk() {
                             <button onClick={() => setDetailTarget(t)} style={{ padding: "6px 10px", marginRight: "6px", background: "var(--background)", color: "var(--primary)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", cursor: "pointer" }} title="View details"><Eye size={13} /></button>
                             {t.assignedAgent === "Unassigned" && <button onClick={() => handleAssignToMe(t)} style={{ padding: "6px 10px", marginRight: "6px", background: "#eff6ff", color: "#1d4ed8", border: 0, borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: "12px", cursor: "pointer" }}>Assign to me</button>}
                             {["Open", "Assigned", "Reopened"].includes(t.status) && t.assignedEmployeeCode && (role === "ADMIN" || t.assignedEmployeeCode === user.id) && <button onClick={() => handleStartProgress(t)} style={{ padding: "6px 10px", marginRight: "6px", background: "#fffbeb", color: "#b45309", border: 0, borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: "12px", cursor: "pointer" }}>Start Progress</button>}
-                            <button
-                              id={`resolve-${t.id}-btn`}
-                              onClick={() => setResolveTarget(t)}
-                              disabled={["Resolved", "Closed"].includes(t.status) || !t.assignedEmployeeCode || (role === "HR" && t.assignedEmployeeCode !== user.id)}
-                              style={{ padding: "6px 14px", background: "var(--green-light)", color: "var(--green)", border: "none", borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: "12px", cursor: ["Resolved", "Closed"].includes(t.status) || !t.assignedEmployeeCode ? "not-allowed" : "pointer" }}>
-                              Resolve
-                            </button>
+                            {["In Progress", "Reopened"].includes(t.status) && t.assignedEmployeeCode && (role !== "HR" || t.assignedEmployeeCode === user.id) && (
+                              <button
+                                id={`resolve-${t.id}-btn`}
+                                onClick={() => setResolveTarget(t)}
+                                style={{ padding: "6px 14px", background: "var(--green-light)", color: "var(--green)", border: "none", borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: "12px", cursor: "pointer" }}>
+                                Resolve
+                              </button>
+                            )}
                           </td>
                         ) : (
                           <td style={{ padding: "13px 16px" }}>

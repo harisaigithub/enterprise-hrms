@@ -166,6 +166,7 @@ router.get(
 router.get(
   "/enrollments/all",
   requirePermission("lms:read"),
+  requireRole("ADMIN", "HR"),
   getAllEnrollments
 );
 

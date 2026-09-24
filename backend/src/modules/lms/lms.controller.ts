@@ -115,9 +115,8 @@ export async function getEnrollmentContentController(
   req: Request,
   res: Response
 ) {
-  const result = await getEnrollmentContent(
-    req.params.enrollmentId
-  );
+  if (!req.auth?.employeeId) throw AppError.forbidden("Account is not linked to an employee record");
+  const result = await getEnrollmentContent(req.params.enrollmentId, req.auth.employeeId);
 
   res.json(result);
 }
@@ -149,10 +148,8 @@ export async function submitQuizController(
   req: Request,
   res: Response
 ) {
-  const result = await submitQuiz(
-    req.params.enrollmentId,
-    req.body.answers
-  );
+  if (!req.auth?.employeeId) throw AppError.forbidden("Account is not linked to an employee record");
+  const result = await submitQuiz(req.params.enrollmentId, req.body.answers, req.auth.employeeId);
 
   res.json(result);
 }
@@ -161,9 +158,8 @@ export async function getQuizController(
   req: Request,
   res: Response
 ) {
-  const result = await getQuiz(
-    req.params.enrollmentId
-  );
+  if (!req.auth?.employeeId) throw AppError.forbidden("Account is not linked to an employee record");
+  const result = await getQuiz(req.params.enrollmentId, req.auth.employeeId);
 
   res.json(result);
 }
@@ -213,10 +209,8 @@ export async function startCourseContentController(
   req: Request,
   res: Response
 ) {
-  const result = await startCourseContent(
-    req.params.enrollmentId,
-    req.params.contentId
-  );
+  if (!req.auth?.employeeId) throw AppError.forbidden("Account is not linked to an employee record");
+  const result = await startCourseContent(req.params.enrollmentId, req.params.contentId, req.auth.employeeId);
 
   res.json(result);
 }
@@ -225,10 +219,8 @@ export async function completeCourseContentController(
   req: Request,
   res: Response
 ) {
-  const result = await completeCourseContent(
-    req.params.enrollmentId,
-    req.params.contentId
-  );
+  if (!req.auth?.employeeId) throw AppError.forbidden("Account is not linked to an employee record");
+  const result = await completeCourseContent(req.params.enrollmentId, req.params.contentId, req.auth.employeeId);
 
   res.json(result);
 }

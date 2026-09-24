@@ -1,4 +1,5 @@
 import { prisma } from "../../lib/prisma";
+import { AppError } from "../../lib/errors";
 import {
     AssetStatus,
     AssetRequestStatus,
@@ -300,6 +301,11 @@ export async function approveRequest(
     requestId: string,
     approverName: string
 ) {
+    const request = await prisma.assetRequest.findUnique({ where: { id: requestId } });
+    if (!request) throw AppError.notFound("Asset request not found");
+    if (request.status !== AssetRequestStatus.PENDING_APPROVAL) {
+        throw AppError.conflict(`Only pending requests can be approved (current: ${request.status})`);
+    }
     return prisma.assetRequest.update({
         where: {
             id: requestId,
@@ -325,6 +331,11 @@ export async function approveRequest(
 export async function rejectRequest(
     requestId: string
 ) {
+    const request = await prisma.assetRequest.findUnique({ where: { id: requestId } });
+    if (!request) throw AppError.notFound("Asset request not found");
+    if (request.status !== AssetRequestStatus.PENDING_APPROVAL) {
+        throw AppError.conflict(`Only pending requests can be rejected (current: ${request.status})`);
+    }
     return prisma.assetRequest.update({
         where: {
             id: requestId,
@@ -355,15 +366,14 @@ export async function fulfillRequest(
         },
     });
 
-    if (!request) {
-        throw new Error("Asset request not found");
-    }
+    if (!request) throw AppError.notFound("Asset request not found");
 
     if (
-        request.status !== AssetRequestStatus.APPROVED
+        request.status !== AssetRequestStatus.APPROVED &&
+        request.status !== AssetRequestStatus.PENDING_PROCUREMENT
     ) {
-        throw new Error(
-            "Only approved requests can be fulfilled"
+        throw AppError.conflict(
+            `Only approved or pending-procurement requests can be fulfilled (current: ${request.status})`
         );
     }
 
@@ -400,23 +410,14 @@ export async function fulfillRequest(
         },
     });
 
-    if (!asset) {
-        return {
-            error: "Asset not found",
-        };
-    }
+    if (!asset) throw AppError.notFound("Asset not found");
 
     if (asset.status !== AssetStatus.IN_STOCK) {
-        return {
-            error: "Selected asset is not available",
-        };
+        throw AppError.conflict("Selected asset is not available");
     }
 
     if (asset.category !== request.category) {
-        return {
-            error:
-                "Selected asset category does not match request",
-        };
+        throw AppError.badRequest("Selected asset category does not match request");
     }
 
     /* ---------------------------------------------
@@ -425,26 +426,25 @@ export async function fulfillRequest(
 
     const result = await prisma.$transaction(
         async (tx: any) => {
-            const updatedAsset =
-                await tx.asset.update({
-                    where: {
-                        id: asset.id,
-                    },
+            const claimedAsset = await tx.asset.updateMany({
+                where: { id: asset.id, status: AssetStatus.IN_STOCK },
+                data: {
+                    status: AssetStatus.ASSIGNED,
+                    currentHolderId: request.employeeId,
+                    acknowledged: false,
+                    ...(asset.category === "Software License"
+                        ? { seatsUsed: { increment: 1 } }
+                        : {}),
+                },
+            });
 
-                    data: {
-                        status: AssetStatus.ASSIGNED,
-                        currentHolderId: request.employeeId,
-                        acknowledged: false,
+            if (claimedAsset.count !== 1) {
+                throw AppError.conflict("Selected asset is no longer available");
+            }
 
-                        ...(asset.category === "Software License"
-                            ? {
-                                seatsUsed: {
-                                    increment: 1,
-                                },
-                            }
-                            : {}),
-                    },
-                });
+            const updatedAsset = await tx.asset.findUniqueOrThrow({
+                where: { id: asset.id },
+            });
 
             const updatedRequest =
                 await tx.assetRequest.update({

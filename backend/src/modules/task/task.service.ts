@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
+import type { AccessTokenPayload } from "../../lib/jwt";
 
 /* =========================================================
    TASK CONSTANTS
@@ -243,9 +244,16 @@ export async function createMilestone(
    TASKS
    ========================================================= */
 
-export async function listTasks() {
+export async function listTasks(actor?: AccessTokenPayload) {
+    if (!actor?.employeeId) throw AppError.forbidden("Account is not linked to an employee record");
+    const where: Prisma.TaskWhereInput = actor.role === "EMPLOYEE"
+        ? { assigneeId: actor.employeeId }
+        : actor.role === "MANAGER"
+            ? { OR: [{ assigneeId: actor.employeeId }, { assignee: { reportingManagerId: actor.employeeId } }] }
+            : {};
     const tasks =
         await prisma.task.findMany({
+            where,
             include: TASK_INCLUDE,
 
             orderBy: [
@@ -459,7 +467,8 @@ export async function createTask(
 export async function updateTaskStatus(
     taskId: string,
     newStatus: string,
-    options: UpdateTaskStatusOptions = {}
+    options: UpdateTaskStatusOptions = {},
+    actor?: AccessTokenPayload
 ) {
     validateStatus(newStatus);
 
@@ -488,6 +497,10 @@ export async function updateTaskStatus(
         throw AppError.notFound(
             "Task not found"
         );
+    }
+
+    if (actor?.role === "EMPLOYEE" && task.assigneeId !== actor.employeeId) {
+        throw AppError.forbidden("Employees can update only their assigned tasks");
     }
 
     const openBlockers =
@@ -741,7 +754,8 @@ export async function listOrphanedTasks() {
    ========================================================= */
 
 export async function listTaskHistory(
-    taskId: string
+    taskId: string,
+    actor?: AccessTokenPayload
 ) {
     const task =
         await prisma.task.findUnique({
@@ -751,6 +765,7 @@ export async function listTaskHistory(
 
             select: {
                 id: true,
+                assigneeId: true,
             },
         });
 
@@ -758,6 +773,10 @@ export async function listTaskHistory(
         throw AppError.notFound(
             "Task not found"
         );
+    }
+
+    if (actor?.role === "EMPLOYEE" && task.assigneeId !== actor.employeeId) {
+        throw AppError.forbidden("Employees can view history only for their assigned tasks");
     }
 
     const history =
@@ -802,7 +821,8 @@ export async function listTaskHistory(
    ========================================================= */
 
 export async function listTimeEntries(
-    taskId: string
+    taskId: string,
+    actor?: AccessTokenPayload
 ) {
     const task =
         await prisma.task.findUnique({
@@ -815,6 +835,10 @@ export async function listTimeEntries(
         throw AppError.notFound(
             "Task not found"
         );
+    }
+
+    if (actor?.role === "EMPLOYEE" && task.assigneeId !== actor.employeeId) {
+        throw AppError.forbidden("Employees can view time only for their assigned tasks");
     }
 
     const entries =
@@ -851,7 +875,8 @@ export async function listTimeEntries(
 
 export async function createTimeEntry(
     taskId: string,
-    input: TimeEntryInput
+    input: TimeEntryInput,
+    actor?: AccessTokenPayload
 ) {
     const task =
         await prisma.task.findUnique({
@@ -864,6 +889,13 @@ export async function createTimeEntry(
         throw AppError.notFound(
             "Task not found"
         );
+    }
+
+    if (actor?.role === "EMPLOYEE") {
+        if (!actor.employeeId || task.assigneeId !== actor.employeeId) {
+            throw AppError.forbidden("Employees can log time only for their assigned tasks");
+        }
+        input = { ...input, employeeId: actor.employeeId };
     }
 
     const employee =
@@ -966,7 +998,8 @@ export async function createTimeEntry(
 }
 
 export async function getTaskTotalHours(
-    taskId: string
+    taskId: string,
+    actor?: AccessTokenPayload
 ) {
     const task =
         await prisma.task.findUnique({
@@ -976,6 +1009,7 @@ export async function getTaskTotalHours(
 
             select: {
                 id: true,
+                assigneeId: true,
             },
         });
 
@@ -983,6 +1017,10 @@ export async function getTaskTotalHours(
         throw AppError.notFound(
             "Task not found"
         );
+    }
+
+    if (actor?.role === "EMPLOYEE" && task.assigneeId !== actor.employeeId) {
+        throw AppError.forbidden("Employees can view totals only for their assigned tasks");
     }
 
     const result =

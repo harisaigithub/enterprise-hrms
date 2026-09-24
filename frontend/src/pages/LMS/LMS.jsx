@@ -48,7 +48,6 @@ import CourseContentViewer from "./CourseContentViewer";
 import { getFileUrl } from "../../utils/uploadFileUrl";
 import CertificateManagement from "./CertificateManagement";
 import { useAuth } from "../../context/AuthContext";
-import { _getCourses, _getEnrollments } from "../../mock/lms";
 
 
 
@@ -3084,9 +3083,9 @@ export default function LMS() {
       getAllEnrollments().catch(() => ({ data: [] })),
     ])
       .then(([c, mine, all]) => {
-        const loadedCourses = c?.data?.length > 0 ? c.data : _getCourses();
-        const loadedMine = mine?.data?.length > 0 ? mine.data : _getEnrollments(user?.id || "EMP001");
-        const loadedAll = all?.data?.length > 0 ? all.data : _getEnrollments();
+        const loadedCourses = c?.data ?? [];
+        const loadedMine = mine?.data ?? [];
+        const loadedAll = all?.data ?? [];
         setCourses(loadedCourses);
         setMyEnrollments(loadedMine);
         setAllEnrollments(loadedAll);

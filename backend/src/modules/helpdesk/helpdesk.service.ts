@@ -159,6 +159,17 @@ export async function assignTicket(id: string, employeeCode: string, actor?: Acc
 
 export async function updateStatus(id: string, input: { status: string; resolutionNotes?: string }, actor?: AccessTokenPayload) {
   const ticket = await accessibleTicket(id, actor);
+  const allowedTransitions: Record<string, string[]> = {
+    Open: ["Assigned"],
+    Assigned: ["In Progress"],
+    "In Progress": ["Resolved"],
+    Reopened: ["In Progress", "Resolved"],
+    Resolved: ["Closed"],
+    Closed: [],
+  };
+  if (!(allowedTransitions[ticket.status] ?? []).includes(input.status)) {
+    throw AppError.conflict(`Invalid ticket transition: ${ticket.status} -> ${input.status}`);
+  }
   if (["In Progress", "Resolved"].includes(input.status) && !ticket.assignedToId) {
     throw AppError.conflict("Assign the ticket before starting or resolving it");
   }

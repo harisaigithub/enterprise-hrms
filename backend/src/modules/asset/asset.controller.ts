@@ -165,8 +165,10 @@ export async function approveRequest(
     res: Response
 ) {
     try {
-        const approverName =
-            req.body?.approverName || "Manager";
+        if (!req.auth) throw new Error("Authentication required");
+        const approverName = req.auth.employeeCode
+            ? `${req.auth.role}:${req.auth.employeeCode}`
+            : req.auth.role;
 
         const data =
             await assetService.approveRequest(

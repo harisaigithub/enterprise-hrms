@@ -40,13 +40,13 @@ async function resolveApprover(req: Request) {
 
 export const approve = asyncHandler(async (req: Request, res: Response) => {
   const approverId = await resolveApprover(req);
-  const result = await leaveService.approveLeave(req.params.id, approverId, req.body.comments);
+  const result = await leaveService.approveLeave(req.params.id, approverId, req.auth?.role ?? "", req.body.comments);
   sendSuccess(res, result.data);
 });
 
 export const reject = asyncHandler(async (req: Request, res: Response) => {
   const approverId = await resolveApprover(req);
-  const result = await leaveService.rejectLeave(req.params.id, approverId, req.body.comments);
+  const result = await leaveService.rejectLeave(req.params.id, approverId, req.auth?.role ?? "", req.body.comments);
   sendSuccess(res, result.data);
 });
 
@@ -75,4 +75,3 @@ export const getLeaveTypePublic = asyncHandler(async (req: Request, res: Respons
     );
   }
 );
-

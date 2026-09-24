@@ -1084,6 +1084,10 @@ function RequestsTab({
                 >
                   {r.employeeName ||
                     r.employee?.name ||
+                    [r.employee?.firstName, r.employee?.lastName]
+                      .filter(Boolean)
+                      .join(" ") ||
+                    r.employee?.employeeCode ||
                     "Employee"}{" "}
                   — {r.category}
                 </p>
@@ -1162,8 +1166,10 @@ function RequestsTab({
                   )}
 
                 {canManage &&
-                  normalizedStatus ===
-                  REQUEST_STATUS.APPROVED && (
+                  [
+                    REQUEST_STATUS.APPROVED,
+                    REQUEST_STATUS.PENDING_PROCUREMENT,
+                  ].includes(normalizedStatus) && (
                     <button
                       onClick={() =>
                         setFulfillTarget(r)
