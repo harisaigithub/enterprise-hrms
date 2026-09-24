@@ -75,8 +75,8 @@ export function requireEmployeeScope(options: { allowManager?: boolean } = {}) {
       const auth = req.auth;
       if (!auth) throw AppError.unauthorized("Authentication required");
 
-      const targetEmployeeId = req.params.id || req.params.employeeId;
-      if (!targetEmployeeId) throw AppError.badRequest("Employee id is required");
+      const targetReference = req.params.id || req.params.employeeId;
+      if (!targetReference) throw AppError.badRequest("Employee id is required");
 
       const role = auth.role?.toUpperCase();
       if (role === "ADMIN" || role === "HR") return next();
@@ -85,14 +85,27 @@ export function requireEmployeeScope(options: { allowManager?: boolean } = {}) {
         throw AppError.forbidden("Account is not linked to an employee record");
       }
 
-      if (auth.employeeId === targetEmployeeId) return next();
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetReference);
+      const target = await prisma.employee.findFirst({
+        where: isUuid ? { id: targetReference } : { employeeCode: targetReference },
+        select: { id: true, reportingManagerId: true },
+      });
+      if (!target) throw AppError.notFound("Employee not found");
+
+      if (auth.employeeId === target.id) return next();
 
       if (role === "MANAGER" && options.allowManager) {
-        const directReport = await prisma.employee.findFirst({
-          where: { id: targetEmployeeId, reportingManagerId: auth.employeeId },
-          select: { id: true },
-        });
-        if (directReport) return next();
+        const visited = new Set<string>();
+        let managerId = target.reportingManagerId;
+        while (managerId && !visited.has(managerId)) {
+          if (managerId === auth.employeeId) return next();
+          visited.add(managerId);
+          const manager = await prisma.employee.findUnique({
+            where: { id: managerId },
+            select: { reportingManagerId: true },
+          });
+          managerId = manager?.reportingManagerId ?? null;
+        }
       }
 
       throw AppError.forbidden("You cannot access another employee's private data");

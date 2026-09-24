@@ -36,13 +36,52 @@ export interface EmployeeFilters {
   limit?: number;
 }
 
-export async function listEmployees(filters: EmployeeFilters, options: { role?: string; currentUserId?: string } = {}) {
+type EmployeeScopeOptions = { role?: string; currentEmployeeId?: string; isSelf?: boolean };
+
+/**
+ * Return the employee IDs visible to a user in the employee module.
+ * Manager scope follows the reporting hierarchy, not the department field.
+ */
+async function getVisibleEmployeeIds(options: EmployeeScopeOptions): Promise<string[] | null> {
+  const role = options.role?.toUpperCase();
+  if (role === "ADMIN" || role === "HR") return null;
+
+  const currentEmployeeId = options.currentEmployeeId;
+  if (!currentEmployeeId) return [];
+  if (role !== "MANAGER") return [currentEmployeeId];
+
+  const visible = new Set<string>([currentEmployeeId]);
+  let frontier = [currentEmployeeId];
+
+  while (frontier.length > 0) {
+    const reports = await prisma.employee.findMany({
+      where: {
+        reportingManagerId: { in: frontier },
+        isSoftDeleted: false,
+      },
+      select: { id: true },
+    });
+    const next = reports.map((report) => report.id).filter((id) => !visible.has(id));
+    if (next.length === 0) break;
+    next.forEach((id) => visible.add(id));
+    frontier = next;
+  }
+
+  return [...visible];
+}
+
+export async function listEmployees(filters: EmployeeFilters, options: EmployeeScopeOptions = {}) {
   const { page, limit, skip } = parsePagination({
     page: filters.page,
     limit: filters.limit,
   });
 
   const where: Prisma.EmployeeWhereInput = {};
+
+  const visibleEmployeeIds = await getVisibleEmployeeIds(options);
+  if (visibleEmployeeIds !== null) {
+    where.id = { in: visibleEmployeeIds };
+  }
 
   if (filters.status) where.status = filters.status;
   if (filters.department) {
@@ -74,7 +113,15 @@ export async function listEmployees(filters: EmployeeFilters, options: { role?: 
   };
 }
 
-export async function getEmployeeById(id: string, options: { role?: string; isSelf?: boolean } = {}) {
+async function assertEmployeeVisible(id: string, options: EmployeeScopeOptions): Promise<void> {
+  const visibleEmployeeIds = await getVisibleEmployeeIds(options);
+  if (visibleEmployeeIds !== null && !visibleEmployeeIds.includes(id)) {
+    throw AppError.forbidden("You cannot access employees outside your reporting scope.");
+  }
+}
+
+export async function getEmployeeById(id: string, options: EmployeeScopeOptions = {}) {
+  await assertEmployeeVisible(id, options);
   const emp = await prisma.employee.findUnique({
     where: { id },
     include: EMPLOYEE_INCLUDE,
@@ -83,12 +130,13 @@ export async function getEmployeeById(id: string, options: { role?: string; isSe
   return { data: serializeEmployeeList([emp], options)[0] };
 }
 
-export async function getEmployeeByCode(code: string, options: { role?: string; isSelf?: boolean } = {}) {
+export async function getEmployeeByCode(code: string, options: EmployeeScopeOptions = {}) {
   const emp = await prisma.employee.findUnique({
     where: { employeeCode: code },
     include: EMPLOYEE_INCLUDE,
   });
   if (!emp) throw AppError.notFound("Employee not found");
+  await assertEmployeeVisible(emp.id, options);
   return { data: serializeEmployeeList([emp], options)[0] };
 }
 

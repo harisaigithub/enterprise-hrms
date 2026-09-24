@@ -75,13 +75,13 @@ router.post(
 );
 
 // GET /api/employees/:id — employees:read
-router.get("/:id", authenticate, requirePermission("employees:read|dashboard:read"), employeeController.getOne);
+router.get("/:id", authenticate, requirePermission("employees:read|dashboard:read"), requireEmployeeScope({ allowManager: true }), employeeController.getOne);
 
 // POST /api/employees — employees:write
 router.post("/", authenticate, requirePermission("employees:write"), validate({ body: createBodySchema }), employeeController.create);
 
 // PUT /api/employees/:id — employees:write
-router.put("/:id", authenticate, requirePermission("employees:write"), validate({ body: updateBodySchema }), employeeController.update);
+router.put("/:id", authenticate, requirePermission("employees:write"), requireEmployeeScope({ allowManager: true }), validate({ body: updateBodySchema }), employeeController.update);
 
 // DELETE /api/employees/:id — employees:delete (Admin only in frontend matrix)
 router.delete("/:id", authenticate, requirePermission("employees:delete"), employeeController.remove);

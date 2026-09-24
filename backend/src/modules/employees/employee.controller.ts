@@ -23,7 +23,7 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
     status: q.status,
     page: q.page ? Number(q.page) : undefined,
     limit: q.limit ? Number(q.limit) : undefined,
-  }, { role: req.auth?.role, currentUserId: req.auth?.sub });
+  }, { role: req.auth?.role, currentEmployeeId: req.auth?.employeeId });
   res.json({ data: result.data, total: result.total, page: result.page, limit: result.limit, totalPages: result.totalPages });
 });
 
@@ -32,8 +32,8 @@ export const getOne = asyncHandler(async (req: Request, res: Response) => {
   const pk = await resolveEmployeeId(id);
   const isSelf = req.auth?.employeeId === pk;
   const result = UUID_RE.test(id)
-    ? await employeeService.getEmployeeById(id, { role: req.auth?.role, isSelf })
-    : await employeeService.getEmployeeByCode(id, { role: req.auth?.role, isSelf });
+    ? await employeeService.getEmployeeById(id, { role: req.auth?.role, currentEmployeeId: req.auth?.employeeId, isSelf })
+    : await employeeService.getEmployeeByCode(id, { role: req.auth?.role, currentEmployeeId: req.auth?.employeeId, isSelf });
   sendSuccess(res, result.data);
 });
 
