@@ -251,6 +251,11 @@ export async function actOnClaim(
   const currentStep = workflowInstance.data.steps[workflowInstance.data.currentStepIndex];
   if (!currentStep) throw AppError.badRequest("No pending workflow step");
 
+  // Prevent self-approval
+  if (claim.employeeId === actor.employeeId) {
+    throw AppError.forbidden("You cannot approve/reject your own expense claim");
+  }
+
   // Check if actor can act on this step
   const actorCode = actor.employeeCode ?? actor.employeeId!;
   const currentStepName = currentStep.name.toLowerCase();
@@ -264,20 +269,38 @@ export async function actOnClaim(
     isAssignedApprover ||
     ["Submitted", "Manager Pending"].includes(claim.status);
 
+  // Check if actor is direct manager or dept head
+  const claimEmployee = await prisma.employee.findUnique({
+    where: { id: claim.employeeId },
+    select: { reportingManagerId: true, departmentId: true },
+  });
+  const isDirectManager = Boolean(actor.employeeId && claimEmployee?.reportingManagerId === actor.employeeId);
+
+  let isDeptHead = false;
+  if (actor.employeeId && claimEmployee?.departmentId) {
+    const actorEmp = await prisma.employee.findUnique({
+      where: { id: actor.employeeId },
+      select: { departmentId: true, isDepartmentHead: true },
+    });
+    if (actorEmp?.isDepartmentHead && actorEmp.departmentId === claimEmployee.departmentId) {
+      isDeptHead = true;
+    }
+  }
+
   const actorRoles = [actor.role];
   const canAct =
     isAssignedApprover ||
     (isFinanceStep && ["FINANCE", "ADMIN", "HR"].some((r) => actorRoles.includes(r))) ||
-    (isManagerStep && ["MANAGER", "ADMIN", "HR"].some((r) => actorRoles.includes(r))) ||
+    (isManagerStep && (
+      isDirectManager ||
+      isDeptHead ||
+      ["MANAGER", "ADMIN", "HR"].some((r) => actorRoles.includes(r))
+    )) ||
+    Boolean(actor.permissions?.includes("expenses:approve")) ||
     actorRoles.includes("ADMIN");
 
   if (!canAct) {
     throw AppError.forbidden(`You are not authorized to ${action} at this stage`);
-  }
-
-  // Prevent self-approval
-  if (claim.employeeId === actor.employeeId) {
-    throw AppError.forbidden("You cannot approve/reject your own expense claim");
   }
 
   // Act on workflow step
@@ -615,23 +638,55 @@ export async function getPendingApprovals(
     where.status = {
       in: ["Submitted", "Manager Pending"],
     };
-  }
-
-  if (stage === "Finance") {
+  } else if (stage === "Finance") {
     where.status = {
       in: ["Finance Pending"],
     };
   }
 
-  // Manager can see claims of employees reporting to them
-  if (actor.role === "MANAGER") {
-    if (!actor.employeeId) {
-      throw AppError.forbidden("Manager account not linked");
+  // Exclude self-submitted claims from approvals list
+  if (actor.employeeId) {
+    where.employeeId = { not: actor.employeeId };
+  }
+
+  // If actor is global approver (ADMIN, HR, or FINANCE in Finance stage), show all pending claims
+  const isGlobalApprover =
+    actor.role === "ADMIN" ||
+    actor.role === "HR" ||
+    (stage === "Finance" && actor.role === "FINANCE") ||
+    Boolean(actor.permissions?.includes("workflows:manage"));
+
+  if (!isGlobalApprover && actor.employeeId) {
+    const actorEmployee = await prisma.employee.findUnique({
+      where: { id: actor.employeeId },
+      select: { employeeCode: true, departmentId: true, isDepartmentHead: true },
+    });
+
+    const actorCode = actorEmployee?.employeeCode || actor.employeeCode || actor.employeeId;
+    const isDeptHead = actorEmployee?.isDepartmentHead ?? false;
+    const actorDeptId = actorEmployee?.departmentId ?? null;
+
+    const employeeConditions: Prisma.EmployeeWhereInput[] = [
+      { reportingManagerId: actor.employeeId },
+    ];
+
+    if (isDeptHead && actorDeptId) {
+      employeeConditions.push({ departmentId: actorDeptId });
     }
 
-    where.employee = {
-      reportingManagerId: actor.employeeId,
-    };
+    where.OR = [
+      { employee: { OR: employeeConditions } },
+      {
+        workflowInstance: {
+          steps: {
+            some: {
+              status: "Pending",
+              approverId: actorCode,
+            },
+          },
+        },
+      },
+    ];
   }
 
   const claims = await prisma.expenseClaim.findMany({

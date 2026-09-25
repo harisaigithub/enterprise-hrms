@@ -83,14 +83,23 @@ type Resolution =
 /** Resolve a single approver rule against live org data. */
 async function resolveOne(rule: string, requester: Person): Promise<Resolution> {
   if (rule === "Direct Reporting Manager") {
-    if (!requester.managerId) {
-      return { error: `Direct Reporting Manager could not be resolved for ${requester.name} — no manager on file.` };
+    if (requester.managerId) {
+      const mgr = await findPerson(requester.managerId);
+      if (mgr && mgr.id !== requester.id) {
+        return { approverId: mgr.id, approverName: mgr.name };
+      }
     }
-    const mgr = await findPerson(requester.managerId);
-    if (!mgr) {
-      return { error: `Direct Reporting Manager (${requester.managerId}) could not be resolved for ${requester.name}.` };
+    // Fallback: check department head if no direct manager is assigned or if manager lookup failed
+    if (requester.departmentId) {
+      const head = await prisma.employee.findFirst({
+        where: { departmentId: requester.departmentId, isDepartmentHead: true, status: "Active" },
+        select: { employeeCode: true, firstName: true, lastName: true },
+      });
+      if (head && head.employeeCode !== requester.id) {
+        return { approverId: head.employeeCode, approverName: `${head.firstName} ${head.lastName}`.trim() };
+      }
     }
-    return { approverId: mgr.id, approverName: mgr.name };
+    return { error: `Direct Reporting Manager or Department Head could not be resolved for ${requester.name} — no active manager/head on file.` };
   }
   if (rule === "Department Head") {
     const head = requester.departmentId
@@ -99,10 +108,17 @@ async function resolveOne(rule: string, requester: Person): Promise<Resolution> 
           select: { employeeCode: true, firstName: true, lastName: true },
         })
       : null;
-    if (!head) {
-      return { error: `No Department Head configured for ${requester.name}'s department.` };
+    if (head && head.employeeCode !== requester.id) {
+      return { approverId: head.employeeCode, approverName: `${head.firstName} ${head.lastName}`.trim() };
     }
-    return { approverId: head.employeeCode, approverName: `${head.firstName} ${head.lastName}`.trim() };
+    // Fallback to direct reporting manager if department head is missing or self
+    if (requester.managerId) {
+      const mgr = await findPerson(requester.managerId);
+      if (mgr && mgr.id !== requester.id) {
+        return { approverId: mgr.id, approverName: mgr.name };
+      }
+    }
+    return { error: `No Department Head or Direct Manager configured for ${requester.name}'s department.` };
   }
   if (rule === "Named Role: Finance") {
     return { approverId: "role-finance", approverName: "Finance Approver" };

@@ -1464,6 +1464,9 @@ export default function Expenses() {
     role === "MANAGER" ||
     role === "ADMIN" ||
     role === "HR" ||
+    role === "FINANCE" ||
+    Boolean(user?.isDepartmentHead) ||
+    Boolean(user?.isManager) ||
     Boolean(
       permissions?.includes(
         "expenses:approve"
@@ -1567,11 +1570,13 @@ export default function Expenses() {
           : []
       );
 
-      setApprovals(
-        approvalResults.flatMap((result) =>
-          Array.isArray(result) ? result : []
-        )
+      const rawApprovals = approvalResults.flatMap((result) =>
+        Array.isArray(result) ? result : []
       );
+      const uniqueApprovals = Array.from(
+        new Map(rawApprovals.map((item) => [item.id, item])).values()
+      );
+      setApprovals(uniqueApprovals);
     } catch (err) {
       console.error(
         "Failed to load expense claims:",
