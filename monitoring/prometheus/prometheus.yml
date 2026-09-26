@@ -1,0 +1,242 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+
+  # =========================================================
+  # AUTH
+  # =========================================================
+  - job_name: "auth"
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - auth-service:4000
+
+  # =========================================================
+  # SECURITY
+  # =========================================================
+  - job_name: "security"
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - security-service:4000
+
+  # =========================================================
+  # ORGANIZATION
+  # =========================================================
+  - job_name: "organization"
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - organization-service:4000
+
+  # =========================================================
+  # EMPLOYEES
+  # =========================================================
+  - job_name: "employees"
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - employees-service:4000
+
+  # =========================================================
+  # RECRUITMENT
+  # =========================================================
+  - job_name: "recruitment"
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - recruitment-service:4000
+
+  # =========================================================
+  # ATTENDANCE
+  # =========================================================
+  - job_name: "attendance"
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - attendance-service:4000
+
+  # =========================================================
+  # LEAVE
+  # =========================================================
+  - job_name: "leave"
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - leave-service:4000
+
+  # =========================================================
+  # PAYROLL
+  # =========================================================
+  - job_name: "payroll"
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - payroll-service:4000
+
+  # =========================================================
+  # SEARCH
+  # =========================================================
+  - job_name: "search"
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - search-service:4000
+
+  # =========================================================
+  # WORKFLOW
+  # =========================================================
+  - job_name: "workflow"
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - workflow-service:4000
+
+  # =========================================================
+  # PERFORMANCE
+  # =========================================================
+  - job_name: "performance"
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - performance-service:4000
+
+  # =========================================================
+  # HELPDESK
+  # =========================================================
+  - job_name: "helpdesk"
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - helpdesk-service:4000
+
+  # =========================================================
+  # ONBOARDING
+  # =========================================================
+  - job_name: "onboarding"
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - onboarding-service:4000
+
+  # =========================================================
+  # LMS
+  # =========================================================
+  - job_name: "lms"
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - lms-service:4000
+
+  # =========================================================
+  # TASK
+  # =========================================================
+  - job_name: "task"
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - task-service:4000
+
+  # =========================================================
+  # ASSET
+  # =========================================================
+  - job_name: "asset"
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - asset-service:4000
+
+  # =========================================================
+  # SEPARATION
+  # =========================================================
+  - job_name: "separation"
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - separation-service:4000
+
+  # =========================================================
+  # POLICIES
+  # =========================================================
+  - job_name: "policies"
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - policies-service:4000
+
+  # =========================================================
+  # COMPLIANCE
+  # =========================================================
+  - job_name: "compliance"
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - compliance-service:4000
+
+  # =========================================================
+  # REPORTS
+  # =========================================================
+  - job_name: "reports"
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - reports-service:4000
+
+  # =========================================================
+  # DASHBOARD
+  # =========================================================
+  - job_name: "dashboard"
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - dashboard-service:4000
+
+  # =========================================================
+  # NOTIFICATIONS
+  # =========================================================
+  - job_name: "notifications"
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - notifications-service:4000
+
+  # =========================================================
+  # REQUESTS
+  # =========================================================
+  - job_name: "requests"
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - requests-service:4000
+
+  # =========================================================
+  # EXPENSE
+  # =========================================================
+  - job_name: "expense"
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - expense-service:4000
+
+  # =========================================================
+  # TRAVEL
+  # =========================================================
+  - job_name: "travel"
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - travel-service:4000
+
+  # =========================================================
+  # EMPLOYEE SELF SERVICE
+  # =========================================================
+  - job_name: "ess"
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - ess-service:4000

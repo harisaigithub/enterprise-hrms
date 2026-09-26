@@ -1,7 +1,9 @@
+import "./tracing";
 import { env } from "./config/env";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { prisma } from "./lib/prisma";
+
 
 const port = env.PORT;
 

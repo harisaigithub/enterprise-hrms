@@ -3,7 +3,9 @@ import { env } from "../config/env";
 
 export const logger = pino({
   level: env.LOG_LEVEL,
-  base: { service: "hrms-api" },
+  base: {
+  service: process.env.SERVICE_NAME || "hrms-api",
+},
   timestamp: pino.stdTimeFunctions.isoTime,
   transport:
     env.NODE_ENV === "development"
