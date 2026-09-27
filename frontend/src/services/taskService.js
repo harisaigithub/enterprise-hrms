@@ -67,6 +67,12 @@ export async function reassignTask(taskId, newAssigneeId) {
   return res.data;
 }
 
+// 🔹 UPDATED: Using the central `api` instance so token/interceptors apply cleanly
+export async function deleteTask(taskId) {
+  const res = await api.delete(`/tasks/${taskId}`);
+  return res.data;
+}
+
 /* =========================================================
    ORPHANED TASKS
    ========================================================= */

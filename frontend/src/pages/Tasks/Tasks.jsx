@@ -33,6 +33,7 @@ import {
   getTimeEntries,
   logTimeEntry,
   getTaskMeta,
+  deleteTask,
   getTaskTotalHours
 } from "../../services/taskService";
 import { useAuth } from "../../context/AuthContext";
@@ -200,7 +201,7 @@ function CreateTaskModal({
 
 /* ---------------------------------- Force-close modal ---------------------------------- */
 
-function ForceCloseModal({ isOpen, onClose, task, openBlockers, onResolved, canWrite, }) {
+function ForceCloseModal({ isOpen, onClose, task, openBlockers, onResolved, canWrite }) {
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -248,6 +249,7 @@ function TaskDetailModal({
   canWrite,
   currentEmployee,
   canLogTime,
+  onDelete,
 }) {
   const [entries, setEntries] = useState([]);
   const [taskHistory, setTaskHistory] = useState([]);
@@ -322,6 +324,31 @@ function TaskDetailModal({
             ))}
           </div>
         </div>
+
+        {/* 👉 Delete Action Button */}
+        <div style={{ borderTop: "1px solid var(--border, #eee)", paddingTop: "14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <button
+            type="button"
+            onClick={() => {
+              if (onDelete) onDelete(task.id);
+              onClose();
+            }}
+            style={{
+              backgroundColor: "#fee2e2",
+              color: "#dc2626",
+              border: "1px solid #fca5a5",
+              borderRadius: "6px",
+              padding: "7px 14px",
+              fontSize: "12px",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Delete Task
+          </button>
+          <SecondaryButton onClick={onClose}>Close</SecondaryButton>
+        </div>
+
       </div>
     </Modal>
   );
@@ -858,10 +885,31 @@ export default function Tasks() {
     );
   }
 
-  const handleTaskMoved = (updated) => {
-    setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+ const handleDeleteTask = async (taskId) => {
+    if (!window.confirm("Are you sure you want to delete this task?")) return;
+
+    try {
+      await deleteTask(taskId); // 👈 Service call
+
+      // UI update: remove deleted task from state and close modal
+      setTasks((prev) => prev.filter((t) => t.id !== taskId));
+      setDetailTask(null);
+    } catch (err) {
+      console.error("Delete error:", err);
+      alert(err.message || "Error deleting task");
+    }
   };
 
+  const handleTaskMoved = (updated) => {
+    const taskObj = updated?.data || updated;
+    if (!taskObj?.id) return;
+
+    setTasks((prev) =>
+      Array.isArray(prev)
+        ? prev.map((t) => (t?.id === taskObj.id ? { ...t, ...taskObj } : t))
+        : []
+    );
+  };
   const handleTaskAdded = (task) => {
     setTasks((prev) => [task, ...prev]);
   };
@@ -946,7 +994,18 @@ export default function Tasks() {
           currentEmployee={taskMeta.currentEmployee}
           onSaved={handleTaskAdded}
         />
-        <TaskDetailModal isOpen={!!detailTask} onClose={() => setDetailTask(null)} task={detailTask ? tasks.find((t) => t.id === detailTask.id) : null} statusMeta={taskMeta.statusMeta} canWrite={canWrite} canLogTime={canLogTime(selectedTask)} currentEmployee={taskMeta.currentEmployee} />
+
+        <TaskDetailModal 
+          isOpen={!!detailTask} 
+          onClose={() => setDetailTask(null)} 
+          task={detailTask ? tasks.find((t) => t.id === detailTask.id) : null} 
+          statusMeta={taskMeta.statusMeta} 
+          canWrite={canWrite} 
+          canLogTime={canLogTime(selectedTask)} 
+          currentEmployee={taskMeta.currentEmployee} 
+          onDelete={handleDeleteTask} 
+        />
+
         <ForceCloseModal
           isOpen={!!blockedState}
           onClose={() => setBlockedState(null)}
