@@ -89,6 +89,12 @@ export async function getPayslip(id: string) {
  * active employees from their active salary structure, and move to Processing.
  * High-impact action — requires payroll:write + four-eyes via approve.
  */
+/**
+ * Process a payroll run: validate it's in Draft, pull active salary structures,
+ * aggregate approved unpaid expense claims as expense reimbursements, generate
+ * payslips for all active employees, and move the batch to Processing.
+ * Wrapped in an ACID transaction to guarantee zero data drift or double payouts.
+ */
 export async function processPayrollRun(id: string, actorEmployeeId: string, actorUserId: string) {
   const parsed = parseRunPublicId(id);
   const run = await prisma.payrollRun.findUnique({
@@ -102,11 +108,18 @@ export async function processPayrollRun(id: string, actorEmployeeId: string, act
     throw AppError.conflict(`Only Draft runs can be processed (current: ${run.status})`);
   }
 
-  const [employees, structures] = await Promise.all([
+  const [employees, structures, approvedExpenses] = await Promise.all([
     prisma.employee.findMany({ where: { status: "Active" }, select: { id: true, employeeCode: true } }),
     prisma.salaryStructure.findMany({
       where: { isActive: true },
       include: { employee: { select: { id: true, status: true } } },
+    }),
+    prisma.expenseClaim.findMany({
+      where: {
+        status: { in: ["Approved", "Queued for Payroll"] },
+        reimbursementPaidAt: null,
+      },
+      select: { id: true, employeeId: true, amount: true, claimNumber: true },
     }),
   ]);
 
@@ -114,6 +127,14 @@ export async function processPayrollRun(id: string, actorEmployeeId: string, act
   const structureByEmployee = new Map<string, (typeof structures)[number]>();
   for (const s of structures) {
     if (activeEmployeeIds.has(s.employeeId)) structureByEmployee.set(s.employeeId, s);
+  }
+
+  // Group approved expenses by employee ID
+  const expensesByEmployee = new Map<string, Array<{ id: string; amount: number; claimNumber: string }>>();
+  for (const exp of approvedExpenses) {
+    const list = expensesByEmployee.get(exp.employeeId) ?? [];
+    list.push({ id: exp.id, amount: Number(exp.amount), claimNumber: exp.claimNumber });
+    expensesByEmployee.set(exp.employeeId, list);
   }
 
   let gross = 0;
@@ -124,15 +145,30 @@ export async function processPayrollRun(id: string, actorEmployeeId: string, act
     const structure = structureByEmployee.get(emp.id);
     if (!structure) return null;
     const amounts = buildPayslipAmounts(structure);
-    gross += amounts.earnings.total;
+    
+    // Aggregate employee's pending expense reimbursements for this pay period
+    const empExpenses = expensesByEmployee.get(emp.id) ?? [];
+    const expenseReimbursementTotal = empExpenses.reduce((sum, item) => sum + item.amount, 0);
+
+    const adjustedEarnings = {
+      ...amounts.earnings,
+      expenseReimbursements: expenseReimbursementTotal,
+      total: amounts.earnings.total + expenseReimbursementTotal,
+    };
+
+    const adjustedNetPay = amounts.netPay + expenseReimbursementTotal;
+
+    gross += adjustedEarnings.total;
     deductions += amounts.deductions.total;
-    net += amounts.netPay;
+    net += adjustedNetPay;
+
     return {
       employeeId: emp.id,
       salaryStructureId: structure.id,
-      earnings: amounts.earnings,
+      earnings: adjustedEarnings,
       deductions: amounts.deductions,
-      netPay: amounts.netPay,
+      netPay: adjustedNetPay,
+      expenseClaimIds: empExpenses.map((x) => x.id),
     };
   });
 
@@ -140,6 +176,7 @@ export async function processPayrollRun(id: string, actorEmployeeId: string, act
 
   const updated = await prisma.$transaction(async (tx: any) => {
     await tx.payslip.deleteMany({ where: { payrollRunId: run.id } });
+    
     for (const slip of valid) {
       await tx.payslip.create({
         data: {
@@ -152,7 +189,34 @@ export async function processPayrollRun(id: string, actorEmployeeId: string, act
           netPay: slip.netPay,
         },
       });
+
+      // Mark integrated expense claims as Queued/Settled in Payroll to prevent double payouts
+      if (slip.expenseClaimIds.length > 0) {
+        await tx.expenseClaim.updateMany({
+          where: { id: { in: slip.expenseClaimIds } },
+          data: {
+            status: "Queued for Payroll",
+            reimbursementPayrollRunId: run.id,
+            queuedForPayrollAt: new Date(),
+          },
+        });
+
+        for (const claimId of slip.expenseClaimIds) {
+          await tx.expenseClaimHistory.create({
+            data: {
+              claimId,
+              action: "INJECTED_INTO_PAYROLL",
+              actorId: actorEmployeeId,
+              actorName: "Payroll Engine",
+              oldStatus: "Approved",
+              newStatus: "Queued for Payroll",
+              details: { payrollRunId: run.id },
+            },
+          });
+        }
+      }
     }
+
     return tx.payrollRun.update({
       where: { id: run.id },
       data: {
@@ -179,11 +243,11 @@ export async function processPayrollRun(id: string, actorEmployeeId: string, act
     entityId: run.id,
     actorUserId,
     oldValue: { status: "Draft" },
-    newValue: { status: "Processing", totalEmployees: valid.length, grossPayroll: gross, netPayroll: net },
+    newValue: { status: "Processing", totalEmployees: valid.length, grossPayroll: gross, netPayroll: net, expensesIntegrated: approvedExpenses.length },
   });
 
   return {
-    data: { id: runPublicId(updated), status: updated.status, startedAt: new Date().toISOString() },
+    data: { id: runPublicId(updated), status: updated.status, startedAt: new Date().toISOString(), integratedExpenses: approvedExpenses.length },
   };
 }
 

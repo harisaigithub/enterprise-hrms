@@ -8,7 +8,8 @@ export function getFileUrl(url) {
 
     if (
         url.startsWith("http://") ||
-        url.startsWith("https://")
+        url.startsWith("https://") ||
+        url.startsWith("blob:")
     ) {
         return url;
     }

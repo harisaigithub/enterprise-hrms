@@ -76,7 +76,7 @@ import {
 import { getPayslips, printPayslip } from "../../services/payrollService";
 import { documentTypes } from "../../mock/employees";
 import api from "../../services/api";
-
+import { getFileUrl } from "../../utils/uploadFileUrl";
 const EMPLOYEE_STATUS_META = {
   Active: { label: "Active", color: "#16a34a", bg: "#f0fdf4" },
   "On Leave": { label: "On Leave", color: "#d97706", bg: "#fffbeb" },
@@ -496,9 +496,10 @@ export default function EmployeeProfile() {
           <div style={{ display: "flex", gap: "20px", alignItems: "center", flexWrap: "wrap" }}>
             {/* Avatar with Overlay Actions */}
             <div style={{ position: "relative", width: "92px", height: "92px" }}>
-              <img
-                src={employee.avatar}
-                alt={`${employee.firstName} ${employee.lastName}`}
+            
+            <img
+  src={getFileUrl(employee.avatar)}
+  alt={`${employee.firstName} ${employee.lastName}`}
                 onClick={() => setShowPhotoModal(true)}
                 style={{
                   width: "92px",

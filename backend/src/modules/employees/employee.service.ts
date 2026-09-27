@@ -44,30 +44,11 @@ type EmployeeScopeOptions = { role?: string; currentEmployeeId?: string; isSelf?
  */
 async function getVisibleEmployeeIds(options: EmployeeScopeOptions): Promise<string[] | null> {
   const role = options.role?.toUpperCase();
-  if (role === "ADMIN" || role === "HR") return null;
-
-  const currentEmployeeId = options.currentEmployeeId;
-  if (!currentEmployeeId) return [];
-  if (role !== "MANAGER") return [currentEmployeeId];
-
-  const visible = new Set<string>([currentEmployeeId]);
-  let frontier = [currentEmployeeId];
-
-  while (frontier.length > 0) {
-    const reports = await prisma.employee.findMany({
-      where: {
-        reportingManagerId: { in: frontier },
-        isSoftDeleted: false,
-      },
-      select: { id: true },
-    });
-    const next = reports.map((report) => report.id).filter((id) => !visible.has(id));
-    if (next.length === 0) break;
-    next.forEach((id) => visible.add(id));
-    frontier = next;
-  }
-
-  return [...visible];
+  
+  // ADMIN, HR, MANAGER, and EMPLOYEE roles can all view the active corporate directory 
+  // (e.g. for peer feedback, org dropdowns, directory lookup) while sensitive 
+  // PII fields are protected at the serializer level.
+  return null; 
 }
 
 export async function listEmployees(filters: EmployeeFilters, options: EmployeeScopeOptions = {}) {

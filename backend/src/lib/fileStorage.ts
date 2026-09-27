@@ -1,24 +1,8 @@
-import fs from "fs";
 import path from "path";
 import crypto from "crypto";
-import minioClient, { MINIO_BUCKET } from "../config/minio";
-
-const UPLOADS_ROOT = path.resolve(__dirname, "../../uploads");
-
-// Ensure upload directories exist
-export function ensureUploadDirs() {
-  const dirs = [
-    path.join(UPLOADS_ROOT, "avatars"),
-    path.join(UPLOADS_ROOT, "documents"),
-  ];
-  for (const dir of dirs) {
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-  }
-}
-
-ensureUploadDirs();
+import fs from "fs";
+import { Readable } from "stream";
+import minioClient, { MINIO_BUCKET, ensureMinioBucket } from "../config/minio";
 
 export interface SavedFileResult {
   fileUrl: string;
@@ -27,68 +11,98 @@ export interface SavedFileResult {
   mimeType: string;
 }
 
+const LOCAL_UPLOADS_ROOT = path.resolve(process.cwd(), "uploads");
+
 /**
- * Save an uploaded file to local disk (under /uploads/{folder})
- * and synchronously/asynchronously mirror to MinIO if available.
+ * Save an uploaded file by streaming to MinIO, with automatic local disk fallback if MinIO/Docker is offline.
  */
 export async function saveUploadedFile(
   folder: "avatars" | "documents",
   file: Express.Multer.File
 ): Promise<SavedFileResult> {
-  ensureUploadDirs();
-
   const ext = path.extname(file.originalname) || (file.mimetype.includes("png") ? ".png" : ".jpg");
   const uniqueName = `${folder === "avatars" ? "avatar" : "doc"}-${crypto.randomUUID()}${ext}`;
-  const targetDir = path.join(UPLOADS_ROOT, folder);
-  const targetPath = path.join(targetDir, uniqueName);
-
-  // Write file buffer to local disk
-  fs.writeFileSync(targetPath, file.buffer);
-
-  // Mirror to MinIO if MinIO is configured
   const minioObjectName = `${folder}/${uniqueName}`;
+  const fileUrl = `/uploads/${folder}/${uniqueName}`;
+  const fileSize = file.size || (file.path && fs.existsSync(file.path) ? fs.statSync(file.path).size : 0);
+
+  // 1. Try streaming to MinIO first
   try {
+    await ensureMinioBucket();
+
+    let stream: Readable;
+    if (file.buffer) {
+      stream = Readable.from(file.buffer);
+    } else if (file.path && fs.existsSync(file.path)) {
+      stream = fs.createReadStream(file.path);
+    } else {
+      throw new Error("No file content found");
+    }
+
     await minioClient.putObject(
       MINIO_BUCKET,
       minioObjectName,
-      file.buffer,
-      file.size,
-      { "Content-Type": file.mimetype }
+      stream,
+      fileSize,
+      { "Content-Type": file.mimetype || "application/octet-stream" }
     );
-  } catch {
-    // Non-fatal if MinIO is offline; local file is the reliable primary source
+
+    // Cleanup temp multer file if present
+    if (file.path && fs.existsSync(file.path)) {
+      try { fs.unlinkSync(file.path); } catch {}
+    }
+
+    return {
+      fileUrl,
+      fileName: file.originalname || uniqueName,
+      fileSize,
+      mimeType: file.mimetype,
+    };
+  } catch (minioErr) {
+    // 2. Fallback to local uploads directory when Docker/MinIO is not running
+    console.warn("[FileStorage] MinIO offline or unreachable. Falling back to local storage:", (minioErr as Error)?.message);
+
+    const targetDir = path.join(LOCAL_UPLOADS_ROOT, folder);
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+
+    const targetPath = path.join(targetDir, uniqueName);
+
+    if (file.buffer) {
+      fs.writeFileSync(targetPath, file.buffer);
+    } else if (file.path && fs.existsSync(file.path)) {
+      fs.copyFileSync(file.path, targetPath);
+      try { fs.unlinkSync(file.path); } catch {}
+    }
+
+    return {
+      fileUrl,
+      fileName: file.originalname || uniqueName,
+      fileSize,
+      mimeType: file.mimetype,
+    };
   }
-
-  const fileUrl = `/uploads/${folder}/${uniqueName}`;
-
-  return {
-    fileUrl,
-    fileName: file.originalname || uniqueName,
-    fileSize: file.size,
-    mimeType: file.mimetype,
-  };
 }
 
 /**
- * Delete a previously stored file from disk and MinIO.
+ * Delete a previously stored file (from MinIO or local fallback).
  */
 export async function deleteStoredFile(fileUrl: string): Promise<void> {
   if (!fileUrl || !fileUrl.startsWith("/uploads/")) return;
 
   const relativePath = fileUrl.replace(/^\/uploads\//, "");
-  const localPath = path.join(UPLOADS_ROOT, relativePath);
 
-  if (fs.existsSync(localPath)) {
-    try {
-      fs.unlinkSync(localPath);
-    } catch {
-      // Ignore deletion errors
-    }
-  }
-
+  // Attempt MinIO deletion
   try {
     await minioClient.removeObject(MINIO_BUCKET, relativePath);
   } catch {
-    // Ignore MinIO deletion errors
+    // Attempt local file cleanup
+    try {
+      const localFilePath = path.join(LOCAL_UPLOADS_ROOT, relativePath);
+      if (fs.existsSync(localFilePath)) {
+        fs.unlinkSync(localFilePath);
+      }
+    } catch {}
   }
 }

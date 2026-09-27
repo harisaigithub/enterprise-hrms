@@ -1719,8 +1719,9 @@ function ReviewCycleTab({
 }
 
 /* ---------------------------------- Feedback tab ---------------------------------- */
-
 function GiveFeedbackModal({ isOpen, onClose, goals, onSaved }) {
+  const [colleagues, setColleagues] = useState([]);
+  const [loadingColleagues, setLoadingColleagues] = useState(false);
   const [recipientId, setRecipientId] = useState("");
   const [type, setType] = useState("Praise");
   const [goalTag, setGoalTag] = useState("");
@@ -1728,6 +1729,39 @@ function GiveFeedbackModal({ isOpen, onClose, goals, onSaved }) {
   const [isPrivate, setIsPrivate] = useState(false);
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+  const currentEmployeeCode = getCurrentEmployeeCode();
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    setLoadingColleagues(true);
+
+    // Empty params bhejkar all employees fetch karein
+    getEmployees({})
+      .then((res) => {
+        // Backend pagination/wrap response handle karna
+        const rawList = res?.data?.employees || res?.data || [];
+        const list = Array.isArray(rawList) ? rawList : [];
+
+        // Logged-in user ko chhodkar baaki active employees
+        const peers = list.filter(
+          (e) => (e.employeeCode || e.id) !== currentEmployeeCode
+        );
+
+        setColleagues(
+          peers.map((e) => ({
+            id: e.employeeCode || e.id,
+            name: e.fullName || `${e.firstName || ""} ${e.lastName || ""}`.trim() || e.id,
+            role: e.designation || e.department || "Team Member",
+          }))
+        );
+      })
+      .catch((err) => {
+        console.error("Failed to load colleagues for feedback modal:", err);
+        setColleagues([]);
+      })
+      .finally(() => setLoadingColleagues(false));
+  }, [isOpen, currentEmployeeCode]);
 
   const validate = () => {
     const e = {};
@@ -1771,9 +1805,9 @@ function GiveFeedbackModal({ isOpen, onClose, goals, onSaved }) {
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           {fieldLabel("For *")}
-          <select value={recipientId} onChange={(e) => setRecipientId(e.target.value)} style={{ ...inputStyle(errors.recipientId), height: "38px", cursor: "pointer" }}>
-            <option value="">Select colleague</option>
-            {colleagues.map((c) => <option key={c.id} value={c.id}>{c.name} • {c.role}</option>)}
+          <select value={recipientId} onChange={(e) => setRecipientId(e.target.value)} style={{ ...inputStyle(errors.recipientId), height: "38px", cursor: "pointer" }} disabled={loadingColleagues}>
+            <option value="">{loadingColleagues ? "Loading colleagues..." : "Select colleague"}</option>
+            {colleagues.map((c) => <option key={c.id} value={c.id}>{c.name} {c.role ? `• ${c.role}` : ""}</option>)}
           </select>
           {errors.recipientId && <span style={{ fontSize: "11px", color: "var(--red)" }}>{errors.recipientId}</span>}
         </div>
@@ -1813,7 +1847,7 @@ function GiveFeedbackModal({ isOpen, onClose, goals, onSaved }) {
 
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Sending..." : "Send Feedback"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving || loadingColleagues}>{saving ? "Sending..." : "Send Feedback"}</PrimaryButton>
         </div>
       </form>
     </Modal>

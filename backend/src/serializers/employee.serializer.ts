@@ -50,6 +50,10 @@ export interface SerializerOptions {
  * Maps a DB employee row to the frontend contract.
  * Supports sensitive data masking for Managers viewing team members.
  */
+/**
+ * Maps a DB employee row to the frontend contract.
+ * Supports sensitive data masking for Managers and regular Employees viewing peers.
+ */
 export function serializeEmployee(emp: EmployeeWithRelations, options: SerializerOptions = {}) {
   const activeStructure = emp.salaryStructures?.find((s) => s.isActive);
   const annualSalary = activeStructure
@@ -65,11 +69,14 @@ export function serializeEmployee(emp: EmployeeWithRelations, options: Serialize
   const avatarId = hashStringToRange(emp.employeeCode, 1, 99);
   const defaultAvatar = `https://randomuser.me/api/portraits/${genderPath}/${avatarId}.jpg`;
 
-  const isManagerRestricted = options.role === "MANAGER" && !options.isSelf;
+  const role = options.role?.toUpperCase();
+  const isManagerRestricted = role === "MANAGER" && !options.isSelf;
+  const isEmployeeRestricted = role === "EMPLOYEE" && !options.isSelf;
+  const isRestricted = isManagerRestricted || isEmployeeRestricted;
 
-  // Filter sensitive documents for managers
+  // Filter sensitive documents for managers and peers
   let filteredDocs = emp.documents ?? [];
-  if (isManagerRestricted) {
+  if (isRestricted) {
     const RESTRICTED_DOC_TYPES = ["PAN", "Aadhaar", "Passport", "Bank Proof", "Salary Document"];
     filteredDocs = filteredDocs.filter((d) => {
       const type = (d.category || d.documentType || "").toLowerCase();
@@ -88,14 +95,14 @@ export function serializeEmployee(emp: EmployeeWithRelations, options: Serialize
     fullName: [emp.firstName, emp.middleName, emp.lastName].filter(Boolean).join(" "),
     email: emp.user?.email ?? emp.personalEmail ?? "",
     companyEmail: emp.user?.email ?? "",
-    personalEmail: emp.personalEmail ?? "",
-    phone: emp.personalMobile ?? "",
-    personalMobile: emp.personalMobile ?? "",
-    alternateMobile: emp.alternateMobile ?? "",
-    guardianName: emp.guardianName ?? "",
-    guardianPhone: emp.guardianPhone ?? "",
-    currentAddress: emp.address ?? "",
-    permanentAddress: emp.address ?? "",
+    personalEmail: isRestricted ? "REDACTED" : (emp.personalEmail ?? ""),
+    phone: isRestricted ? "REDACTED" : (emp.personalMobile ?? ""),
+    personalMobile: isRestricted ? "REDACTED" : (emp.personalMobile ?? ""),
+    alternateMobile: isRestricted ? "REDACTED" : (emp.alternateMobile ?? ""),
+    guardianName: isRestricted ? "REDACTED" : (emp.guardianName ?? ""),
+    guardianPhone: isRestricted ? "REDACTED" : (emp.guardianPhone ?? ""),
+    currentAddress: isRestricted ? "REDACTED" : (emp.address ?? ""),
+    permanentAddress: isRestricted ? "REDACTED" : (emp.address ?? ""),
     city: emp.city ?? "",
     state: emp.state ?? "",
     country: emp.country ?? "India",
@@ -113,11 +120,11 @@ export function serializeEmployee(emp: EmployeeWithRelations, options: Serialize
     actualConfirmationDate: emp.actualConfirmationDate ? formatDate(emp.actualConfirmationDate) : null,
     confirmationStatus: emp.confirmationStatus ?? "PROBATION",
     noticePeriodDays: emp.noticePeriodDays ?? 60,
-    salary: isManagerRestricted ? null : Math.round(annualSalary),
-    panNumber: isManagerRestricted ? "REDACTED" : (emp.panNumber ?? null),
-    bankAccountNumber: isManagerRestricted ? "REDACTED" : (emp.bankAccountNumber ?? null),
-    bankIfsc: isManagerRestricted ? "REDACTED" : (emp.bankIfsc ?? null),
-    bankName: isManagerRestricted ? "REDACTED" : (emp.bankName ?? null),
+    salary: isRestricted ? null : Math.round(annualSalary),
+    panNumber: isRestricted ? "REDACTED" : (emp.panNumber ?? null),
+    bankAccountNumber: isRestricted ? "REDACTED" : (emp.bankAccountNumber ?? null),
+    bankIfsc: isRestricted ? "REDACTED" : (emp.bankIfsc ?? null),
+    bankName: isRestricted ? "REDACTED" : (emp.bankName ?? null),
     managerId: emp.reportingManager?.employeeCode ?? null,
     managerName: emp.reportingManager ? `${emp.reportingManager.firstName} ${emp.reportingManager.lastName}` : null,
     reportingManager: emp.reportingManager ? {
@@ -137,9 +144,9 @@ export function serializeEmployee(emp: EmployeeWithRelations, options: Serialize
     gender: emp.gender ?? "",
     dob: emp.dateOfBirth ? formatDate(emp.dateOfBirth) : null,
     documentsCount: filteredDocs.length,
-    documents: filteredDocs,
-    emergencyContacts: emp.emergencyContacts ?? [],
-    movements: emp.movements ?? [],
+    documents: isRestricted ? [] : filteredDocs,
+    emergencyContacts: isRestricted ? [] : (emp.emergencyContacts ?? []),
+    movements: isRestricted ? [] : (emp.movements ?? []),
   };
 }
 
