@@ -1,0 +1,36 @@
+# OPTIONAL: apply only after backend + gateway are working.
+# Change the image if your local frontend image has a different name.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hrms-frontend
+  namespace: hrms
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: hrms-frontend
+  template:
+    metadata:
+      labels:
+        app: hrms-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: enterprise-hrms-main-frontend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hrms-frontend
+  namespace: hrms
+spec:
+  type: LoadBalancer
+  selector:
+    app: hrms-frontend
+  ports:
+    - port: 5173
+      targetPort: 80

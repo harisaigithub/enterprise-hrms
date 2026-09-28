@@ -1,0 +1,20 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: hrms-db-migrate
+  namespace: hrms
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: enterprise-hrms-main-asset-service:k8s-otel-fix
+          imagePullPolicy: IfNotPresent
+          command: ["npx","prisma","migrate","deploy"]
+          envFrom:
+            - configMapRef:
+                name: hrms-common-config
+            - secretRef:
+                name: hrms-common-secret

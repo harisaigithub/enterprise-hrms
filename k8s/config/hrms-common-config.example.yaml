@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hrms-common-config
+  namespace: hrms
+
+data:
+  NODE_ENV: "production"
+  PORT: "4000"
+
+  # Database
+  DATABASE_HOST: "db"
+  DATABASE_PORT: "5432"
+  DATABASE_NAME: "hrms_db"
+
+  # MinIO
+  MINIO_ENDPOINT: "minio"
+  MINIO_PORT: "9000"
+  MINIO_USE_SSL: "false"
+  MINIO_BUCKET: "hrms-uploads"
+
+  # Security
+  CORS_ORIGINS: "http://localhost:5173"
+  RATE_LIMIT_WINDOW_MS: "60000"
+  RATE_LIMIT_MAX: "100"
+
+  # Logging
+  LOG_LEVEL: "info"
+
+  # Certificate verification
+  CERTIFICATE_VERIFY_URL: "http://localhost:5173/certificates/verify,http://localhost:3000/certificates/verify"
+
+  # Candidate portal
+  CANDIDATE_PORTAL_URL: "http://localhost:5173/candidate/offer,http://localhost:3000/candidate/offer"
+
+  # SMTP
+  SMTP_HOST: "smtp.gmail.com"
+  SMTP_PORT: "587"
+  SMTP_SECURE: "false"
+  SMTP_FROM_NAME: "Proteccio HRMS"
+
+  # OpenTelemetry / Jaeger
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318/v1/traces"

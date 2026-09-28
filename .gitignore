@@ -144,3 +144,22 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Local Kubernetes config & secrets
+k8s/config/*config*.yaml
+k8s/config/*secret*.yaml
+k8s/config/*secrets*.yaml
+k8s/database/*secret*.yaml
+k8s/storage/*secret*.yaml
+
+
+# Keep safe example files
+!k8s/config/*config*.example.yaml
+!k8s/config/*secret*.example.yaml
+!k8s/config/*secrets*.example.yaml
+!k8s/database/*secret*.example.yaml
+!k8s/storage/*secret*.example.yaml
+
+# Local backup files
+hpa-backup.yaml
+metrics-server-backup.yaml
