@@ -4,20 +4,16 @@ import {
     getProjects,
     createProject,
     createMilestone,
-
     getTasks,
     createTask,
-    updateTaskStatus,
+    updateTask,       // Replaced updateTaskStatus with full updateTask
+    deleteTask,       // Added deleteTask
     reassignTask,
-
     getOrphanedTasks,
-
     getTaskHistory,
-
     getTimeEntries,
     createTimeEntry,
     getTaskTotalHours,
-
     getTaskMeta,
 } from "./task.controller";
 
@@ -27,13 +23,13 @@ import { AppError } from "../../lib/errors";
 
 const router = Router();
 
+// Apply authentication middleware globally to all sub-routes
 router.use(authenticate);
 
 /* =========================================================
    TASK META
    ADMIN / HR / MANAGER / EMPLOYEE → READ
 ========================================================= */
-
 router.get(
     "/meta",
     requirePermission("tasks:read"),
@@ -43,15 +39,12 @@ router.get(
 /* =========================================================
    PROJECTS
 ========================================================= */
-
-// Everyone with task read permission can view projects
 router.get(
     "/projects",
     requirePermission("tasks:read"),
     getProjects
 );
 
-// Only ADMIN / HR / MANAGER can create projects
 router.post(
     "/projects",
     requirePermission("tasks:write"),
@@ -59,7 +52,6 @@ router.post(
     createProject
 );
 
-// Only ADMIN / HR / MANAGER can add milestones
 router.post(
     "/projects/:projectId/milestones",
     requirePermission("tasks:write"),
@@ -70,8 +62,6 @@ router.post(
 /* =========================================================
    ORPHANED TASKS
 ========================================================= */
-
-// Employee should not manage/view orphaned tasks
 router.get(
     "/orphaned",
     requirePermission("tasks:read"),
@@ -80,17 +70,14 @@ router.get(
 );
 
 /* =========================================================
-   TASKS
+   TASKS (CRUD & General)
 ========================================================= */
-
-// Everyone can view tasks
 router.get(
     "/",
     requirePermission("tasks:read"),
     getTasks
 );
 
-// Only ADMIN / HR / MANAGER can create tasks
 router.post(
     "/",
     requirePermission("tasks:write"),
@@ -98,41 +85,39 @@ router.post(
     createTask
 );
 
+// 🔹 FULL TASK UPDATE (PUT /api/tasks/:id)
+// RBAC: Handled inside controller (Global write or Assigned Employee check)
+router.put("/:id", updateTask);
+
+// 🔹 TASK DELETE (DELETE /api/tasks/:id)
+// RBAC: Restricted strictly to ADMIN, HR, MANAGER with tasks:write/delete permission
+router.delete(
+    "/:id",
+    requirePermission("tasks:write"), // or tasks:delete if you use a separate permission string
+    requireRole("ADMIN", "HR", "MANAGER"),
+    deleteTask
+);
+
 /* =========================================================
-   TASK STATUS
+   TASK SUB-RESOURCES & ACTIONS
+   (Keep these below /:id to prevent route shadowing issues)
 ========================================================= */
 
-// Employee CAN change status,
-// but backend service must verify that it is his assigned task.
-//
-// ADMIN / HR / MANAGER → status change allowed
-// EMPLOYEE             → own assigned task only
-//
-// Force-close is additionally blocked for EMPLOYEE.
 router.patch(
     "/:id/status",
     requirePermission("tasks:write"),
     (req, _res, next) => {
         const role = req.auth?.role?.toUpperCase();
-
         if (role === "EMPLOYEE" && req.body?.force === true) {
             return next(
-                AppError.forbidden(
-                    "Employees cannot force-close tasks"
-                )
+                AppError.forbidden("Employees cannot force-close tasks")
             );
         }
-
         next();
     },
-    updateTaskStatus
+    updateTask // Points to updated full/partial controller function if needed, or keep your status flow
 );
 
-/* =========================================================
-   REASSIGN TASK
-========================================================= */
-
-// Only ADMIN / HR / MANAGER can reassign
 router.patch(
     "/:id/reassign",
     requirePermission("tasks:write"),
@@ -140,42 +125,23 @@ router.patch(
     reassignTask
 );
 
-/* =========================================================
-   TASK HISTORY
-========================================================= */
-
-// Everyone with read permission can view history
 router.get(
     "/:id/history",
     requirePermission("tasks:read"),
     getTaskHistory
 );
 
-/* =========================================================
-   TIME ENTRIES
-========================================================= */
-
-// Everyone with read permission can view time entries
 router.get(
     "/:id/time-entries",
     requirePermission("tasks:read"),
     getTimeEntries
 );
 
-// Employee can log time,
-// BUT service must verify that employeeId belongs to logged-in employee.
-//
-// ADMIN / HR / MANAGER → allowed according to service rules
-// EMPLOYEE             → own task/time only
 router.post(
     "/:id/time-entries",
     requirePermission("tasks:write"),
     createTimeEntry
 );
-
-/* =========================================================
-   TOTAL HOURS
-========================================================= */
 
 router.get(
     "/:id/total-hours",

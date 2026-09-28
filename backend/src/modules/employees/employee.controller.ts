@@ -90,9 +90,11 @@ export const validateBulk = asyncHandler(async (req: Request, res: Response) => 
 
 export const uploadAvatar = asyncHandler(async (req: Request, res: Response) => {
   const pk = await resolveEmployeeId(req.params.id);
+
   if (!req.file) {
     throw AppError.badRequest("No image file provided");
   }
+
   const result = await employeeService.uploadEmployeeAvatar(pk, req.file);
   sendSuccess(res, result.data);
 });
@@ -217,6 +219,3 @@ export const promote = asyncHandler(async (req: Request, res: Response) => {
   );
   sendSuccess(res, result.data);
 });
-
-
-

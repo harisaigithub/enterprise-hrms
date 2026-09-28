@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from "express";
-import * as taskService from "./task.service";
+import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
-
+import { writeAuditLog } from "../../services/audit.service";
+import * as taskService from "./task.service";
 /* =========================================================
    PROJECTS
    ========================================================= */
@@ -129,36 +130,132 @@ export async function createTask(
    TASK STATUS
    ========================================================= */
 
-export async function updateTaskStatus(
-    req: Request,
-    res: Response,
-    next: NextFunction
-) {
-    try {
-        const taskId =
-            String(req.params.id);
+export const updateTask = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    // Auth context (supporting both req.auth and req.user conventions)
+    const user = (req as any).auth || (req as any).user;
 
-        const result =
-            await taskService.updateTaskStatus(
-                taskId,
-
-                req.body.status,
-
-                {
-                    force:
-                        req.body.force === true,
-
-                    reason:
-                        req.body.reason,
-                },
-                req.auth
-            );
-
-        res.status(200).json(result);
-    } catch (error) {
-        next(error);
+    if (!user) {
+      throw AppError.unauthorized("Unauthorized");
     }
-}
+
+    // 1. Fetch the existing task to verify existence and capture old values
+    const existingTask = await prisma.task.findUnique({
+      where: { id },
+    });
+
+    if (!existingTask) {
+      throw AppError.notFound("Task not found");
+    }
+
+    // 2. Determine permissions
+    const permissions: string[] = user.permissions || [];
+    const hasGlobalWritePermission =
+      permissions.includes("tasks:write") ||
+      user.role === "ADMIN" ||
+      user.role === "HR" ||
+      user.role === "MANAGER";
+
+    const employeeId = user.employeeId || user.id;
+
+    const isAssignedEmployee = existingTask.assigneeId && existingTask.assigneeId === employeeId;
+    if (!hasGlobalWritePermission && !isAssignedEmployee) {
+      throw AppError.forbidden("Forbidden: You do not have permission to update this task");
+    }
+
+const { title, description, status, priority, dueDate, assigneeId, assignedTo } = req.body;
+const targetAssigneeId = assigneeId || assignedTo;
+    // 3. Restrict field updates if the user is only the assigned employee
+    let updateData: any = {};
+  if (hasGlobalWritePermission) {
+    updateData = {
+      ...(title !== undefined && { title }),
+      ...(description !== undefined && { description }),
+      ...(status !== undefined && { status }),
+      ...(priority !== undefined && { priority }),
+      ...(dueDate !== undefined && { dueDate: dueDate ? new Date(dueDate) : null }),
+      ...(targetAssigneeId !== undefined && { assigneeId: targetAssigneeId }),
+    };
+  } else if (isAssignedEmployee) {
+    if (status === undefined) {
+      throw AppError.forbidden("Forbidden: Assigned employees can only update task status");
+    }
+    updateData = { status };
+  }
+
+    // 4. Update task
+    const updatedTask = await prisma.task.update({
+      where: { id },
+      data: updateData,
+    });
+
+    // 5. Audit Log
+    try {
+      await (writeAuditLog as any)({
+        action: "UPDATE",
+        entityType: "Task",
+        entityId: updatedTask.id,
+        actorUserId: user.userId || user.id,
+        oldValue: existingTask,
+        newValue: updatedTask,
+      });
+    } catch (auditErr) {
+      // Non-blocking audit error
+      console.warn("[Audit] Failed to log task update:", auditErr);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Task updated successfully",
+      data: updatedTask,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+export const deleteTask = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const user = (req as any).auth || (req as any).user;
+
+    if (!user) {
+      throw AppError.unauthorized("Unauthorized");
+    }
+
+    const existingTask = await prisma.task.findUnique({
+      where: { id },
+    });
+
+    if (!existingTask) {
+      throw AppError.notFound("Task not found");
+    }
+
+    await prisma.task.delete({
+      where: { id },
+    });
+
+    try {
+      await (writeAuditLog as any)({
+        action: "DELETE",
+        entityType: "Task",
+        entityId: id,
+        actorUserId: user.userId || user.id,
+        oldValue: existingTask,
+        newValue: null,
+      });
+    } catch (auditErr) {
+      console.warn("[Audit] Failed to log task deletion:", auditErr);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Task deleted successfully",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 /* =========================================================
    REASSIGN

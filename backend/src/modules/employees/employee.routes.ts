@@ -48,11 +48,10 @@ const createBodySchema = z.object({
 
 const updateBodySchema = createBodySchema.partial();
 
-// GET /api/employees — employees:read
 router.get(
   "/",
   authenticate,
-  requirePermission("employees:read|dashboard:read"),
+  requirePermission("employees:read|dashboard:read|ess:read"),
   validate({ query: listQuerySchema }),
   employeeController.list
 );

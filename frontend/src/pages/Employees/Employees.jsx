@@ -2632,11 +2632,17 @@ export default function Employees() {
                       {/* Employee cell with prominent ID */}
                       <td style={{ padding: "12px 16px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                          <img
-                            src={emp.avatar || `https://ui-avatars.com/api/?name=${emp.firstName}+${emp.lastName}&background=0f766e&color=fff`}
-                            alt={`${emp.firstName} ${emp.lastName}`}
-                            style={{ width: "36px", height: "36px", borderRadius: "50%", objectFit: "cover", border: "2px solid var(--border)", flexShrink: 0 }}
-                          />
+                         <img
+  src={
+    emp.avatar
+      ? emp.avatar.startsWith("http")
+        ? emp.avatar
+        : `http://localhost:4000${emp.avatar.startsWith("/") ? "" : "/"}${emp.avatar}`
+      : `https://ui-avatars.com/api/?name=${emp.firstName}+${emp.lastName}&background=0f766e&color=fff`
+  }
+  alt={`${emp.firstName} ${emp.lastName}`}
+  style={{ width: "36px", height: "36px", borderRadius: "50%", objectFit: "cover", border: "2px solid var(--border)", flexShrink: 0 }}
+/>
                           <div>
                             <p style={{ fontWeight: 600, fontSize: "13.5px", color: "var(--text)", lineHeight: 1.3, margin: 0 }}>
                               {emp.firstName} {emp.lastName}
