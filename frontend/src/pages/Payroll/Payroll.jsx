@@ -598,23 +598,31 @@ function YearlyPayrollView({ payslips, onViewSlip }) {
             <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Annual Salary Breakdown by Month</h3>
             <p style={{ fontSize: "12px", color: "var(--subtext)" }}>Detailed month-over-month earnings, deductions, and tax statement</p>
           </div>
-          <button
-            onClick={() => printAnnualStatement()}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "7px 14px",
-              background: "var(--background)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-sm)",
-              fontSize: "12.5px",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            <Printer size={14} /> Print Annual Statement
-          </button>
+         <button
+  onClick={async () => {
+    try {
+      await printAnnualStatement();
+    } catch (error) {
+      console.error("Print statement failed:", error);
+      alert(error?.message || "Annual statement could not be opened.");
+    }
+  }}
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: "7px",
+    padding: "9px 18px",
+    background: "var(--primary)",
+    color: "#ffffff",
+    border: "none",
+    borderRadius: "var(--radius-sm)",
+    fontWeight: 700,
+    fontSize: "13px",
+    cursor: "pointer",
+  }}
+>
+  <Printer size={14} /> Print Annual Statement
+</button>
         </div>
 
         <div style={{ overflowX: "auto" }}>
@@ -715,25 +723,32 @@ function YearlyPayrollView({ payslips, onViewSlip }) {
           </div>
         </div>
 
-        <button
-          onClick={() => printForm16()}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "7px",
-            padding: "9px 18px",
-            background: "var(--primary)",
-            color: "#ffffff",
-            border: "none",
-            borderRadius: "var(--radius-sm)",
-            fontWeight: 700,
-            fontSize: "13px",
-            cursor: "pointer",
-            boxShadow: "0 2px 8px rgba(15,118,110,0.25)",
-          }}
-        >
-          <Download size={15} /> Download Form-16 Summary
-        </button>
+       <button
+  onClick={async () => {
+    try {
+      await printForm16();
+    } catch (error) {
+      console.error("Form-16 download failed:", error);
+      alert(error?.message || "Form-16 download failed.");
+    }
+  }}
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: "7px",
+    padding: "9px 18px",
+    background: "var(--primary)",
+    color: "#ffffff",
+    border: "none",
+    borderRadius: "var(--radius-sm)",
+    fontWeight: 700,
+    fontSize: "13px",
+    cursor: "pointer",
+    boxShadow: "0 2px 8px rgba(15,118,110,0.25)",
+  }}
+>
+  <Download size={15} /> Download Form-16 Summary
+</button>
       </div>
     </div>
   );

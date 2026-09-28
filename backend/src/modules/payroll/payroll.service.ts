@@ -2211,16 +2211,29 @@ export async function generatePayslipPdf(id: string) {
   const objectName =
     `payroll/payslips/${fileName}`;
 
-  await minioClient.putObject(
-    MINIO_BUCKET,
-    objectName,
-    pdfBuffer,
-    pdfBuffer.length,
-    {
-      "Content-Type":
-        "application/pdf",
-    },
-  );
+   try {
+    await minioClient.putObject(
+      MINIO_BUCKET,
+      objectName,
+      pdfBuffer,
+      pdfBuffer.length,
+      {
+        "Content-Type": "application/pdf",
+      },
+    );
+  } catch (error) {
+    const connectionRefused =
+      (error as NodeJS.ErrnoException)?.code === "ECONNREFUSED" ||
+      String(error).includes("ECONNREFUSED");
+
+    if (process.env.NODE_ENV !== "development" || !connectionRefused) {
+      throw error;
+    }
+
+    console.warn(
+      "[Payroll] MinIO is unavailable locally; payslip PDF was generated but not archived.",
+    );
+  }
 
   return {
     buffer: pdfBuffer,
@@ -2958,15 +2971,29 @@ export async function generateAnnualStatementPdf(
   const objectName =
     `payroll/annual-statements/${fileName}`;
 
-  await minioClient.putObject(
-    MINIO_BUCKET,
-    objectName,
-    pdfBuffer,
-    pdfBuffer.length,
-    {
-      "Content-Type": "application/pdf",
-    },
-  );
+   try {
+    await minioClient.putObject(
+      MINIO_BUCKET,
+      objectName,
+      pdfBuffer,
+      pdfBuffer.length,
+      {
+        "Content-Type": "application/pdf",
+      },
+    );
+  } catch (error) {
+    const connectionRefused =
+      (error as NodeJS.ErrnoException)?.code === "ECONNREFUSED" ||
+      String(error).includes("ECONNREFUSED");
+
+    if (process.env.NODE_ENV !== "development" || !connectionRefused) {
+      throw error;
+    }
+
+    console.warn(
+      "[Payroll] MinIO is unavailable locally; annual PDF was generated but not archived.",
+    );
+  }
 
   return {
     buffer: pdfBuffer,
@@ -3641,15 +3668,29 @@ export async function generateForm16Pdf(
   const objectName =
     `payroll/form16/${fileName}`;
 
-  await minioClient.putObject(
-    MINIO_BUCKET,
-    objectName,
-    pdfBuffer,
-    pdfBuffer.length,
-    {
-      "Content-Type": "application/pdf",
-    },
-  );
+   try {
+    await minioClient.putObject(
+      MINIO_BUCKET,
+      objectName,
+      pdfBuffer,
+      pdfBuffer.length,
+      {
+        "Content-Type": "application/pdf",
+      },
+    );
+  } catch (error) {
+    const connectionRefused =
+      (error as NodeJS.ErrnoException)?.code === "ECONNREFUSED" ||
+      String(error).includes("ECONNREFUSED");
+
+    if (process.env.NODE_ENV !== "development" || !connectionRefused) {
+      throw error;
+    }
+
+    console.warn(
+      "[Payroll] MinIO is unavailable locally; Form-16 PDF was generated but not archived.",
+    );
+  }
 
   return {
     buffer: pdfBuffer,

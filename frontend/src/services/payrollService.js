@@ -65,13 +65,20 @@ export const printPayslip = async (id) => {
     responseType: "blob",
   });
 
-  const blob = new Blob([res.data], { type: "application/pdf" });
-  const url = window.URL.createObjectURL(blob);
+  const pdfBlob = res instanceof Blob ? res : res?.data;
 
+  if (
+    !(pdfBlob instanceof Blob) ||
+    (await pdfBlob.slice(0, 5).text()) !== "%PDF-"
+  ) {
+    throw new Error("Server returned an invalid payslip PDF.");
+  }
+
+  const url = URL.createObjectURL(pdfBlob);
   const printWindow = window.open(url, "_blank");
 
   if (!printWindow) {
-    window.URL.revokeObjectURL(url);
+    URL.revokeObjectURL(url);
     throw new Error("Please allow pop-ups to print the payslip.");
   }
 
@@ -83,25 +90,29 @@ export const printPayslip = async (id) => {
   return url;
 };
 
-export const printAnnualStatement = async () => {
-  const res = await api.post(
-    "/payroll/annual-statement/print",
-    {},
-    {
-      responseType: "blob",
-    }
-  );
-
-  const blob = new Blob([res.data], {
-    type: "application/pdf",
+export const printAnnualStatement = async (payload = {}) => {
+  const res = await api.post("/payroll/annual-statement/print", payload, {
+    responseType: "blob",
   });
 
-  const url = window.URL.createObjectURL(blob);
+  // api wrapper Blob directly return kar sakta hai,
+  // ya Axios response { data: Blob } return kar sakta hai.
+  const pdfBlob = res instanceof Blob ? res : res?.data;
 
+  if (!(pdfBlob instanceof Blob)) {
+    throw new Error("Annual statement PDF was not returned by the API.");
+  }
+
+  const header = await pdfBlob.slice(0, 5).text();
+  if (header !== "%PDF-") {
+    throw new Error("Server returned an invalid annual statement PDF.");
+  }
+
+  const url = URL.createObjectURL(pdfBlob);
   const printWindow = window.open(url, "_blank");
 
   if (!printWindow) {
-    window.URL.revokeObjectURL(url);
+    URL.revokeObjectURL(url);
     throw new Error("Please allow pop-ups to print the annual statement.");
   }
 
@@ -114,32 +125,23 @@ export const printAnnualStatement = async () => {
 };
 
 export const printForm16 = async () => {
-  const res = await api.post(
-    "/payroll/form16/print",
-    {},
-    {
-      responseType: "blob",
-    }
-  );
-
-  const blob = new Blob([res.data], {
-    type: "application/pdf",
+  const res = await api.post("/payroll/form16/print", {}, {
+    responseType: "blob",
   });
 
-  const url = window.URL.createObjectURL(blob);
+  const pdfBlob = res instanceof Blob ? res : res?.data;
 
-  const printWindow = window.open(url, "_blank");
-
-  if (!printWindow) {
-    window.URL.revokeObjectURL(url);
-    throw new Error("Please allow pop-ups to print Form-16.");
+  if (!(pdfBlob instanceof Blob) || (await pdfBlob.slice(0, 5).text()) !== "%PDF-") {
+    throw new Error("Server returned an invalid Form-16 PDF.");
   }
 
-  printWindow.onload = () => {
-    printWindow.focus();
-    printWindow.print();
-  };
+  const url = URL.createObjectURL(pdfBlob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "Form-16-Summary.pdf";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
 
-  return url;
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 };
-
