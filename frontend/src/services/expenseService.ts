@@ -51,8 +51,17 @@ export interface ExpenseClaim {
 
   category: string;
   amount: number;
+  currency?: string;
   expenseDate: string;
   businessPurpose: string;
+  merchantName?: string;
+  paymentMethod?: string;
+  gstApplicable?: boolean;
+  gstRate?: number;
+  gstAmount?: number;
+  costCenterId?: string;
+  projectId?: string;
+  notes?: string;
 
   status: string;
   approvalStage?: string;
@@ -66,6 +75,10 @@ export interface ExpenseClaim {
   rejectedAt?: string;
   rejectionReason?: string;
   rejectedBy?: string;
+
+  sentBackAt?: string;
+  sentBackBy?: string;
+  sentBackReason?: string;
 
   policyViolations: Array<
     | string
@@ -102,6 +115,7 @@ export interface ExpenseClaim {
 
   receipts?: ExpenseReceipt[];
   history?: ExpenseClaimHistory[];
+  costCenter?: { id: string; code: string; name: string };
 
   /* Existing frontend compatibility fields */
   receiptAttached?: boolean;
@@ -224,8 +238,17 @@ export const getClaimById = async (
 export const createDraft = async (data: {
   category: string;
   amount: number;
+  currency?: string;
   expenseDate: string;
   businessPurpose: string;
+  merchantName?: string;
+  paymentMethod?: string;
+  gstApplicable?: boolean;
+  gstRate?: number;
+  gstAmount?: number;
+  costCenterId?: string;
+  projectId?: string;
+  notes?: string;
   receiptFileId?: string;
 }): Promise<ExpenseClaim> => {
   const res = await api.post(
@@ -263,6 +286,18 @@ export const submitClaim = async (
 
 export const submitExpenseClaim =
   submitClaim;
+
+export const sendBackClaim = async (
+  id: string,
+  reason: string
+): Promise<ExpenseClaim> => {
+  const res = await api.put(
+    `/expense/claims/${id}/send-back`,
+    { reason }
+  );
+
+  return res.data.data;
+};
 
 export const deleteDraft = async (
   id: string

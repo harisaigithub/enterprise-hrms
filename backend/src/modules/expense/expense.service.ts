@@ -10,7 +10,7 @@ import { checkDuplicates } from "./expense.duplicate.service";
 import { completeReceiptUpload, deleteReceipt } from "./expense.receipt.service";
 import { queueForPayroll } from "./expense.reimbursement.service";
 import type { AccessTokenPayload } from "../../lib/jwt";
-import type { ExpenseCategory, ExpenseClaimStatus, CorrectionType } from "./expense.validation";
+import type { ExpenseCategory, ExpenseClaimStatus, CorrectionType, PaymentMethod } from "./expense.validation";
 
 const CLAIM_INCLUDE = {
   employee: { select: { employeeCode: true, firstName: true, lastName: true, department: { select: { name: true } }, userId: true, reportingManagerId: true } },
@@ -19,6 +19,7 @@ const CLAIM_INCLUDE = {
   workflowInstance: { select: { id: true, status: true, currentStepIndex: true, steps: { select: { name: true, status: true, approverId: true, approverName: true, actedBy: true, actedAt: true, rejectionReason: true } } } },
   correctingEntry: { select: { id: true, entryNumber: true, status: true, correctionType: true, adjustedAmount: true } },
   originalClaim: { select: { id: true, claimNumber: true } },
+  costCenter: { select: { id: true, code: true, name: true } },
 } satisfies Prisma.ExpenseClaimInclude;
 
 /** Generate unique claim number: EXP-YYYY-XXXXX */
@@ -35,8 +36,17 @@ export async function createDraftClaim(
   input: {
     category: ExpenseCategory;
     amount: number;
+    currency?: string;
     expenseDate: Date;
     businessPurpose: string;
+    merchantName?: string;
+    paymentMethod?: PaymentMethod;
+    gstApplicable?: boolean;
+    gstRate?: number;
+    gstAmount?: number;
+    costCenterId?: string;
+    projectId?: string;
+    notes?: string;
     receiptFileId?: string;
   },
   actor: AccessTokenPayload
@@ -72,6 +82,7 @@ export async function createDraftClaim(
     category: input.category,
     amount: input.amount,
     expenseDate,
+    merchantName: input.merchantName,
   });
 
   const claimNumber = await generateClaimNumber();
@@ -82,8 +93,17 @@ export async function createDraftClaim(
       employeeId: actor.employeeId,
       category: input.category,
       amount: input.amount,
+      currency: input.currency ?? "INR",
       expenseDate,
       businessPurpose: input.businessPurpose,
+      merchantName: input.merchantName,
+      paymentMethod: input.paymentMethod,
+      gstApplicable: input.gstApplicable ?? false,
+      gstRate: input.gstRate,
+      gstAmount: input.gstAmount,
+      costCenterId: input.costCenterId,
+      projectId: input.projectId,
+      notes: input.notes,
       status: "Draft",
       isDraft: true,
       receiptPending: !!input.receiptFileId,
@@ -152,6 +172,7 @@ export async function submitClaim(claimId: string, actor: AccessTokenPayload) {
     category: claim.category as ExpenseCategory,
     amount: Number(claim.amount),
     expenseDate: claim.expenseDate,
+    merchantName: claim.merchantName ?? undefined,
   });
 
   // Submit to workflow engine (Employee -> Manager -> Finance)
@@ -386,6 +407,190 @@ export async function actOnClaim(
   } else {
     await notifyClaimRejected(updated, actor, comments!);
   }
+
+  return { data: updated };
+}
+
+/** Send back a claim for revision (Manager/Finance) */
+export async function sendBackClaim(
+  claimId: string,
+  actor: AccessTokenPayload,
+  reason: string
+) {
+  const claim = await prisma.expenseClaim.findUnique({
+    where: { id: claimId },
+    include: { workflowInstance: true, employee: { select: { id: true, employeeCode: true, firstName: true, lastName: true, userId: true } } },
+  });
+
+  if (!claim) throw AppError.notFound("Expense claim not found");
+  if (!claim.workflowInstanceId) throw AppError.badRequest("Claim not in workflow");
+  if (claim.isImmutable) throw AppError.badRequest("Cannot send back immutable approved claim");
+  if (claim.employeeId === actor.employeeId) throw AppError.forbidden("You cannot send back your own expense claim");
+  if (!["Submitted", "Manager Pending", "Finance Pending"].includes(claim.status)) {
+    throw AppError.badRequest(`Claim cannot be sent back from status: ${claim.status}`);
+  }
+
+  // Check authorization (same as actOnClaim)
+  const workflowInstance = await getInstance(claim.workflowInstanceId);
+  const currentStep = workflowInstance.data.steps[workflowInstance.data.currentStepIndex];
+  if (!currentStep) throw AppError.badRequest("No pending workflow step");
+
+  const actorCode = actor.employeeCode ?? actor.employeeId!;
+  const currentStepName = currentStep.name.toLowerCase();
+  const isAssignedApprover = currentStep.approverId === actorCode;
+  const isFinanceStep =
+    currentStepName.includes("finance") ||
+    currentStep.approverId === "role-finance" ||
+    claim.status === "Finance Pending";
+  const isManagerStep =
+    currentStepName.includes("manager") ||
+    isAssignedApprover ||
+    ["Submitted", "Manager Pending"].includes(claim.status);
+
+  const claimEmployee = await prisma.employee.findUnique({
+    where: { id: claim.employeeId },
+    select: { reportingManagerId: true, departmentId: true },
+  });
+  const isDirectManager = Boolean(actor.employeeId && claimEmployee?.reportingManagerId === actor.employeeId);
+
+  let isDeptHead = false;
+  if (actor.employeeId && claimEmployee?.departmentId) {
+    const actorEmp = await prisma.employee.findUnique({
+      where: { id: actor.employeeId },
+      select: { departmentId: true, isDepartmentHead: true },
+    });
+    if (actorEmp?.isDepartmentHead && actorEmp.departmentId === claimEmployee.departmentId) {
+      isDeptHead = true;
+    }
+  }
+
+  const actorRoles = [actor.role];
+  const canAct =
+    isAssignedApprover ||
+    (isFinanceStep && ["FINANCE", "ADMIN", "HR"].some((r) => actorRoles.includes(r))) ||
+    (isManagerStep && (
+      isDirectManager ||
+      isDeptHead ||
+      ["MANAGER", "ADMIN", "HR"].some((r) => actorRoles.includes(r))
+    )) ||
+    Boolean(actor.permissions?.includes("expenses:approve")) ||
+    actorRoles.includes("ADMIN");
+
+  if (!canAct) {
+    throw AppError.forbidden("You are not authorized to send back this claim");
+  }
+
+  // Send back - revert workflow to previous step or reset to draft-like state
+  // For simplicity, we update the claim status and add history
+  const updated = await prisma.expenseClaim.update({
+    where: { id: claimId },
+    data: {
+      status: "Sent Back",
+      approvalStage: "Sent Back for Revision",
+      sentBackAt: new Date(),
+      sentBackBy: actor.employeeId,
+      sentBackReason: reason,
+      isDraft: false,
+    },
+    include: CLAIM_INCLUDE,
+  });
+
+  await prisma.expenseClaimHistory.create({
+    data: {
+      claimId: claim.id,
+      action: "SENT_BACK",
+      actorId: actor.employeeId ?? actor.userId,
+      actorName: `${actor.firstName ?? ""} ${actor.lastName ?? ""}`.trim() || (actor.employeeCode ?? "Unknown"),
+      oldStatus: claim.status,
+      newStatus: "Sent Back",
+      details: { comments: reason, workflowStep: currentStep.name },
+    },
+  });
+
+  writeAuditLog({
+    action: "UPDATE",
+    entityType: "ExpenseClaim",
+    entityId: claim.id,
+    actorUserId: actor.userId,
+    oldValue: jsonSafe({ status: claim.status, approvalStage: claim.approvalStage }),
+    newValue: jsonSafe({ status: "Sent Back", approvalStage: "Sent Back for Revision", sentBackReason: reason }),
+  });
+
+  // Notify employee
+  await notifyClaimSentBack(updated, actor, reason);
+
+  return { data: updated };
+}
+
+/** Resubmit a sent-back claim */
+export async function resubmitClaim(claimId: string, actor: AccessTokenPayload) {
+  const claim = await prisma.expenseClaim.findUnique({
+    where: { id: claimId },
+    include: { employee: { select: { id: true, employeeCode: true, firstName: true, lastName: true } } },
+  });
+
+  if (!claim) throw AppError.notFound("Expense claim not found");
+  if (claim.employeeId !== actor.employeeId) throw AppError.forbidden("Cannot resubmit another employee's claim");
+  if (claim.status !== "Sent Back") throw AppError.badRequest("Only sent-back claims can be resubmitted");
+
+  // Re-validate policy
+  const policyResult = await validateClaimAgainstPolicy(
+    { employeeId: claim.employeeId, category: claim.category as ExpenseCategory, amount: Number(claim.amount), expenseDate: claim.expenseDate },
+    actor
+  );
+
+  const errors = policyResult.violations.filter((v) => v.severity === "error");
+  if (errors.length > 0) {
+    throw AppError.badRequest(`Policy validation failed: ${errors.map((e) => e.message).join("; ")}`);
+  }
+
+  // Check duplicates again
+  const duplicateResult = await checkDuplicates({
+    employeeId: claim.employeeId,
+    category: claim.category as ExpenseCategory,
+    amount: Number(claim.amount),
+    expenseDate: claim.expenseDate,
+    merchantName: claim.merchantName ?? undefined,
+  });
+
+  // Resume workflow from manager review
+  const updated = await prisma.expenseClaim.update({
+    where: { id: claimId },
+    data: {
+      status: "Submitted",
+      approvalStage: "Manager Review",
+      sentBackAt: null,
+      sentBackBy: null,
+      sentBackReason: null,
+      policyViolations: policyResult.warnings as unknown as Prisma.InputJsonValue,
+      duplicateWarning: duplicateResult.isDuplicate ? duplicateResult as unknown as Prisma.InputJsonValue : Prisma.DbNull,
+    },
+    include: CLAIM_INCLUDE,
+  });
+
+  await prisma.expenseClaimHistory.create({
+    data: {
+      claimId: claim.id,
+      action: "RESUBMITTED",
+      actorId: actor.employeeId || claim.employeeId,
+      actorName: `${claim.employee.firstName} ${claim.employee.lastName}`,
+      oldStatus: "Sent Back",
+      newStatus: "Submitted",
+      details: { workflowInstanceId: claim.workflowInstanceId },
+    },
+  });
+
+  writeAuditLog({
+    action: "UPDATE",
+    entityType: "ExpenseClaim",
+    entityId: claim.id,
+    actorUserId: actor.userId,
+    oldValue: jsonSafe({ status: "Sent Back", approvalStage: "Sent Back for Revision" }),
+    newValue: jsonSafe({ status: "Submitted", approvalStage: "Manager Review" }),
+  });
+
+  // Notify manager
+  await notifyClaimSubmitted(updated, actor);
 
   return { data: updated };
 }
@@ -752,6 +957,54 @@ export async function deleteDraftClaim(claimId: string, actor: AccessTokenPayloa
   return { data: { deleted: true } };
 }
 
+/** Update a draft claim (only allowed for draft status) */
+export async function updateDraftClaim(
+  claimId: string,
+  actor: AccessTokenPayload,
+  data: {
+    category?: string;
+    amount?: number;
+    currency?: string;
+    expenseDate?: string;
+    businessPurpose?: string;
+    merchantName?: string;
+    paymentMethod?: string;
+    gstApplicable?: boolean;
+    gstRate?: number;
+    gstAmount?: number;
+    costCenterId?: string;
+    projectId?: string;
+    notes?: string;
+  }
+) {
+  const claim = await prisma.expenseClaim.findUnique({ where: { id: claimId } });
+  if (!claim) throw AppError.notFound("Claim not found");
+  if (claim.employeeId !== actor.employeeId) throw AppError.forbidden("Cannot update another employee's claim");
+  if (!claim.isDraft) throw AppError.badRequest("Only draft claims can be updated");
+
+  const updated = await prisma.expenseClaim.update({
+    where: { id: claimId },
+    data: {
+      ...data,
+      expenseDate: data.expenseDate ? new Date(data.expenseDate) : undefined,
+      amount: data.amount ?? undefined,
+      gstRate: data.gstRate ?? undefined,
+      gstAmount: data.gstAmount ?? undefined,
+    },
+  });
+
+  writeAuditLog({
+    action: "UPDATE",
+    entityType: "ExpenseClaim",
+    entityId: claimId,
+    actorUserId: actor.userId,
+    oldValue: jsonSafe({ claimNumber: claim.claimNumber, amount: Number(claim.amount) }),
+    newValue: jsonSafe({ claimNumber: updated.claimNumber, amount: Number(updated.amount) }),
+  });
+
+  return { data: updated };
+}
+
 /** Cancel a submitted claim (if not yet approved) */
 export async function cancelClaim(claimId: string, actor: AccessTokenPayload) {
   const claim = await prisma.expenseClaim.findUnique({ where: { id: claimId } });
@@ -836,6 +1089,18 @@ async function notifyClaimRejected(claim: any, actor: AccessTokenPayload, reason
       userId: claim.employee.userId,
       title: "Expense Claim Rejected",
       body: `Your claim ${claim.claimNumber} for ?${claim.amount} was rejected. Reason: ${reason}`,
+      category: "Expense Approved",
+      link: `/expense/claims/${claim.id}`,
+    });
+  }
+}
+
+async function notifyClaimSentBack(claim: any, actor: AccessTokenPayload, reason: string) {
+  if (claim.employee.userId) {
+    await dispatchToUser({
+      userId: claim.employee.userId,
+      title: "Expense Claim Sent Back for Revision",
+      body: `Your claim ${claim.claimNumber} for ?${claim.amount} was sent back for revision. Reason: ${reason}`,
       category: "Expense Approved",
       link: `/expense/claims/${claim.id}`,
     });

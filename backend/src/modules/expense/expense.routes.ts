@@ -7,9 +7,11 @@ import * as expenseController from "./expense.controller";
 import {
   listClaimsQuerySchema,
   createClaimBodySchema,
+  updateClaimBodySchema,
   submitClaimBodySchema,
   approveClaimBodySchema,
   rejectClaimBodySchema,
+  sendBackClaimBodySchema,
   policyBodySchema,
   validatePolicyBodySchema,
   receiptUploadUrlBodySchema,
@@ -61,6 +63,15 @@ router.get(
   expenseController.getClaim
 );
 
+// PUT /api/expense/claims/:id � expense:write (update draft)
+router.put(
+  "/claims/:id",
+  authenticate,
+  requirePermission("expenses:write"),
+  validate({ params: claimIdParamSchema, body: updateClaimBodySchema }),
+  expenseController.updateDraftClaim
+);
+
 // DELETE /api/expense/claims/:id � expense:write (delete draft)
 router.delete(
   "/claims/:id",
@@ -104,6 +115,24 @@ router.put(
   requirePermission("expenses:approve"),
   validate({ params: claimIdParamSchema, body: rejectClaimBodySchema }),
   expenseController.rejectClaim
+);
+
+// PUT /api/expense/claims/:id/send-back � expense:approve
+router.put(
+  "/claims/:id/send-back",
+  authenticate,
+  requirePermission("expenses:approve"),
+  validate({ params: claimIdParamSchema, body: sendBackClaimBodySchema }),
+  expenseController.sendBackClaim
+);
+
+// POST /api/expense/claims/:id/resubmit � expense:write
+router.post(
+  "/claims/:id/resubmit",
+  authenticate,
+  requirePermission("expenses:write"),
+  validate({ params: claimIdParamSchema }),
+  expenseController.resubmitClaim
 );
 
 // GET /api/expense/claims/:id/history � expense:read
