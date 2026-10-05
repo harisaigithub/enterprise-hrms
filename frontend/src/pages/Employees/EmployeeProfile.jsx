@@ -1035,7 +1035,7 @@ export default function EmployeeProfile() {
                             <button
                               type="button"
                               onClick={() => {
-                                const fullUrl = doc.fileUrl.startsWith("http") ? doc.fileUrl : `http://localhost:4000${doc.fileUrl}`;
+                                const fullUrl = getFileUrl(doc.fileUrl);
                                 window.open(fullUrl, "_blank");
                               }}
                               style={{

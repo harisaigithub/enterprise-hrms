@@ -22,6 +22,6 @@ router.get("/templates/catalog", requireRole("ADMIN", "HR"), controller.catalog)
 router.post("/templates/lint", requireRole("ADMIN", "HR"), validate({ body: z.object({ body: z.string().max(5000) }) }), controller.lint);
 router.get("/templates", requireRole("ADMIN", "HR"), controller.templates);
 router.post("/templates", requireRole("ADMIN", "HR"), validate({ body: z.object({ name: z.string().trim().min(2).max(180), category, body: z.string().trim().min(2).max(5000) }) }), controller.saveTemplate);
-router.post("/templates/:id/send-test", requireRole("ADMIN", "HR"), validate({ params: z.object({ id: uuid }), body: z.object({ values: z.record(z.string()).default({}) }) }), controller.sendTest);
+router.post("/templates/:id/send-test", requireRole("ADMIN", "HR"), validate({ params: z.object({ id: uuid }), body: z.object({ values: z.record(z.string(), z.string()).default({}) }) }), controller.sendTest);
 
 export default router;

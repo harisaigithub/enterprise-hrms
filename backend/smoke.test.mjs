@@ -1,4 +1,4 @@
-const BASE = "http://localhost:4000/api";
+const BASE = `${process.env.BASE_URL || "http://localhost:4000/api"}`;
 let failures = 0;
 
 async function call(path, opts = {}) {
@@ -18,7 +18,7 @@ function check(name, cond, extra = "") {
 (async () => {
   const login = await call("/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email: "robert.king@company.com", password: "Password@123" }),
+    body: JSON.stringify({ email: "rajesh.menon@company.com", password: "Password@123" }),
   });
   check("login admin", login.status === 200 && login.body?.data?.token, JSON.stringify(login.body));
   const token = login.body?.data?.token;

@@ -68,7 +68,7 @@ export const listClaimsQuerySchema = z.object({
 /** Body for creating a new expense claim (draft) */
 export const createClaimBodySchema = z.object({
   category: z.enum(EXPENSE_CATEGORIES, {
-    errorMap: () => ({ message: "Category must be one of: Travel, Food & Meals, Accommodation, Local Transport, Office Supplies, Communication, Training, Client Entertainment, Other" }),
+    message: "Category must be one of: Travel, Food & Meals, Accommodation, Local Transport, Office Supplies, Communication, Training, Client Entertainment, Other",
   }),
   amount: z.number().positive("Amount must be positive").max(99999999.99, "Amount too large"),
   currency: z.string().length(3).default("INR"),

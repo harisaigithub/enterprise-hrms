@@ -10,7 +10,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 // ── Core Organization ──────────────────────────────────────────────────────
@@ -315,6 +314,7 @@ model Employee {
 
   taskAssignments    Task[]              @relation("TaskAssignee")
   taskProjectMembers TaskProjectMember[]
+  taskProjectsLed    TaskProject[]       @relation("TaskProjectLead")
   taskHistoryActions TaskHistory[]       @relation("TaskHistoryActor")
   taskTimeEntries    TaskTimeEntry[]     @relation("TaskTimeEntryEmployee")
 
@@ -432,6 +432,7 @@ model AuditLog {
 
 model ComplianceObligation {
   id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workflowInstanceId String? @unique @map("workflow_instance_id") @db.Uuid
   title           String    @db.VarChar(180)
   category        String    @db.VarChar(80)
   dueDate         DateTime  @map("due_date") @db.Date
@@ -443,6 +444,8 @@ model ComplianceObligation {
   createdByUserId String?   @map("created_by_user_id") @db.Uuid
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  workflowInstance WorkflowInstance? @relation(fields: [workflowInstanceId], references: [id], onDelete: SetNull)
 
   @@index([status, dueDate])
   @@map("compliance_obligations")
@@ -526,6 +529,7 @@ model Policy {
 
 model PolicyVersion {
   id                          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workflowInstanceId          String?   @unique @map("workflow_instance_id") @db.Uuid
   policyId                    String    @map("policy_id") @db.Uuid
   versionNumber               Int       @map("version_number")
   effectiveDate               DateTime? @map("effective_date") @db.Date
@@ -535,9 +539,12 @@ model PolicyVersion {
   createdByUserId             String?   @map("created_by_user_id") @db.Uuid
   createdByName               String    @map("created_by_name") @db.VarChar(160)
   publishedAt                 DateTime? @map("published_at") @db.Timestamp(6)
+  approvalStatus              String    @default("Draft") @map("approval_status") @db.VarChar(30)
+  decidedAt                   DateTime? @map("decided_at") @db.Timestamp(6)
   createdAt                   DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
 
   policy           Policy                  @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  workflowInstance WorkflowInstance?        @relation(fields: [workflowInstanceId], references: [id], onDelete: SetNull)
   acknowledgements PolicyAcknowledgement[]
 
   @@unique([policyId, versionNumber])
@@ -593,6 +600,7 @@ model LeaveBalance {
 
 model LeaveRequest {
   id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workflowInstanceId String? @unique @map("workflow_instance_id") @db.Uuid
   employeeId  String    @map("employee_id") @db.Uuid
   leaveTypeId String    @map("leave_type_id") @db.Uuid
   startDate   DateTime  @map("start_date") @db.Date
@@ -610,9 +618,10 @@ model LeaveRequest {
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
-  employee  Employee  @relation("LeaveRequestsSubmitted", fields: [employeeId], references: [id], onDelete: Cascade)
-  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
-  approver  Employee? @relation("LeaveRequestsApproved", fields: [approvedBy], references: [id], onDelete: SetNull)
+  employee         Employee         @relation("LeaveRequestsSubmitted", fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType        LeaveType        @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+  approver         Employee?        @relation("LeaveRequestsApproved", fields: [approvedBy], references: [id], onDelete: SetNull)
+  workflowInstance WorkflowInstance? @relation(fields: [workflowInstanceId], references: [id], onDelete: SetNull)
 
   @@index([employeeId])
   @@index([status])
@@ -685,6 +694,7 @@ model SalaryStructure {
 
 model PayrollRun {
   id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workflowInstanceId String? @unique @map("workflow_instance_id") @db.Uuid
   period          String    @db.VarChar(20)
   month           Int
   year            Int
@@ -706,6 +716,7 @@ model PayrollRun {
   preparedByEmployee Employee? @relation("PayrollRunPreparedBy", fields: [preparedBy], references: [id], onDelete: SetNull)
   approvedByEmployee Employee? @relation("PayrollRunApprovedBy", fields: [approvedBy], references: [id], onDelete: SetNull)
   releasedByEmployee Employee? @relation("PayrollRunReleasedBy", fields: [releasedBy], references: [id], onDelete: SetNull)
+  workflowInstance   WorkflowInstance? @relation(fields: [workflowInstanceId], references: [id], onDelete: SetNull)
   payslips           Payslip[]
 
   @@unique([month, year])
@@ -789,6 +800,14 @@ model WorkflowInstance {
   events                    WorkflowEvent[]
   expenseClaims             ExpenseClaim[]             @relation("ExpenseClaimWorkflow")
   attendanceRegularizations AttendanceRegularization[]
+  assetRequest              AssetRequest?
+  performanceGoal           PerformanceGoal?
+  performanceRatingProposal PerformanceRatingProposal?
+  leaveRequest              LeaveRequest?
+  payrollRun                PayrollRun?
+  separation                Separation?
+  policyVersion             PolicyVersion?
+  complianceObligation      ComplianceObligation?
   travelRequests            TravelRequest[]
 
   @@index([requesterId])
@@ -812,6 +831,7 @@ model WorkflowInstanceStep {
   status              String    @default("Pending") @db.VarChar(20)
   actedBy             String?   @map("acted_by") @db.VarChar(80)
   actedByName         String?   @map("acted_by_name") @db.VarChar(120)
+  roleApproverOverride Boolean  @default(false) @map("role_approver_override")
   actedAt             DateTime? @map("acted_at") @db.Timestamp(6)
   rejectionReason     String?   @map("rejection_reason") @db.Text
   startedAt           DateTime  @default(now()) @map("started_at") @db.Timestamp(6)
@@ -1123,6 +1143,7 @@ model PerformanceReviewCycle {
 
 model PerformanceGoal {
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workflowInstanceId String? @unique @map("workflow_instance_id") @db.Uuid
   employeeId    String   @map("employee_id") @db.Uuid
   reviewCycleId String   @map("review_cycle_id") @db.Uuid
   title         String   @db.VarChar(255)
@@ -1133,6 +1154,7 @@ model PerformanceGoal {
 
   employee    Employee                @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   reviewCycle PerformanceReviewCycle  @relation(fields: [reviewCycleId], references: [id], onDelete: Restrict)
+  workflowInstance WorkflowInstance?  @relation(fields: [workflowInstanceId], references: [id], onDelete: SetNull)
   keyResults  PerformanceKeyResult[]
   reviewItems PerformanceReviewItem[]
 
@@ -1274,6 +1296,28 @@ model PerformanceRatingHistory {
 
   @@index([employeeId])
   @@map("performance_ratings_history")
+}
+
+model PerformanceRatingProposal {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workflowInstanceId    String   @unique @map("workflow_instance_id") @db.Uuid
+  employeeId            String   @map("employee_id") @db.Uuid
+  reviewCycleId         String   @map("review_cycle_id") @db.Uuid
+  cycleName             String   @map("cycle_name") @db.VarChar(100)
+  selfRating            Int      @map("self_rating")
+  originalManagerRating Int      @map("original_manager_rating")
+  finalRating           Int      @map("final_rating")
+  increment             String   @db.VarChar(20)
+  promotion             Boolean  @default(false)
+  appraisalLetterUrl    String?  @map("appraisal_letter_url") @db.VarChar(255)
+  status                String   @default("Pending Approval") @db.VarChar(30)
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  decidedAt             DateTime? @map("decided_at") @db.Timestamp(6)
+
+  workflowInstance WorkflowInstance @relation(fields: [workflowInstanceId], references: [id], onDelete: Restrict)
+
+  @@index([employeeId, reviewCycleId, status])
+  @@map("performance_rating_proposals")
 }
 
 // ── Helpdesk ───────────────────────────────────────────────────────────────
@@ -1623,14 +1667,19 @@ model CourseCertificate {
 // ── Task Management (Module 13) ───────────────────────────────────────────
 
 model TaskProject {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name      String   @db.VarChar(150)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String    @db.VarChar(150)
+  description    String?   @db.Text
+  projectLeadId  String?   @map("project_lead_id") @db.Uuid
+  startDate      DateTime? @map("start_date") @db.Date
+  targetEndDate  DateTime? @map("target_end_date") @db.Date
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
 
-  members    TaskProjectMember[]
-  milestones TaskMilestone[]
-  tasks      Task[]
+  projectLead Employee?           @relation("TaskProjectLead", fields: [projectLeadId], references: [id], onDelete: SetNull)
+  members     TaskProjectMember[]
+  milestones  TaskMilestone[]
+  tasks       Task[]
 
   @@index([createdAt])
   @@map("task_projects")
@@ -1669,8 +1718,10 @@ model Task {
   projectId   String  @map("project_id") @db.Uuid
   milestoneId String? @map("milestone_id") @db.Uuid
 
-  title      String @db.VarChar(255)
-  assigneeId String @map("assignee_id") @db.Uuid
+  title      String  @db.VarChar(255)
+  assigneeId String  @map("assignee_id") @db.Uuid
+  comments   String? @db.Text
+  subtasks   String? @db.Text
 
   status   String @default("Todo") @db.VarChar(30)
   priority String @default("Medium") @db.VarChar(20)
@@ -1787,6 +1838,13 @@ model Asset {
   currentHolderId String? @db.Uuid
   acknowledged    Boolean @default(false)
 
+  purchaseDate   DateTime?
+  purchaseCost   Decimal?  @db.Decimal(12, 2)
+  location       String?
+  warrantyExpiry DateTime?
+  vendor         String?
+  conditionNotes String?
+
   seats         Int?
   seatsUsed     Int       @default(0)
   licenseExpiry DateTime?
@@ -1805,21 +1863,35 @@ model Asset {
 
 model AssetRequest {
   id            String @id @default(uuid()) @db.Uuid
+  workflowInstanceId String? @unique @map("workflow_instance_id") @db.Uuid
   employeeId    String @db.Uuid
   category      String
   justification String
+
+  assetType          String?
+  model             String?
+  quantity          Int      @default(1)
+  neededBy          DateTime?
+  requestType       String?
+  deliveryLocation  String?
+  replacementAssetId String? @db.Uuid
+  costCenter        String?
+  estimatedCost     Decimal? @map("estimated_cost") @db.Decimal(12, 2)
+  attachmentUrl     String?
 
   status   AssetRequestStatus @default(PENDING_APPROVAL)
   raisedAt DateTime           @default(now())
 
   approvedBy String?
   approvedAt DateTime?
+  rejectionReason String? @map("rejection_reason") @db.Text
 
   fulfilledAt DateTime?
   assetId     String?   @db.Uuid
 
-  employee Employee @relation(fields: [employeeId], references: [id])
-  asset    Asset?   @relation(fields: [assetId], references: [id])
+  employee         Employee          @relation(fields: [employeeId], references: [id])
+  asset            Asset?            @relation(fields: [assetId], references: [id])
+  workflowInstance WorkflowInstance? @relation(fields: [workflowInstanceId], references: [id], onDelete: SetNull)
 
   @@index([employeeId])
   @@index([status])
@@ -1849,6 +1921,7 @@ model AssetHistory {
 
 model Separation {
   id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workflowInstanceId     String?  @unique @map("workflow_instance_id") @db.Uuid
   employeeId             String   @map("employee_id") @db.Uuid
   type                   String   @db.VarChar(30)
   reason                 String
@@ -1861,11 +1934,12 @@ model Separation {
   createdAt              DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt              DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
-  employee       Employee              @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  clearanceItems SeparationClearance[]
-  exitInterview  ExitInterview?
-  settlement     SeparationSettlement?
-  alumni         Alumni?
+  employee         Employee              @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  workflowInstance WorkflowInstance?     @relation(fields: [workflowInstanceId], references: [id], onDelete: SetNull)
+  clearanceItems   SeparationClearance[]
+  exitInterview    ExitInterview?
+  settlement       SeparationSettlement?
+  alumni           Alumni?
 
   @@index([employeeId])
   @@index([status])

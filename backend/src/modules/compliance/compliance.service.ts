@@ -2,6 +2,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
 import type { AccessTokenPayload } from "../../lib/jwt";
+import * as workflowService from "../workflow/workflow.service";
+import { submitAndLinkWorkflow } from "../workflow/submission";
 
 async function actorName(actor?: AccessTokenPayload) {
   if (!actor?.employeeId) return actor?.role || "System";
@@ -49,9 +51,30 @@ export async function createObligation(input: any, actor?: AccessTokenPayload) {
 export async function markFiled(id: string, actor?: AccessTokenPayload) {
   const existing = await prisma.complianceObligation.findUnique({ where: { id } });
   if (!existing) throw AppError.notFound("Compliance obligation not found");
-  const status = ["POSH Training Review", "Policy Acknowledgement Review"].includes(existing.category) ? "Completed" : "Filed";
-  const obligation = await prisma.complianceObligation.update({ where: { id }, data: { status, filedAt: new Date(), filedByUserId: actor?.sub } });
-  await activity(actor, "Obligation completed", "Calendar", `Marked \"${obligation.title}\" as ${status}.`);
+  if (["Filed", "Completed"].includes(existing.status)) throw AppError.conflict("This compliance obligation is already complete");
+  if (existing.status === "Pending Approval" && existing.workflowInstanceId) return existing;
+  if (existing.status === "Rejected" && existing.workflowInstanceId) {
+    throw AppError.conflict("This filing was rejected. Create a new obligation to preserve its approval history.");
+  }
+  const requester = actor?.employeeId
+    ? await prisma.employee.findUnique({ where: { id: actor.employeeId }, select: { employeeCode: true, status: true } })
+    : null;
+  if (!requester || requester.status !== "Active") throw AppError.forbidden("An active employee account is required to submit a compliance filing");
+  const obligation = await submitAndLinkWorkflow({
+    requestType: "Compliance Filing",
+    requesterCode: requester.employeeCode,
+    attributes: {},
+    submitRequest: workflowService.submitRequest,
+    linkOwner: async (tx, workflowInstanceId) => {
+      const claimed = await tx.complianceObligation.updateMany({
+        where: { id, status: existing.status, workflowInstanceId: existing.workflowInstanceId },
+        data: { status: "Pending Approval", workflowInstanceId, filedAt: null, filedByUserId: null },
+      });
+      if (claimed.count !== 1) throw AppError.conflict("This compliance obligation changed while filing approval was being submitted.");
+      return tx.complianceObligation.findUniqueOrThrow({ where: { id } });
+    },
+  });
+  await activity(actor, "Filing submitted for approval", "Calendar", `Submitted \"${obligation.title}\" for Finance and HR approval.`);
   return obligation;
 }
 

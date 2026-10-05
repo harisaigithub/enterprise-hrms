@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Workflow Engine Page
  * Module 21 — Generic approval engine
  * Tabs: Instances & Approvals | Definitions | Event Log
@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { GitBranch, ListChecks, History, Plus, RefreshCw, Check, X, UserPlus, LibraryBig, Sparkles, ShieldCheck } from "lucide-react";
+import { GitBranch, ListChecks, History, Plus, RefreshCw, Check, X, UserPlus, LibraryBig, Sparkles, ShieldCheck, Edit2, AlertTriangle } from "lucide-react";
 import MainLayout from "../../components/layout/MainLayout";
 import PageHeader from "../../components/shared/PageHeader";
 import StatusBadge from "../../components/shared/StatusBadge";
@@ -27,33 +27,37 @@ import {
   getInstances,
   getEventLog,
   submitRequest,
+  previewRequest,
   actOnStep,
   runSlaCheck,
   manuallyAssignApprover,
+  reviseDefinition,
 } from "../../services/workflowEngineService";
 
 const definitionStatusMeta = {
-  Active: { color: "#16a34a", bg: "#f0fdf4" },
-  Inactive: { color: "#64748b", bg: "#f1f5f9" },
+  Active: { label: "Active", color: "#16a34a", bg: "#f0fdf4" },
+  Inactive: { label: "Inactive", color: "#64748b", bg: "#f1f5f9" },
 };
 
 const instanceStatusMeta = {
-  "In Progress": { color: "#0284c7", bg: "#f0f9ff" },
-  Approved: { color: "#16a34a", bg: "#f0fdf4" },
-  Rejected: { color: "#dc2626", bg: "#fef2f2" },
-  "Approver Resolution Failed": { color: "#dc2626", bg: "#fef2f2" },
+  "In Progress": { label: "In Progress", color: "#0284c7", bg: "#f0f9ff" },
+  Approved: { label: "Approved", color: "#16a34a", bg: "#f0fdf4" },
+  Rejected: { label: "Rejected", color: "#dc2626", bg: "#fef2f2" },
+  "Approver Resolution Failed": { label: "Approver Resolution Failed", color: "#dc2626", bg: "#fef2f2" },
 };
 
 const stepStatusMeta = {
-  Pending: { color: "#d97706", bg: "#fffbeb" },
-  Approved: { color: "#16a34a", bg: "#f0fdf4" },
-  Rejected: { color: "#dc2626", bg: "#fef2f2" },
-  Unresolved: { color: "#64748b", bg: "#f1f5f9" },
+  Pending: { label: "Pending", color: "#d97706", bg: "#fffbeb" },
+  Approved: { label: "Approved", color: "#16a34a", bg: "#f0fdf4" },
+  Rejected: { label: "Rejected", color: "#dc2626", bg: "#fef2f2" },
+  Cancelled: { label: "Cancelled", color: "#64748b", bg: "#f1f5f9" },
+  Unresolved: { label: "Unresolved", color: "#64748b", bg: "#f1f5f9" },
 };
 
 const APPROVER_RULES = [
   "Direct Reporting Manager",
   "Department Head",
+  "Next Level Manager",
   "Named Role: Finance",
   "Named Role: HR",
 ];
@@ -81,7 +85,6 @@ function SectionCard({ children, style }) {
     </div>
   );
 }
-
 function TableCell({ children, style }) {
   return (
     <td style={{ padding: "13px 16px", fontSize: "13.5px", color: "var(--text)", borderBottom: "1px solid var(--border)", ...style }}>
@@ -133,6 +136,7 @@ const btnGhost = { display: "inline-flex", alignItems: "center", gap: "6px", pad
 export default function WorkflowEngine() {
   const { user, permissions } = useAuth();
   const canWrite = permissions.includes("workflows:write");
+  const canSubmit = canWrite;
 
   const [activeTab, setActiveTab] = useState("instances");
   const [loading, setLoading] = useState(true);
@@ -147,6 +151,7 @@ export default function WorkflowEngine() {
 
   const [showSubmit, setShowSubmit] = useState(false);
   const [showAddDef, setShowAddDef] = useState(false);
+  const [editingDefinition, setEditingDefinition] = useState(null);
   const [assignFor, setAssignFor] = useState(null);
 
   const flash = (message) => {
@@ -194,16 +199,23 @@ export default function WorkflowEngine() {
     if (inst.status !== "In Progress") return new Set();
     const current = inst.steps[inst.currentStepIndex];
     if (!current) return new Set();
-    return new Set(
-      inst.steps
-        .filter((s) => (s.parallelGroup ? s.parallelGroup === current.parallelGroup : s.stepId === current.stepId))
-        .map((s) => s.stepId)
-    );
+    const group = [current];
+    if (current.parallelGroup) {
+      for (let index = inst.currentStepIndex + 1; index < inst.steps.length; index += 1) {
+        if (inst.steps[index].parallelGroup !== current.parallelGroup) break;
+        group.push(inst.steps[index]);
+      }
+    }
+    return new Set(group.map((step) => step.stepId));
   };
 
   const canAct = (inst, step) => {
     if (!actionableIds(inst).has(step.stepId) || step.status !== "Pending") return false;
-    if (step.approverId?.startsWith("role-")) return canWrite; // named-role steps need workflows:write
+    if (user.id === inst.requesterId) return false;
+    if (step.approverId?.startsWith("role-")) {
+      const requiredRole = step.approverId === "role-finance" ? "FINANCE" : "HR";
+      return user.role === requiredRole || (user.role === "ADMIN" && canWrite);
+    }
     return user.id === step.approverId || user.id === step.escalatedTo;
   };
 
@@ -211,7 +223,7 @@ export default function WorkflowEngine() {
     if (action === "reject" && !window.confirm(`Reject "${step.name}" for ${inst.requesterName}?`)) return;
     setBusy(step.stepId);
     try {
-      await actOnStep(inst.id, user.id, `${user.firstName} ${user.lastName}`.trim(), action);
+      await actOnStep(inst.id, step.stepId, action);
       flash(`${step.name} ${action === "approve" ? "approved" : "rejected"}`);
       await refresh("act");
     } catch (err) {
@@ -247,11 +259,11 @@ export default function WorkflowEngine() {
     }
   };
 
-  const handleAssign = async (approverId, approverName) => {
+  const handleAssign = async (approverId) => {
     setBusy("assign");
     try {
-      await manuallyAssignApprover(assignFor.id, approverId, approverName);
-      flash("Approver assigned — instance resumed");
+      await manuallyAssignApprover(assignFor.instance.id, assignFor.step.stepId, approverId);
+      flash("Approver assigned to step");
       setAssignFor(null);
       await refresh("assign");
     } catch (err) {
@@ -276,7 +288,14 @@ export default function WorkflowEngine() {
   };
 
   const handleDeleteDef = async (def) => {
-    if (!window.confirm(`Delete "${def.requestType}"? This is permanent.`)) return;
+    const activeCount = def.activeInstanceCount ?? 0;
+    const totalCount = def.totalInstanceCount ?? activeCount;
+    const referenceWarning = activeCount
+      ? `${activeCount} active instance(s) still reference this version. It cannot be deleted until those finish.`
+      : totalCount
+        ? `${totalCount} historical instance(s) reference this version and must remain available for audit.`
+        : "No workflow instances reference this version.";
+    if (!window.confirm(`Delete "${def.requestType}" permanently? ${referenceWarning}`)) return;
     setBusy(def.id);
     try {
       const res = await deleteDefinition(def.id);
@@ -310,7 +329,10 @@ export default function WorkflowEngine() {
             <div style={{ minWidth: 0 }}>
               <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>{s.name}</p>
               <p style={{ fontSize: "12px", color: "var(--subtext)", marginTop: "2px" }}>
-                {s.approverName ?? "Unassigned"} {s.selfApprovalBlocked && <span style={{ color: "#dc2626", fontWeight: 600 }}>• self-approval blocked</span>}
+                {s.actedByName && ["Approved", "Rejected"].includes(s.status)
+                  ? `${s.status} by ${s.actedByName}${s.roleApproverOverride ? " (workflow override)" : ""}`
+                  : s.approverName ?? "Unassigned"} {s.selfApprovalBlocked && <span style={{ color: "#dc2626", fontWeight: 600 }}>• self-approval blocked</span>}
+                {s.approverRule && <span style={{ color: "var(--subtext)" }}> • {s.approverRule}</span>}
                 {s.escalatedToName && <span style={{ color: "#d97706", fontWeight: 600 }}> • escalated → {s.escalatedToName}</span>}
               </p>
             </div>
@@ -360,7 +382,13 @@ export default function WorkflowEngine() {
               </tr>
             </thead>
             <tbody>
-              {instances.map((inst) => (
+              {instances.map((inst) => {
+                const approvedSteps = inst.steps.filter((step) => step.status === "Approved").length;
+                const rejectedSteps = inst.steps.filter((step) => step.status === "Rejected").length;
+                const decidedSteps = inst.steps.filter((step) => ["Approved", "Rejected"].includes(step.status)).length;
+                const progressPercent = inst.steps.length ? Math.round((decidedSteps / inst.steps.length) * 100) : 0;
+                const progressColor = inst.status === "Rejected" ? "#dc2626" : "var(--primary)";
+                return (
                 <tr key={inst.id}>
                   <TableCell>
                     <p style={{ fontWeight: 600 }}>{inst.requestType}</p>
@@ -370,32 +398,33 @@ export default function WorkflowEngine() {
                   <TableCell style={{ minWidth: "90px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                       <div style={{ flex: 1, minWidth: "56px", height: "6px", borderRadius: "99px", background: "var(--border)", overflow: "hidden" }}>
-                        <div style={{ width: `${inst.steps.length ? Math.round((inst.currentStepIndex / inst.steps.length) * 100) : 0}%`, height: "100%", background: "var(--primary)" }} />
+                        <div style={{ width: `${progressPercent}%`, height: "100%", background: progressColor }} />
                       </div>
                       <span style={{ fontSize: "11.5px", color: "var(--subtext)", whiteSpace: "nowrap" }}>
-                        {inst.currentStepIndex}/{inst.steps.length}
+                        {approvedSteps}/{inst.steps.length} approved{rejectedSteps ? ` · ${rejectedSteps} rejected` : ""}
                       </span>
                     </div>
                   </TableCell>
                   <TableCell style={{ minWidth: "260px" }}>{renderSteps(inst)}</TableCell>
                   <TableCell>
-                    <StatusBadge {...instanceStatusMeta[inst.status]} />
+                    <StatusBadge {...(instanceStatusMeta[inst.status] ?? { label: inst.status, color: "#64748b", bg: "#f1f5f9" })} />
                     {inst.resolutionFailure && (
                       <p style={{ fontSize: "11.5px", color: "#dc2626", marginTop: "6px", maxWidth: "220px", lineHeight: 1.4 }}>
                         {inst.resolutionFailure}
                       </p>
                     )}
-                    {inst.status === "Approver Resolution Failed" && canWrite && (
-                      <button onClick={() => setAssignFor(inst)} style={{ ...btnGhost, marginTop: "8px", background: "#fffbeb", color: "#d97706" }}>
-                        <UserPlus size={13} /> Assign approver
+                    {inst.status === "Approver Resolution Failed" && canWrite && inst.steps.filter((step) => step.status === "Unresolved").map((step) => (
+                      <button key={step.stepId} onClick={() => setAssignFor({ instance: inst, step })} style={{ ...btnGhost, margin: "8px 6px 0 0", background: "#fffbeb", color: "#d97706" }}>
+                        <UserPlus size={13} /> Assign {step.name}
                       </button>
-                    )}
+                    ))}
                   </TableCell>
                   <TableCell style={{ whiteSpace: "nowrap", color: "var(--subtext)" }}>
                     {new Date(inst.createdAt).toLocaleDateString("en-IN")}
                   </TableCell>
                 </tr>
-              ))}
+          );
+        })}
             </tbody>
           </table>
         )}
@@ -405,6 +434,9 @@ export default function WorkflowEngine() {
 
   const renderBlueprints = () => {
     const installedCount = blueprints.filter((blueprint) => blueprint.installed).length;
+    const moduleCount = new Set(blueprints.map((blueprint) => blueprint.module)).size;
+    const integratedModules = new Set(blueprints.filter((blueprint) => blueprint.moduleIntegrated).map((blueprint) => blueprint.module)).size;
+    const integratedTemplates = blueprints.filter((blueprint) => blueprint.moduleIntegrated).length;
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         <SectionCard style={{ padding: "20px" }}>
@@ -418,14 +450,29 @@ export default function WorkflowEngine() {
                 Install module-specific approval chains with conditional routing, parallel sign-offs, SLA escalation and self-approval protection.
               </p>
             </div>
-            <div style={{ minWidth: "210px" }}>
+            <div style={{ minWidth: "260px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--subtext)", marginBottom: "7px" }}>
-                <span>{installedCount} of {blueprints.length} modules covered</span>
+                  <span>{installedCount} of {blueprints.length} templates installed</span>
                 <strong style={{ color: "var(--text)" }}>{blueprints.length ? Math.round((installedCount / blueprints.length) * 100) : 0}%</strong>
               </div>
               <div style={{ height: "8px", background: "var(--bg)", borderRadius: "99px", overflow: "hidden" }}>
                 <div style={{ height: "100%", width: `${blueprints.length ? (installedCount / blueprints.length) * 100 : 0}%`, background: "var(--primary)", borderRadius: "99px" }} />
               </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "8px", marginTop: "12px" }}>
+                  {[
+                    [blueprints.length, "templates"],
+                    [moduleCount, "unique modules"],
+                    [integratedModules, "modules integrated"],
+                  ].map(([value, label]) => (
+                    <div key={label} style={{ padding: "8px", background: "var(--bg)", borderRadius: "6px" }}>
+                      <strong style={{ display: "block", color: "var(--text)", fontSize: "16px" }}>{value}</strong>
+                      <span style={{ color: "var(--subtext)", fontSize: "10px" }}>{label}</span>
+                    </div>
+                  ))}
+                </div>
+                <p style={{ fontSize: "11px", color: "var(--subtext)", marginTop: "7px" }}>
+                  {integratedTemplates} templates have real module submission and decision wiring; template installation alone does not connect a module.
+                </p>
             </div>
           </div>
         </SectionCard>
@@ -443,6 +490,15 @@ export default function WorkflowEngine() {
                 {blueprint.installed && <ShieldCheck size={20} color="#16a34a" />}
               </div>
               <p style={{ fontSize: "12.5px", color: "var(--subtext)", lineHeight: 1.5 }}>{blueprint.description}</p>
+              {blueprint.moduleIntegrated ? (
+                <p style={{ fontSize: "11.5px", color: "#166534", background: "#f0fdf4", padding: "7px 9px", borderRadius: "6px", margin: 0 }}>
+                  Integrated — module submission starts this workflow and its decision updates the owning record.
+                </p>
+              ) : (
+                <p style={{ fontSize: "11.5px", color: "#92400e", background: "#fffbeb", padding: "7px 9px", borderRadius: "6px", margin: 0 }}>
+                  Template only — {blueprint.integrationNote || "no module submission and decision flow is currently connected."}
+                </p>
+              )}
               <div style={{ fontSize: "12px", color: "var(--subtext)" }}>
                 <strong style={{ color: "var(--text)" }}>Trigger:</strong> {blueprint.trigger}
               </div>
@@ -493,7 +549,7 @@ export default function WorkflowEngine() {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "var(--bg)" }}>
-                {["Request Type", "Approval Steps", "Status", "Created", "Actions"].map((h) => (
+                {["Request Type", "Approval Steps", "Status", "Live references", "Created", "Actions"].map((h) => (
                   <th key={h} style={{ textAlign: "left", padding: "11px 16px", fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.5px", borderBottom: "1px solid var(--border)" }}>
                     {h}
                   </th>
@@ -520,9 +576,17 @@ export default function WorkflowEngine() {
                     </div>
                   </TableCell>
                   <TableCell><StatusBadge {...definitionStatusMeta[def.status]} /></TableCell>
+                  <TableCell style={{ whiteSpace: "nowrap", color: "var(--subtext)" }}>
+                    {def.activeInstanceCount ?? 0} active · {def.totalInstanceCount ?? 0} total
+                  </TableCell>
                   <TableCell style={{ whiteSpace: "nowrap", color: "var(--subtext)" }}>{def.createdAt}</TableCell>
                   <TableCell>
                     <div style={{ display: "flex", gap: "6px" }}>
+                      {canWrite && (
+                        <button onClick={() => openEditDef(def)} disabled={busy} style={btnGhost}>
+                          <Edit2 size={13} /> Edit
+                        </button>
+                      )}
                       {def.status === "Active" && canWrite && (
                         <button onClick={() => handleDeactivate(def)} disabled={busy} style={{ ...btnGhost, background: "#fffbeb", color: "#d97706" }}>Deactivate</button>
                       )}
@@ -555,7 +619,7 @@ export default function WorkflowEngine() {
                 </p>
                 <p style={{ fontSize: "12.5px", color: "var(--subtext)", marginTop: "2px", lineHeight: 1.45 }}>{e.detail}</p>
                 <p style={{ fontSize: "11.5px", color: "var(--subtext)", marginTop: "3px", opacity: 0.75 }}>
-                  {new Date(e.at).toLocaleString("en-IN")}
+                  {new Date(e.at).toLocaleString("en-IN")} · Instance {e.instanceId?.slice(0, 8) ?? "unknown"}
                 </p>
               </div>
             </div>
@@ -567,17 +631,50 @@ export default function WorkflowEngine() {
 
   // -- Submit request modal ------------------------------------------------
   const [submitDef, setSubmitDef] = useState("");
-  const [submitRequester, setSubmitRequester] = useState("");
   const [submitAttrs, setSubmitAttrs] = useState("{\n  \"duration_days\": 7\n}");
+  const [submitPreview, setSubmitPreview] = useState(null);
+  const [submitPreviewKey, setSubmitPreviewKey] = useState("");
+  const currentSubmitKey = JSON.stringify([submitDef, submitAttrs]);
 
   const openSubmit = () => {
-    setSubmitRequester(user.id);
     setSubmitDef(definitions.find((d) => d.status === "Active")?.id ?? "");
     setSubmitAttrs("{\n  \"duration_days\": 7\n}");
+    setSubmitPreview(null);
+    setSubmitPreviewKey("");
     setShowSubmit(true);
   };
 
+  const handlePreviewRequest = async () => {
+    let attributes;
+    try {
+      attributes = JSON.parse(submitAttrs || "{}");
+    } catch {
+      flash("Attributes must be valid JSON");
+      return;
+    }
+    if (!submitDef) {
+      flash("Select an active definition first");
+      return;
+    }
+    setBusy("preview");
+    setSubmitPreview(null);
+    setSubmitPreviewKey("");
+    try {
+      const res = await previewRequest(submitDef, attributes);
+      setSubmitPreview(res.data);
+      setSubmitPreviewKey(currentSubmitKey);
+    } catch (err) {
+      flash(err.message || "Could not resolve the approval route");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const handleSubmit = async () => {
+    if (submitPreviewKey !== currentSubmitKey) {
+      flash("Preview the approval route again before submitting");
+      return;
+    }
     let attributes;
     try {
       attributes = JSON.parse(submitAttrs || "{}");
@@ -587,7 +684,7 @@ export default function WorkflowEngine() {
     }
     setBusy("submit");
     try {
-      const res = await submitRequest(submitDef, submitRequester, attributes);
+      const res = await submitRequest(submitDef, attributes);
       if (res.data) {
         flash(`Request submitted as "${res.data.requestType}" (${res.data.status})`);
         setShowSubmit(false);
@@ -601,36 +698,66 @@ export default function WorkflowEngine() {
   };
 
   // -- Add definition modal -------------------------------------------------
-  const [newDef, setNewDef] = useState({ requestType: "", steps: [{ name: "Manager Approval", approverRule: APPROVER_RULES[0], slaHours: 24, parallelGroup: "", condition: "" }] });
+  const emptyStep = () => ({ name: "Manager Approval", approverRule: APPROVER_RULES[0], slaHours: 24, parallelGroup: "", conditionField: "", conditionOperator: ">", conditionValue: "" });
+  const [newDef, setNewDef] = useState({ requestType: "", steps: [emptyStep()] });
 
   const openAddDef = () => {
-    setNewDef({ requestType: "", steps: [{ name: "Manager Approval", approverRule: APPROVER_RULES[0], slaHours: 24, parallelGroup: "", condition: "" }] });
+    setEditingDefinition(null);
+    setNewDef({ requestType: "", steps: [emptyStep()] });
     setShowAddDef(true);
   };
 
-  const handleAddDefinition = async () => {
+  const openEditDef = (definition) => {
+    setEditingDefinition(definition);
+    setNewDef({
+      requestType: definition.requestType,
+      steps: definition.steps.map((step) => ({
+        name: step.name,
+        approverRule: step.approverRule,
+        slaHours: step.slaHours,
+        parallelGroup: step.parallelGroup || "",
+        conditionField: step.condition?.field || "",
+        conditionOperator: step.condition?.operator || ">",
+        conditionValue: step.condition?.value ?? "",
+      })),
+    });
+    setShowAddDef(true);
+  };
+
+  const handleSaveDefinition = async () => {
     if (!newDef.requestType.trim()) {
       flash("Request type is required");
       return;
     }
-    const steps = newDef.steps
-      .filter((s) => s.name.trim())
-      .map((s) => ({
+    if (newDef.steps.some((step) => step.conditionField.trim() && step.conditionValue === "")) {
+      flash("Enter a numeric threshold for every condition field");
+      return;
+    }
+    const steps = newDef.steps.filter((step) => step.name.trim()).map((s) => ({
         name: s.name.trim(),
         approverRule: s.approverRule,
         slaHours: Number(s.slaHours) || 24,
         parallelGroup: s.parallelGroup.trim() || null,
-        condition: s.condition.trim() ? JSON.parse(s.condition) : null,
+        condition: s.conditionField.trim()
+          ? { field: s.conditionField.trim(), operator: s.conditionOperator, value: Number(s.conditionValue) }
+          : null,
       }));
     if (steps.length === 0) {
       flash("At least one step is required");
       return;
     }
-    setBusy("addDef");
+    setBusy("saveDef");
     try {
-      await addDefinition({ requestType: newDef.requestType.trim(), steps });
-      flash("Definition created");
+      const payload = { requestType: newDef.requestType.trim(), steps };
+      if (editingDefinition) {
+        await reviseDefinition(editingDefinition.id, payload);
+        flash("New definition version created; in-flight requests keep the previous version");
+      } else {
+        await addDefinition(payload);
+        flash("Definition created");
+      }
       setShowAddDef(false);
+      setEditingDefinition(null);
       await refresh("def");
     } catch (err) {
       flash(err.message || "Could not create definition");
@@ -643,46 +770,64 @@ export default function WorkflowEngine() {
     setNewDef((d) => ({ ...d, steps: d.steps.map((s, i) => (i === idx ? { ...s, ...patch } : s)) }));
 
   const submitForm = () => (
-    <Modal title="Submit a workflow request" onClose={() => setShowSubmit(false)}>
+    <Modal title="Developer test — simulate a module call" onClose={() => setShowSubmit(false)}>
       <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+        <p style={{ fontSize: "12.5px", color: "var(--subtext)", lineHeight: 1.5, margin: 0 }}>
+          This is an admin test harness, not an employee request form. Real requests should be submitted from their owning module; this simulates only the minimal attributes that module sends to the engine.
+        </p>
         <div>
-          <label style={labelStyle}>Definition</label>
-          <select style={inputStyle} value={submitDef} onChange={(e) => setSubmitDef(e.target.value)}>
+          <label style={labelStyle}>Workflow to simulate</label>
+          <select style={inputStyle} value={submitDef} onChange={(e) => { setSubmitDef(e.target.value); setSubmitPreview(null); setSubmitPreviewKey(""); }}>
+            <option value="">Select active definition...</option>
             {definitions.filter((d) => d.status === "Active").map((d) => (
               <option key={d.id} value={d.id}>{d.requestType}</option>
             ))}
           </select>
         </div>
         <div>
-          <label style={labelStyle}>Requester</label>
-          <select style={inputStyle} value={submitRequester} onChange={(e) => setSubmitRequester(e.target.value)}>
-            {roster.map((r) => (
-              <option key={r.id} value={r.id}>{r.id} — {r.name}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label style={labelStyle}>Attributes (JSON — only fields the engine needs)</label>
+          <label style={labelStyle}>Module attributes (test JSON)</label>
           <textarea
             style={{ ...inputStyle, minHeight: "120px", fontFamily: "monospace", fontSize: "12.5px", resize: "vertical" }}
             value={submitAttrs}
-            onChange={(e) => setSubmitAttrs(e.target.value)}
+            onChange={(e) => { setSubmitAttrs(e.target.value); setSubmitPreview(null); setSubmitPreviewKey(""); }}
           />
           <p style={{ fontSize: "11.5px", color: "var(--subtext)", marginTop: "5px" }}>
             Data minimization: conditions evaluate only these fields (e.g. duration_days, amount). The originating module's full record is never sent to the engine.
           </p>
         </div>
+        {submitPreviewKey === currentSubmitKey && submitPreview ? (
+          <div style={{ padding: "12px", border: "1px solid var(--border)", borderRadius: "var(--radius)", background: "var(--bg)" }}>
+            <strong style={{ fontSize: "12px", color: "var(--text)" }}>Approval route for {submitPreview.requesterName}</strong>
+            <div style={{ display: "flex", flexDirection: "column", gap: "7px", marginTop: "9px" }}>
+              {submitPreview.steps.map((step, index) => (
+                <div key={`${step.name}-${index}`} style={{ display: "flex", alignItems: "flex-start", gap: "7px", fontSize: "12px", color: "var(--text)" }}>
+                  <span style={{ color: "var(--subtext)" }}>{index + 1}.</span>
+                  <span>{step.name}: <strong>{step.approverName || "Unresolved"}</strong> <span style={{ color: "var(--subtext)" }}>({step.approverRule})</span>
+                    {step.selfApprovalBlocked && <span style={{ color: "#b45309", fontWeight: 700 }}> · self-approval avoided; escalated one level</span>}
+                    {step.resolutionError && <span style={{ display: "block", color: "#b91c1c" }}>{step.resolutionError}</span>}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: "7px", fontSize: "12px", color: "var(--subtext)" }}>
+            <AlertTriangle size={14} /> Preview the resolved approvers before submitting this simulation.
+          </div>
+        )}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
           <button onClick={() => setShowSubmit(false)} style={{ ...btnGhost, background: "transparent", color: "var(--subtext)" }}>Cancel</button>
-          <button onClick={handleSubmit} disabled={busy} style={btnPrimary}><Plus size={15} /> Submit</button>
+          <button onClick={handlePreviewRequest} disabled={busy || !submitDef} style={btnGhost}>{busy === "preview" ? "Resolving..." : "Preview approval route"}</button>
+          <button onClick={handleSubmit} disabled={busy || submitPreviewKey !== currentSubmitKey} style={{ ...btnPrimary, opacity: busy || submitPreviewKey !== currentSubmitKey ? 0.55 : 1 }}><Plus size={15} /> Submit test request</button>
         </div>
       </div>
     </Modal>
   );
 
   const addDefForm = () => (
-    <Modal title="Create workflow definition" onClose={() => setShowAddDef(false)}>
+    <Modal title={editingDefinition ? "Edit workflow definition — create new version" : "Create workflow definition"} onClose={() => { setShowAddDef(false); setEditingDefinition(null); }}>
       <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+        {editingDefinition && <p style={{ fontSize: "12px", color: "var(--subtext)", lineHeight: 1.5, margin: 0 }}>Saving creates a new active version. Existing requests keep their original approval steps.</p>}
         <div>
           <label style={labelStyle}>Request type</label>
           <input style={inputStyle} value={newDef.requestType} onChange={(e) => setNewDef((d) => ({ ...d, requestType: e.target.value }))} placeholder="e.g. Travel Expense Claim" />
@@ -709,8 +854,14 @@ export default function WorkflowEngine() {
                   </div>
                 </div>
                 <div>
-                  <label style={labelStyle}>Condition (optional JSON {`{ "field": "amount", "operator": ">", "value": 2000000 }`})</label>
-                  <input style={inputStyle} value={s.condition} onChange={(e) => updateNewStep(i, { condition: e.target.value })} placeholder='{"field":"duration_days","operator":">","value":5}' />
+                  <label style={labelStyle}>Conditional routing (optional)</label>
+                  <div style={{ display: "grid", gridTemplateColumns: "1.4fr 0.7fr 1fr", gap: "8px" }}>
+                    <input style={inputStyle} value={s.conditionField} onChange={(e) => updateNewStep(i, { conditionField: e.target.value })} placeholder="Attribute, e.g. amount" />
+                    <select style={inputStyle} value={s.conditionOperator} onChange={(e) => updateNewStep(i, { conditionOperator: e.target.value })}>
+                      {[">", ">=", "<", "<="].map((operator) => <option key={operator} value={operator}>{operator}</option>)}
+                    </select>
+                    <input style={inputStyle} type="number" value={s.conditionValue} onChange={(e) => updateNewStep(i, { conditionValue: e.target.value })} placeholder="Threshold" />
+                  </div>
                 </div>
                 {newDef.steps.length > 1 && (
                   <button onClick={() => setNewDef((d) => ({ ...d, steps: d.steps.filter((_, x) => x !== i) }))} style={{ alignSelf: "flex-start", ...btnGhost, background: "#fef2f2", color: "#dc2626" }}>
@@ -721,7 +872,7 @@ export default function WorkflowEngine() {
             ))}
           </div>
           <button
-            onClick={() => setNewDef((d) => ({ ...d, steps: [...d.steps, { name: "", approverRule: APPROVER_RULES[0], slaHours: 24, parallelGroup: "", condition: "" }] }))}
+            onClick={() => setNewDef((d) => ({ ...d, steps: [...d.steps, { ...emptyStep(), name: "" }] }))}
             style={{ ...btnGhost, marginTop: "10px" }}
           >
             <Plus size={14} /> Add step
@@ -729,22 +880,23 @@ export default function WorkflowEngine() {
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
           <button onClick={() => setShowAddDef(false)} style={{ ...btnGhost, background: "transparent", color: "var(--subtext)" }}>Cancel</button>
-          <button onClick={handleAddDefinition} disabled={busy} style={btnPrimary}><Plus size={15} /> Create</button>
+          <button onClick={handleSaveDefinition} disabled={busy} style={btnPrimary}><Plus size={15} /> {editingDefinition ? "Save new version" : "Create"}</button>
         </div>
       </div>
     </Modal>
   );
 
   const assignModal = () => (
-    <Modal title={`Assign approver — ${assignFor?.requestType ?? ""}`} onClose={() => setAssignFor(null)}>
+    <Modal title={`Assign approver — ${assignFor?.step.name ?? ""}`} onClose={() => setAssignFor(null)}>
       <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
         <p style={{ fontSize: "13px", color: "var(--subtext)", lineHeight: 1.5 }}>
           The engine could not resolve an approver automatically (missing manager / department head, or a data anomaly). Pick an employee to take the unresolved step — self-approval is still blocked server-side.
         </p>
         <AssignPicker
-          key={assignFor?.id}
+          key={assignFor?.step.stepId}
           roster={roster}
-          onPick={(id, name) => handleAssign(id, name)}
+          requesterId={assignFor?.instance.requesterId}
+          onPick={(id) => handleAssign(id)}
           busy={busy}
         />
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
@@ -758,12 +910,16 @@ export default function WorkflowEngine() {
     <MainLayout>
       <div style={{ maxWidth: "1480px", margin: "0 auto" }}>
         <PageHeader title="Workflow Engine" subtitle="Generic approval engine — approvers resolve from live org data, self-approval is hard-blocked">
-          <button onClick={handleSlaCheck} disabled={busy === "sla"} style={btnGhost}>
-            <RefreshCw size={14} /> Run SLA check
-          </button>
-          <button onClick={openSubmit} disabled={busy} style={btnPrimary}>
-            <Plus size={15} /> Submit request
-          </button>
+          {canWrite && (
+            <button onClick={handleSlaCheck} disabled={busy === "sla"} style={btnGhost}>
+              <RefreshCw size={14} /> Run SLA check
+            </button>
+          )}
+          {canSubmit && (
+            <button onClick={openSubmit} disabled={busy || !user.id} style={btnPrimary}>
+              <Plus size={15} /> Developer test
+            </button>
+          )}
         </PageHeader>
 
         <div style={{ display: "flex", gap: "10px", marginBottom: "20px", flexWrap: "wrap" }}>
@@ -814,23 +970,19 @@ export default function WorkflowEngine() {
   );
 }
 
-function AssignPicker({ roster, onPick, busy }) {
+function AssignPicker({ roster, requesterId, onPick, busy }) {
   const [value, setValue] = useState("");
   return (
     <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
       <select style={inputStyle} value={value} onChange={(e) => setValue(e.target.value)}>
         <option value="">Select employee...</option>
-        {roster.map((r) => (
+        {roster.filter((r) => r.id !== requesterId && r.status === "Active").map((r) => (
           <option key={r.id} value={r.id}>{r.id} — {r.name}</option>
         ))}
       </select>
-      <button onClick={() => value && onPick(value, rosterNameOf(roster, value))} disabled={busy || !value} style={btnPrimary}>
+      <button onClick={() => value && onPick(value)} disabled={busy || !value} style={btnPrimary}>
         Assign
       </button>
     </div>
   );
-}
-
-function rosterNameOf(roster, id) {
-  return roster.find((r) => r.id === id)?.name ?? id;
 }

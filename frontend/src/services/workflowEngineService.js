@@ -31,6 +31,11 @@ export const addDefinition = async (def) => {
   return res.data;
 };
 
+export const reviseDefinition = async (id, def) => {
+  const res = await api.put(`/workflow/definitions/${id}`, def);
+  return res.data;
+};
+
 export const deactivateDefinition = async (id) => {
   const res = await api.put(`/workflow/definitions/${id}/deactivate`);
   return res.data;
@@ -53,18 +58,23 @@ export const getEventLog = async () => {
 
 // Resolves the concrete approver chain for this request server-side, applying
 // the self-approval hard block (Golden Rule #5) and any step conditions.
-export const submitRequest = async (definitionId, requesterId, attributes) => {
-  const res = await api.post("/workflow/instances", { definitionId, requesterId, attributes });
+export const submitRequest = async (definitionId, attributes) => {
+  const res = await api.post("/workflow/instances", { definitionId, attributes });
+  return res.data;
+};
+
+export const previewRequest = async (definitionId, attributes) => {
+  const res = await api.post("/workflow/instances/preview", { definitionId, attributes });
   return res.data;
 };
 
 // action is "approve" | "reject". First action on a step wins — a second
 // caller gets { error } explaining who already acted, never a silent no-op.
-export const actOnStep = async (instanceId, actingApproverId, actingApproverName, action, reason) => {
+export const actOnStep = async (instanceId, stepId, action, reason) => {
   const res = await api.post(`/workflow/instances/${instanceId}/act`, {
+    stepId,
     action,
     reason,
-    actingApproverName,
   });
   return res.data;
 };
@@ -74,7 +84,7 @@ export const runSlaCheck = async () => {
   return res.data;
 };
 
-export const manuallyAssignApprover = async (instanceId, approverId, approverName) => {
-  const res = await api.post(`/workflow/instances/${instanceId}/assign`, { approverId, approverName });
+export const manuallyAssignApprover = async (instanceId, stepId, approverId) => {
+  const res = await api.post(`/workflow/instances/${instanceId}/assign`, { stepId, approverId });
   return res.data;
 };

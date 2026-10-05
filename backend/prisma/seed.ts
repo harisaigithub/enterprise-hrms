@@ -126,7 +126,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     "assets:read", "assets:write",
 
     "expenses:read", "expenses:write", "expenses:approve", "expenses:manage",
-    "travel:read", "travel:write", "travel:approve",
+    "travel:read", "travel:write",
     "ess:read", "ess:write",
 
     "workflows:read", "workflows:write", "workflows:approve",
@@ -163,7 +163,14 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
 
     "alumni:read",
     "alumni:write",
-    "workflows:read", "workflows:approve",
+    "notifications:read",
+  ],
+  FINANCE: [
+    "dashboard:read",
+    "employees:read",
+    "expenses:read", "expenses:write", "expenses:approve", "expenses:manage",
+    "travel:read", "travel:write", "travel:approve",
+    "reports:read",
     "notifications:read",
   ],
   EMPLOYEE: [
@@ -391,7 +398,7 @@ async function main() {
 
   // Roles + Permissions
   const roles: Record<string, string> = {};
-  for (const name of ["ADMIN", "HR", "MANAGER", "EMPLOYEE"]) {
+  for (const name of ["ADMIN", "HR", "MANAGER", "FINANCE", "EMPLOYEE"]) {
     const role = await prisma.role.create({ data: { name, description: `${name} role` } });
     roles[name] = role.id;
   }

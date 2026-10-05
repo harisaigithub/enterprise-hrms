@@ -15,11 +15,13 @@ import {
 } from "../../serializers/leave.serializer";
 import { countWeekdays, startOfDay } from "../../serializers/helpers";
 import type { AccessTokenPayload } from "../../lib/jwt";
+import * as workflowService from "../workflow/workflow.service";
 
 const REQUEST_INCLUDE = {
   employee: { select: { employeeCode: true, firstName: true, lastName: true } },
   leaveType: true,
   approver: { select: { employeeCode: true, firstName: true, lastName: true } },
+  workflowInstance: { select: { id: true, status: true, currentStepIndex: true, steps: { select: { name: true, status: true, approverName: true } } } },
 } satisfies Prisma.LeaveRequestInclude;
 
 const BALANCE_INCLUDE = { leaveType: true } satisfies Prisma.LeaveBalanceInclude;
@@ -145,7 +147,7 @@ export async function applyLeave(input: ApplyLeaveInput, actor?: AccessTokenPayl
   // Inactive employee check (Req 75)
   const empRecord = await prisma.employee.findUnique({
     where: { id: employee.id },
-    select: { id: true, status: true, locationId: true },
+    select: { id: true, employeeCode: true, status: true, locationId: true },
   });
   if (empRecord?.status === "Inactive" || empRecord?.status === "Terminated") {
     throw AppError.badRequest("Inactive or terminated employees cannot apply for leave.");
@@ -216,21 +218,36 @@ export async function applyLeave(input: ApplyLeaveInput, actor?: AccessTokenPayl
     throw AppError.conflict(`Insufficient leave balance for ${leaveType.name} (${available} day(s) available, ${days} requested)`);
   }
 
-  const request = await prisma.leaveRequest.create({
-    data: {
-      employeeId: employee.id,
-      leaveTypeId: leaveType.id,
-      startDate: start,
-      endDate: end,
-      reason: input.reason ?? null,
-      status: "Pending",
+  const definition = await prisma.workflowDefinition.findFirst({
+    where: { requestType: "Leave Request", status: "Active" },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+  if (!definition) throw AppError.conflict("Leave workflow is not installed. Install it from Workflow Library first.");
 
-      documentName: input.documentName ?? null,
-      documentUrl: input.documentUrl ?? null,
-      documentMimeType: input.documentMimeType ?? null,
-      documentSize: input.documentSize ?? null,
-    },
-    include: REQUEST_INCLUDE,
+  const request = await prisma.$transaction(async (tx) => {
+    const workflow = await workflowService.submitRequest(
+      definition.id,
+      empRecord!.employeeCode,
+      { duration_days: days, leave_type: leaveType.code },
+      tx
+    );
+    return tx.leaveRequest.create({
+      data: {
+        employeeId: employee.id,
+        leaveTypeId: leaveType.id,
+        startDate: start,
+        endDate: end,
+        reason: input.reason ?? null,
+        status: "Pending",
+        workflowInstanceId: workflow.data.id,
+        documentName: input.documentName ?? null,
+        documentUrl: input.documentUrl ?? null,
+        documentMimeType: input.documentMimeType ?? null,
+        documentSize: input.documentSize ?? null,
+      },
+      include: REQUEST_INCLUDE,
+    });
   });
 
   writeAuditLog({
@@ -273,6 +290,22 @@ export async function approveLeave(requestId: string, approverEmployeeId: string
   // No self-approval (maker-checker).
   await assertLeaveDecisionScope(request, approverEmployeeId, role);
 
+  if (request.workflowInstanceId) {
+    const approver = await prisma.employee.findUnique({ where: { id: approverEmployeeId }, select: { employeeCode: true, firstName: true, lastName: true } });
+    if (!approver) throw AppError.notFound("Approver employee not found");
+    const workflow = await workflowService.actOnStep(
+      request.workflowInstanceId,
+      approver.employeeCode,
+      `${approver.firstName} ${approver.lastName}`.trim(),
+      "approve",
+      comments,
+      { bypassRoleApprover: role === "ADMIN", actorRole: role }
+    );
+    if (workflow.data.status !== "Approved") {
+      return { data: { id: request.id, status: request.status, workflowStatus: workflow.data.status, comments: comments ?? "" } };
+    }
+  }
+
   const days = countWeekdays(request.startDate, request.endDate);
   const updated = await prisma.$transaction(async (tx: any) => {
     const year = request.startDate.getUTCFullYear();
@@ -314,6 +347,19 @@ export async function rejectLeave(requestId: string, approverEmployeeId: string,
   if (request.status !== "Pending") throw AppError.conflict(`Only pending requests can be rejected (current: ${request.status})`);
 
   await assertLeaveDecisionScope(request, approverEmployeeId, role);
+
+  if (request.workflowInstanceId) {
+    const approver = await prisma.employee.findUnique({ where: { id: approverEmployeeId }, select: { employeeCode: true, firstName: true, lastName: true } });
+    if (!approver) throw AppError.notFound("Approver employee not found");
+    await workflowService.actOnStep(
+      request.workflowInstanceId,
+      approver.employeeCode,
+      `${approver.firstName} ${approver.lastName}`.trim(),
+      "reject",
+      rejectionReason,
+      { bypassRoleApprover: role === "ADMIN", actorRole: role }
+    );
+  }
 
   const updated = await prisma.leaveRequest.update({
     where: { id: request.id },

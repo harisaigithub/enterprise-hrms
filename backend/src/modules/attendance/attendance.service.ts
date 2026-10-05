@@ -538,7 +538,10 @@ export async function actOnRegularization(
   if (isHr && reg.status !== "Manager Approved") throw AppError.badRequest("HR can act only after manager approval");
 
   const workflowAction = decision.action === "APPROVE" ? "approve" : "reject";
-  await workflowService.actOnStep(reg.workflowInstanceId, actor.employeeCode, actor.name, workflowAction, decision.comment, { bypassRoleApprover: isHr });
+  await workflowService.actOnStep(reg.workflowInstanceId, actor.employeeCode, actor.name, workflowAction, decision.comment, {
+    bypassRoleApprover: actor.role === "ADMIN" && isHr,
+    actorRole: actor.role,
+  });
 
   if (decision.action === "REJECT") {
     const updated = await prisma.$transaction(async (tx) => {

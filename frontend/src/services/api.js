@@ -78,6 +78,7 @@ api.interceptors.response.use(
 
     return Promise.reject({
       status: error.response?.status || 0,
+      data: error.response?.data,
       message:
         error.response?.data?.message ||
         (isTimeout ? "Request timed out — the server is taking too long. Please try again." : null) ||

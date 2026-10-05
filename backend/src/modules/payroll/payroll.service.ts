@@ -3,6 +3,7 @@ import path from "node:path";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
 import { writeAuditLog } from "../../services/audit.service";
+import * as workflowService from "../workflow/workflow.service";
 import PDFDocument from "pdfkit";
 import minioClient, { MINIO_BUCKET } from "../../config/minio";
 import {
@@ -30,6 +31,7 @@ const RUN_INCLUDE = {
   preparedByEmployee: { select: { employeeCode: true } },
   approvedByEmployee: { select: { employeeCode: true } },
   releasedByEmployee: { select: { employeeCode: true } },
+  workflowInstance: { select: { id: true, status: true, currentStepIndex: true, steps: { select: { stepId: true, name: true, approverId: true, status: true } } } },
 };
 const SLIP_INCLUDE = {
   employee: { select: { employeeCode: true, firstName: true, lastName: true } },
@@ -174,6 +176,17 @@ export async function processPayrollRun(id: string, actorEmployeeId: string, act
 
   const valid = slipData.filter((s): s is NonNullable<typeof s> => s !== null);
 
+  const [workflowDefinition, preparer] = await Promise.all([
+    prisma.workflowDefinition.findFirst({
+      where: { requestType: "Payroll Run", status: "Active" },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    }),
+    prisma.employee.findUnique({ where: { id: actorEmployeeId }, select: { employeeCode: true } }),
+  ]);
+  if (!workflowDefinition) throw AppError.conflict("Monthly Payroll Sign-off workflow is not installed. Install it from Workflow Library first.");
+  if (!preparer) throw AppError.notFound("Payroll preparer employee not found");
+
   const updated = await prisma.$transaction(async (tx: any) => {
     await tx.payslip.deleteMany({ where: { payrollRunId: run.id } });
     
@@ -217,10 +230,18 @@ export async function processPayrollRun(id: string, actorEmployeeId: string, act
       }
     }
 
+    const workflow = await workflowService.submitRequest(
+      workflowDefinition.id,
+      preparer.employeeCode,
+      { gross_payroll: Math.round(gross), employee_count: valid.length },
+      tx
+    );
+
     return tx.payrollRun.update({
       where: { id: run.id },
       data: {
         status: "Processing",
+        workflowInstanceId: workflow.data.id,
         preparedBy: actorEmployeeId,
         preparedAt: new Date(),
         approvedBy: null,
@@ -255,7 +276,7 @@ export async function processPayrollRun(id: string, actorEmployeeId: string, act
  * Approve a processed run (four-eyes / second-person approval). Requires
  * payroll:approve permission — enforced at route level.
  */
-export async function approvePayrollRun(id: string, approverEmployeeId: string, actorUserId: string) {
+export async function approvePayrollRun(id: string, approverEmployeeId: string, actorUserId: string, approverEmployeeCode?: string, approverName?: string, approverRole = "ADMIN") {
   const parsed = parseRunPublicId(id);
   const run = await prisma.payrollRun.findUnique({
     where: { month_year: { month: parsed.month, year: parsed.year } },
@@ -266,6 +287,30 @@ export async function approvePayrollRun(id: string, approverEmployeeId: string, 
   }
   if (run.preparedBy === approverEmployeeId) {
     throw AppError.forbidden("Four-eyes control: the payroll preparer cannot approve the same run");
+  }
+
+  if (run.workflowInstanceId) {
+    if (!approverEmployeeCode) throw AppError.forbidden("Payroll approver must be linked to an employee code");
+    const workflow = await workflowService.getInstance(run.workflowInstanceId);
+    const nextGroupSteps = workflow.data.steps.filter((step) =>
+      step.status === "Pending" && step.parallelGroup === workflow.data.steps[workflow.data.currentStepIndex]?.parallelGroup
+    );
+    const step = nextGroupSteps.find((candidate) => candidate.status === "Pending");
+    if (!step) throw AppError.conflict("No payroll workflow approval is pending");
+    const result = await workflowService.actOnStep(
+      run.workflowInstanceId,
+      approverEmployeeCode,
+      approverName || approverEmployeeCode,
+      "approve",
+      undefined,
+      { bypassRoleApprover: approverRole === "ADMIN", actorRole: approverRole },
+      step.stepId
+    );
+    if (result.data.status !== "Approved") {
+      const pending = await prisma.payrollRun.findUnique({ where: { id: run.id }, include: RUN_INCLUDE });
+      if (!pending) throw AppError.notFound("Payroll run not found after workflow action");
+      return { data: { ...serializePayrollRunList([pending])[0], workflowStatus: result.data.status } };
+    }
   }
 
   const updated = await prisma.payrollRun.update({
@@ -290,12 +335,28 @@ export async function approvePayrollRun(id: string, approverEmployeeId: string, 
   return { data: serializePayrollRunList([updated])[0] };
 }
 
-export async function rejectPayrollRun(id: string, reason: string, actorEmployeeId: string, actorUserId: string) {
+export async function rejectPayrollRun(id: string, reason: string, actorEmployeeId: string, actorUserId: string, actorEmployeeCode?: string, actorName?: string, actorRole = "ADMIN") {
   const parsed = parseRunPublicId(id);
   const run = await prisma.payrollRun.findUnique({ where: { month_year: { month: parsed.month, year: parsed.year } } });
   if (!run) throw AppError.notFound("Payroll run not found");
   if (run.status !== "Processing") throw AppError.conflict(`Only Processing runs can be rejected (current: ${run.status})`);
   if (run.preparedBy === actorEmployeeId) throw AppError.forbidden("The payroll preparer cannot review their own run");
+  if (run.workflowInstanceId) {
+    if (!actorEmployeeCode) throw AppError.forbidden("Payroll reviewer must be linked to an employee code");
+    const workflow = await workflowService.getInstance(run.workflowInstanceId);
+    const currentGroup = workflow.data.steps.filter((step) => step.status === "Pending");
+    const step = currentGroup[0];
+    if (!step) throw AppError.conflict("No payroll workflow approval is pending");
+    await workflowService.actOnStep(
+      run.workflowInstanceId,
+      actorEmployeeCode,
+      actorName || actorEmployeeCode,
+      "reject",
+      reason,
+      { bypassRoleApprover: actorRole === "ADMIN", actorRole },
+      step.stepId
+    );
+  }
   const updated = await prisma.$transaction(async (tx) => {
     await tx.payslip.deleteMany({ where: { payrollRunId: run.id } });
     return tx.payrollRun.update({ where: { id: run.id }, data: { status: "Draft", rejectionReason: reason.trim(), approvedBy: null, approvedAt: null }, include: RUN_INCLUDE });

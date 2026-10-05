@@ -1,0 +1,109 @@
+{
+  "planHash": "136d91b579752adbfe0524d03c767736400b37208b6ae5fc2b4160946aad8b63",
+  "phase": "postupgrade",
+  "recordedAtUtc": "2026-10-01T10:52:03.4080928Z",
+  "retryCount": 3,
+  "resetBaseline": false,
+  "complete": true,
+  "result": {
+    "setupSucceeded": true,
+    "setupDurationMs": 0,
+    "setupFailureOutput": null,
+    "assertions": [
+      {
+        "name": "backend-typecheck",
+        "kind": "process",
+        "verificationMethod": "exit-code",
+        "passed": true,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": 0,
+        "outputSample": "\r\n\u003E hrms-backend@0.1.0 typecheck\r\n\u003E tsgo -p tsconfig.json --noEmit\r\n\r\n",
+        "durationMs": 5081
+      },
+      {
+        "name": "health-live",
+        "kind": "process",
+        "verificationMethod": "exit-code",
+        "passed": true,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": 0,
+        "outputSample": "",
+        "durationMs": 229
+      },
+      {
+        "name": "tests-pass",
+        "kind": "process",
+        "verificationMethod": "test-results",
+        "passed": true,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": 0,
+        "outputSample": "\r\n\u003E hrms-backend@0.1.0 test\r\n\u003E node --test runtime.test.mjs\r\n\r\nTAP version 13\r\n# Subtest: health liveness reports the API as up\r\nok 1 - health liveness reports the API as up\r\n  ---\r\n  duration_ms: 71.4759\r\n  type: \u0027test\u0027\r\n  ...\r\n# Subtest: employee API rejects requests without authentication\r\nok 2 - employee API rejects requests without authentication\r\n  ---\r\n  duration_ms: 14.4105\r\n  type: \u0027test\u0027\r\n  ...\r\n# Subtest: login rejects invalid input before database access\r\nok 3 - login rejects invalid input before database access\r\n  ---\r\n  duration_ms: 25.9648\r\n  type: \u0027test\u0027\r\n  ...\r\n1..3\r\n# tests 3\r\n# suites 0\r\n# pass 3\r\n# fail 0\r\n# cancelled 0\r\n# skipped 0\r\n# todo 0\r\n# duration_ms 248.9473\r\n",
+        "durationMs": 844,
+        "testResults": {
+          "testFramework": "unknown",
+          "runnerDetectedFrom": "none",
+          "testsTotal": 0,
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "testsSkipped": 0,
+          "parseFailed": true
+        }
+      }
+    ],
+    "executions": [
+      {
+        "source": "devServer",
+        "resolvedExecutable": "C:\\WINDOWS\\system32\\cmd.EXE",
+        "args": [
+          "/c",
+          "set PORT=4000\u0026\u0026npm start"
+        ],
+        "cwd": "D:\\mern\\enterprise-hrms\\backend",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      },
+      {
+        "source": "backend-typecheck",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.CMD",
+        "args": [
+          "run",
+          "typecheck"
+        ],
+        "cwd": "D:\\mern\\enterprise-hrms\\backend",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      },
+      {
+        "source": "health-live",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\node.EXE",
+        "args": [
+          "-e",
+          "fetch(\u0027http://localhost:4000/api/health/live\u0027).then(response =\u003E process.exit(response.status === 200 ? 0 : 1)).catch(() =\u003E process.exit(1))"
+        ],
+        "cwd": "D:\\mern\\enterprise-hrms\\backend",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      },
+      {
+        "source": "tests-pass",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.CMD",
+        "args": [
+          "test"
+        ],
+        "cwd": "D:\\mern\\enterprise-hrms\\backend",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      }
+    ]
+  }
+}

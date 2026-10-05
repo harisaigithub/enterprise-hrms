@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
 import { writeAuditLog } from "../../services/audit.service";
+import * as workflowService from "../workflow/workflow.service";
 import {
   serializeReviewCycle,
   serializeGoal,
@@ -267,8 +268,17 @@ export async function createGoal(
     );
   }
 
+  const definition = await prisma.workflowDefinition.findFirst({
+    where: { requestType: "Performance Goal", status: "Active" },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+  if (!definition) {
+    throw AppError.conflict("Performance Goal workflow is not installed. Install it from Workflow Library first.");
+  }
+
   const goal = await prisma.$transaction(async (tx: any) => {
-    return tx.performanceGoal.create({
+    const created = await tx.performanceGoal.create({
       data: {
         employeeId: emp.id,
         reviewCycleId: cycle.id,
@@ -283,6 +293,12 @@ export async function createGoal(
           })),
         },
       },
+      include: GOAL_INCLUDE,
+    });
+    const workflow = await workflowService.submitRequest(definition.id, emp.employeeCode, {}, tx);
+    return tx.performanceGoal.update({
+      where: { id: created.id },
+      data: { workflowInstanceId: workflow.data.id },
       include: GOAL_INCLUDE,
     });
   });
@@ -332,6 +348,23 @@ export async function updateGoal(
     throw AppError.notFound("Goal not found");
   }
 
+  const isWorkflowResubmission = existing.workflowInstanceId &&
+    existing.status === "Revision Requested" && input.status === "Pending Approval";
+  if (existing.workflowInstanceId && !isWorkflowResubmission) {
+    throw AppError.conflict("This goal is controlled by its workflow. Edit and resubmit only after a revision is requested.");
+  }
+
+  const resubmissionDefinition = isWorkflowResubmission
+    ? await prisma.workflowDefinition.findFirst({
+        where: { requestType: "Performance Goal", status: "Active" },
+        orderBy: { createdAt: "desc" },
+        select: { id: true },
+      })
+    : null;
+  if (isWorkflowResubmission && !resubmissionDefinition) {
+    throw AppError.conflict("Performance Goal workflow is not installed. Install it from Workflow Library first.");
+  }
+
   const updated = await prisma.$transaction(async (tx: any) => {
     if (input.keyResults) {
       for (const kr of input.keyResults) {
@@ -377,11 +410,23 @@ export async function updateGoal(
       data.status = input.status;
     }
 
-    return tx.performanceGoal.update({
+    const revisedGoal = await tx.performanceGoal.update({
       where: {
         id: goalId,
       },
       data,
+      include: GOAL_INCLUDE,
+    });
+    if (!resubmissionDefinition) return revisedGoal;
+    const workflow = await workflowService.submitRequest(
+      resubmissionDefinition.id,
+      existing.employee.employeeCode,
+      {},
+      tx
+    );
+    return tx.performanceGoal.update({
+      where: { id: goalId },
+      data: { workflowInstanceId: workflow.data.id },
       include: GOAL_INCLUDE,
     });
   });
@@ -506,8 +551,17 @@ export async function approveGoal(
     );
   }
 
-  const updated =
-    await prisma.performanceGoal.update({
+  let updated;
+  if (goal.workflowInstanceId) {
+    await workflowService.actOnStep(
+      goal.workflowInstanceId,
+      manager.employeeCode,
+      manager.firstName && manager.lastName ? `${manager.firstName} ${manager.lastName}` : manager.employeeCode,
+      "approve"
+    );
+    updated = await prisma.performanceGoal.findUnique({ where: { id: goalId }, include: GOAL_INCLUDE });
+  } else {
+    updated = await prisma.performanceGoal.update({
       where: {
         id: goalId,
       },
@@ -516,6 +570,7 @@ export async function approveGoal(
       },
       include: GOAL_INCLUDE,
     });
+  }
 
   await writeAuditLog({
     actorUserId,
@@ -588,8 +643,17 @@ export async function rejectGoal(
     );
   }
 
-  const updated =
-    await prisma.performanceGoal.update({
+  let updated;
+  if (goal.workflowInstanceId) {
+    await workflowService.actOnStep(
+      goal.workflowInstanceId,
+      manager.employeeCode,
+      manager.firstName && manager.lastName ? `${manager.firstName} ${manager.lastName}` : manager.employeeCode,
+      "reject"
+    );
+    updated = await prisma.performanceGoal.findUnique({ where: { id: goalId }, include: GOAL_INCLUDE });
+  } else {
+    updated = await prisma.performanceGoal.update({
       where: {
         id: goalId,
       },
@@ -598,6 +662,7 @@ export async function rejectGoal(
       },
       include: GOAL_INCLUDE,
     });
+  }
 
   await writeAuditLog({
     actorUserId,
@@ -1536,7 +1601,7 @@ export async function getCalibrationCandidates() {
   });
 
   const employeeIds = managerReviews.map((review) => review.employeeId);
-  const [selfReviews, released] = await Promise.all([
+  const [selfReviews, released, pendingProposals] = await Promise.all([
     prisma.performanceReview.findMany({
       where: {
         reviewCycleId: cycle.id,
@@ -1554,9 +1619,18 @@ export async function getCalibrationCandidates() {
       },
       select: { employeeId: true },
     }),
+    prisma.performanceRatingProposal.findMany({
+      where: {
+        reviewCycleId: cycle.id,
+        status: "Pending Approval",
+        employeeId: { in: employeeIds },
+      },
+      select: { employeeId: true },
+    }),
   ]);
 
   const releasedEmployeeIds = new Set(released.map((item) => item.employeeId));
+  const pendingEmployeeIds = new Set(pendingProposals.map((item) => item.employeeId));
   const average = (items: Array<{ rating: number }>) =>
     items.length
       ? Number((items.reduce((sum, item) => sum + item.rating, 0) / items.length).toFixed(2))
@@ -1566,7 +1640,7 @@ export async function getCalibrationCandidates() {
     data: {
       cycle: { id: cycle.id, name: cycle.name, phase: cycle.phase },
       candidates: managerReviews
-        .filter((review) => !releasedEmployeeIds.has(review.employeeId))
+        .filter((review) => !releasedEmployeeIds.has(review.employeeId) && !pendingEmployeeIds.has(review.employeeId))
         .map((review) => {
           const selfReview = selfReviews.find(
             (item) => item.employeeId === review.employeeId
@@ -1593,7 +1667,8 @@ export interface ReleaseRatingInput {
 
 export async function releaseCalibratedRating(
   input: ReleaseRatingInput,
-  actorUserId?: string
+  actorUserId?: string,
+  actorEmployeeCode?: string
 ) {
   const cycle = await prisma.performanceReviewCycle.findFirst({
     where: { isActive: true },
@@ -1604,9 +1679,14 @@ export async function releaseCalibratedRating(
   if (cycle.phase !== "Calibration") {
     throw AppError.conflict("Ratings can only be released during the Calibration phase");
   }
+  if (!actorEmployeeCode) throw AppError.forbidden("Calibrating user must be linked to an employee record");
+  const incrementPercent = Number(input.increment.trim().replace(/%$/, ""));
+  if (!Number.isFinite(incrementPercent) || incrementPercent < 0) {
+    throw AppError.badRequest("Increment must be a non-negative percentage, for example 8% or 0%");
+  }
 
   const employee = await resolveEmployee(input.employeeId);
-  const [managerReview, selfReview, existing] = await Promise.all([
+  const [managerReview, selfReview, existing, pendingProposal, definition] = await Promise.all([
     prisma.performanceReview.findFirst({
       where: {
         employeeId: employee.id,
@@ -1632,6 +1712,15 @@ export async function releaseCalibratedRating(
         cycleName: cycle.name,
       },
     }),
+    prisma.performanceRatingProposal.findFirst({
+      where: { employeeId: employee.id, reviewCycleId: cycle.id, status: "Pending Approval" },
+      select: { id: true },
+    }),
+    prisma.workflowDefinition.findFirst({
+      where: { requestType: "Performance Rating Release", status: "Active" },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    }),
   ]);
 
   if (!managerReview) {
@@ -1641,6 +1730,8 @@ export async function releaseCalibratedRating(
     throw AppError.badRequest("Manager review does not contain any rated goals");
   }
   if (existing) throw AppError.conflict("This employee's rating has already been released");
+  if (pendingProposal) throw AppError.conflict("A compensation recommendation is already awaiting workflow approval");
+  if (!definition) throw AppError.conflict("Performance Rating Release workflow is not installed. Install it from Workflow Library first.");
 
   const roundedAverage = (items: Array<{ rating: number }>) =>
     Math.max(1, Math.min(5, Math.round(items.reduce((sum, item) => sum + item.rating, 0) / items.length)));
@@ -1649,27 +1740,38 @@ export async function releaseCalibratedRating(
     ? roundedAverage(selfReview.items)
     : managerRating;
 
-  const rating = await prisma.performanceRatingHistory.create({
-    data: {
-      employeeId: employee.id,
-      reviewCycleId: cycle.id,
-      cycleName: cycle.name,
-      selfRating,
-      originalManagerRating: managerRating,
-      finalRating: input.finalRating,
-      calibrationAdjusted: input.finalRating !== managerRating,
-      increment: input.increment.trim(),
-      promotion: input.promotion,
-      appraisalLetterUrl: input.appraisalLetterUrl?.trim() || null,
-      releasedOn: new Date(),
-    },
+  const proposal = await prisma.$transaction(async (tx) => {
+    const workflow = await workflowService.submitRequest(
+      definition.id,
+      actorEmployeeCode,
+      {
+        final_rating: input.finalRating,
+        increment_percent: incrementPercent,
+        promotion: input.promotion,
+      },
+      tx
+    );
+    return tx.performanceRatingProposal.create({
+      data: {
+        workflowInstanceId: workflow.data.id,
+        employeeId: employee.id,
+        reviewCycleId: cycle.id,
+        cycleName: cycle.name,
+        selfRating,
+        originalManagerRating: managerRating,
+        finalRating: input.finalRating,
+        increment: input.increment.trim(),
+        promotion: input.promotion,
+        appraisalLetterUrl: input.appraisalLetterUrl?.trim() || null,
+      },
+    });
   });
 
   await writeAuditLog({
     actorUserId,
     action: "CREATE",
-    entityType: "PerformanceRatingHistory",
-    entityId: rating.id,
+    entityType: "PerformanceRatingProposal",
+    entityId: proposal.id,
     newValue: {
       employeeCode: employee.employeeCode,
       cycle: cycle.name,
@@ -1680,7 +1782,15 @@ export async function releaseCalibratedRating(
     },
   });
 
-  return { data: serializeRatingHistoryList([rating])[0] };
+  return {
+    data: {
+      id: proposal.id,
+      employeeId: employee.employeeCode,
+      cycle: cycle.name,
+      status: proposal.status,
+      workflowInstanceId: proposal.workflowInstanceId,
+    },
+  };
 }
 
 /* -------------------------------------------------------------------------- */

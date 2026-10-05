@@ -4,7 +4,7 @@
  *        <StatusBadge {...attendanceStatusMeta["Present"]} />
  */
 
-export default function StatusBadge({ label, color, bg, size = "sm" }) {
+export default function StatusBadge({ label, color, bg, size = "sm", wrap = false, style = {} }) {
   const fontSize = size === "xs" ? "10px" : "11.5px";
   const padding  = size === "xs" ? "2px 6px" : "3px 10px";
 
@@ -20,8 +20,11 @@ export default function StatusBadge({ label, color, bg, size = "sm" }) {
         background: bg,
         padding,
         borderRadius: "99px",
-        whiteSpace: "nowrap",
+        whiteSpace: wrap ? "normal" : "nowrap",
+        textAlign: wrap ? "center" : undefined,
+        flexShrink: wrap ? 1 : 0,
         lineHeight: 1.5,
+        ...style,
       }}
     >
       <span

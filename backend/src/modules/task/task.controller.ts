@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
 import { writeAuditLog } from "../../services/audit.service";
@@ -14,7 +15,7 @@ export async function getProjects(
 ) {
     try {
         const result =
-            await taskService.listProjects();
+            await taskService.listProjects(req.auth);
 
         res.status(200).json(result);
     } catch (error) {
@@ -31,7 +32,12 @@ export async function createProject(
         const result =
             await taskService.createProject({
                 name: req.body.name,
+                description: req.body.description,
                 memberIds: req.body.memberIds,
+                projectLeadId: req.body.projectLeadId,
+                startDate: req.body.startDate,
+                targetEndDate: req.body.targetEndDate,
+                milestones: req.body.milestones,
             });
 
         res.status(201).json(result);
@@ -115,6 +121,12 @@ export async function createTask(
                 dueDate:
                     req.body.dueDate,
 
+                comments:
+                    req.body.comments,
+
+                subtasks:
+                    req.body.subtasks,
+
                 blockerTaskIds:
                     req.body.blockerTaskIds ??
                     [],
@@ -133,87 +145,106 @@ export async function createTask(
 export const updateTask = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
-    // Auth context (supporting both req.auth and req.user conventions)
-    const user = (req as any).auth || (req as any).user;
-
-    if (!user) {
+        const actor = req.auth;
+        if (!actor) {
       throw AppError.unauthorized("Unauthorized");
     }
 
-    // 1. Fetch the existing task to verify existence and capture old values
     const existingTask = await prisma.task.findUnique({
-      where: { id },
+            where: { id: String(id) },
     });
-
     if (!existingTask) {
       throw AppError.notFound("Task not found");
     }
 
-    // 2. Determine permissions
-    const permissions: string[] = user.permissions || [];
-    const hasGlobalWritePermission =
-      permissions.includes("tasks:write") ||
-      user.role === "ADMIN" ||
-      user.role === "HR" ||
-      user.role === "MANAGER";
+        if (actor.role === "EMPLOYEE" && (!actor.employeeId || existingTask.assigneeId !== actor.employeeId)) {
+            throw AppError.forbidden("Employees can update only their assigned tasks");
+        }
 
-    const employeeId = user.employeeId || user.id;
+        if (actor.role === "EMPLOYEE") {
+            throw AppError.forbidden("Employees can change task status only through the status endpoint");
+        }
 
-    const isAssignedEmployee = existingTask.assigneeId && existingTask.assigneeId === employeeId;
-    if (!hasGlobalWritePermission && !isAssignedEmployee) {
+        const canWrite = actor.permissions.includes("tasks:write") ||
+            ["ADMIN", "HR", "MANAGER"].includes(actor.role);
+        if (!canWrite) {
       throw AppError.forbidden("Forbidden: You do not have permission to update this task");
     }
 
-const { title, description, status, priority, dueDate, assigneeId, assignedTo } = req.body;
-const targetAssigneeId = assigneeId || assignedTo;
-    // 3. Restrict field updates if the user is only the assigned employee
-    let updateData: any = {};
-  if (hasGlobalWritePermission) {
-    updateData = {
-      ...(title !== undefined && { title }),
-      ...(description !== undefined && { description }),
-      ...(status !== undefined && { status }),
-      ...(priority !== undefined && { priority }),
-      ...(dueDate !== undefined && { dueDate: dueDate ? new Date(dueDate) : null }),
-      ...(targetAssigneeId !== undefined && { assigneeId: targetAssigneeId }),
-    };
-  } else if (isAssignedEmployee) {
-    if (status === undefined) {
-      throw AppError.forbidden("Forbidden: Assigned employees can only update task status");
-    }
-    updateData = { status };
-  }
+        const { blockerTaskIds } = req.body;
+        if ("status" in req.body) {
+            throw AppError.badRequest("Use the status endpoint to change task status");
+        }
+        if ("assigneeId" in req.body || "assignedTo" in req.body) {
+            throw AppError.badRequest("Use the reassign endpoint to change the task assignee");
+        }
 
-    // 4. Update task
-    const updatedTask = await prisma.task.update({
-      where: { id },
-      data: updateData,
-    });
+        const updateInput = Object.fromEntries(
+            ["title", "priority", "dueDate", "comments", "subtasks"]
+                .filter((key) => key in req.body)
+                .map((key) => [key, req.body[key]])
+        );
+        const hasBlockerUpdate = blockerTaskIds !== undefined;
+        if (Object.keys(updateInput).length === 0 && !hasBlockerUpdate) {
+            throw AppError.badRequest("No supported task fields were provided");
+        }
+        const updateData = Object.keys(updateInput).length > 0
+            ? taskService.normalizeTaskUpdateInput(updateInput)
+            : {};
 
-    // 5. Audit Log
-    try {
-      await (writeAuditLog as any)({
-        action: "UPDATE",
-        entityType: "Task",
-        entityId: updatedTask.id,
-        actorUserId: user.userId || user.id,
-        oldValue: existingTask,
-        newValue: updatedTask,
-      });
-    } catch (auditErr) {
-      // Non-blocking audit error
-      console.warn("[Audit] Failed to log task update:", auditErr);
-    }
+        if (blockerTaskIds !== undefined) {
+            await taskService.replaceTaskDependencies(String(id), blockerTaskIds, actor);
+        }
+
+        if (Object.keys(updateData).length > 0) {
+            await prisma.task.update({
+                where: { id: String(id) },
+                data: updateData,
+            });
+        }
+        const updatedTask = await prisma.task.findUniqueOrThrow({
+            where: { id: String(id) },
+            include: taskService.TASK_INCLUDE,
+        });
+
+        await writeAuditLog({
+            action: "UPDATE",
+            entityType: "Task",
+            entityId: updatedTask.id,
+            actorUserId: actor.sub,
+            oldValue: existingTask,
+            newValue: updatedTask,
+        });
 
     return res.status(200).json({
       success: true,
       message: "Task updated successfully",
-      data: updatedTask,
+      data: taskService.serializeTask(updatedTask),
     });
   } catch (error) {
     next(error);
   }
 };
+
+export async function updateTaskStatus(req: Request, res: Response, next: NextFunction) {
+    try {
+        if (!req.auth) throw AppError.unauthorized("Unauthorized");
+        const result = await taskService.updateTaskStatus(
+            String(req.params.id),
+            req.body.status,
+            { force: req.body.force, reason: req.body.reason },
+            req.auth
+        );
+        if (result.data.error === "blocked") {
+            res.status(400).json(result.data);
+            return;
+        }
+        res.status(200).json(result);
+    } catch (error) {
+        next(error);
+    }
+}
+
 export const deleteTask = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;

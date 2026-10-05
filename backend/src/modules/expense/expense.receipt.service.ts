@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from "uuid";
 
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
-import minioClient, { MINIO_BUCKET, ensureMinioBucket } from "../../config/minio";
+import minioClient, { MINIO_BUCKET, ensureMinioBucket, publicMinioClient } from "../../config/minio";
 
 
 const RECEIPT_FOLDER = "expense-receipts";
@@ -334,17 +334,17 @@ export async function generateUploadUrl(
     input.mimeType
   );
 
-  // MinIO presigned URL with Graceful Local Fallback
-  let uploadUrl = "";
+  // Prefer a presigned MinIO URL, but keep receipt uploads available when MinIO is offline.
+  let uploadUrl: string;
   let useLocalFallback = false;
   try {
     await ensureMinioBucket();
-    uploadUrl = await minioClient.presignedPutObject(
+    uploadUrl = await publicMinioClient.presignedPutObject(
       MINIO_BUCKET,
       objectName,
       SIGNED_URL_EXPIRY_SECONDS
     );
-  } catch (minioErr) {
+  } catch {
     console.warn(
       "[ExpenseReceipt] MinIO offline or unreachable. Using local upload fallback."
     );

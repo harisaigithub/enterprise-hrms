@@ -331,7 +331,7 @@ export async function actOnClaim(
     `${actor.firstName} ${actor.lastName}`.trim(),
     action,
     comments,
-    { bypassRoleApprover: actor.permissions?.includes("workflows:write") ?? false }
+    { bypassRoleApprover: actor.role === "ADMIN" && (actor.permissions?.includes("workflows:write") ?? false), actorRole: actor.role }
   );
 
   const workflowStatus = result.data.status;
@@ -936,9 +936,8 @@ export async function deleteDraftClaim(claimId: string, actor: AccessTokenPayloa
   // Delete receipts from MinIO
   for (const receipt of claim.receipts ?? []) {
     try {
-      const minioClient = (await import("../../config/minio")).default;
-      const { MINIO_BUCKET } = await import("../../config/minio");
-      await minioClient.removeObject(MINIO_BUCKET, receipt.minioObjectName);
+      const { deleteMinioObject } = await import("../../config/minio.js");
+      await deleteMinioObject(receipt.minioObjectName);
     } catch {
       // Ignore MinIO errors
     }

@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
 import type { AccessTokenPayload } from "../../lib/jwt";
+import { writeAuditLog } from "../../services/audit.service";
 
 /* =========================================================
    TASK CONSTANTS
@@ -27,7 +28,12 @@ export const TASK_PRIORITIES = [
 
 export interface CreateProjectInput {
     name: string;
+    description?: string | null;
     memberIds?: string[];
+    projectLeadId?: string | null;
+    startDate?: string | null;
+    targetEndDate?: string | null;
+    milestones?: Array<{ title: string; dueDate: string }>;
 }
 
 export interface CreateMilestoneInput {
@@ -42,6 +48,8 @@ export interface CreateTaskInput {
     assigneeId: string;
     priority?: string;
     dueDate: string;
+    comments?: string | null;
+    subtasks?: string[] | string | null;
     blockerTaskIds?: string[];
 }
 
@@ -70,6 +78,9 @@ const EMPLOYEE_SELECT = {
 } satisfies Prisma.EmployeeSelect;
 
 const PROJECT_INCLUDE = {
+    projectLead: {
+        select: EMPLOYEE_SELECT,
+    },
     members: {
         include: {
             employee: {
@@ -84,11 +95,12 @@ const PROJECT_INCLUDE = {
     },
 } satisfies Prisma.TaskProjectInclude;
 
-const TASK_INCLUDE = {
+export const TASK_INCLUDE = {
     project: {
         select: {
             id: true,
             name: true,
+            projectLeadId: true,
         },
     },
 
@@ -121,16 +133,39 @@ const TASK_INCLUDE = {
    PROJECTS
    ========================================================= */
 
-export async function listProjects() {
+export async function listProjects(actor?: AccessTokenPayload) {
+    const role = actor?.role?.toUpperCase();
+    if (!actor) throw AppError.unauthorized("Authentication required");
+    if (role === "EMPLOYEE" && !actor.employeeId) {
+        throw AppError.forbidden("Account is not linked to an employee record");
+    }
     const projects = await prisma.taskProject.findMany({
+        where: role === "EMPLOYEE"
+            ? { members: { some: { employeeId: actor.employeeId! } } }
+            : undefined,
         include: PROJECT_INCLUDE,
         orderBy: {
             createdAt: "desc",
         },
     });
+    const projectIds = projects.map((project) => project.id);
+    const taskGroups = projectIds.length
+        ? await prisma.task.groupBy({
+            by: ["projectId", "status"],
+            where: { projectId: { in: projectIds } },
+            _count: { _all: true },
+        })
+        : [];
+    const stats = new Map<string, { taskCount: number; doneTaskCount: number }>();
+    for (const group of taskGroups) {
+        const projectStats = stats.get(group.projectId) ?? { taskCount: 0, doneTaskCount: 0 };
+        projectStats.taskCount += group._count._all;
+        if (group.status === "Done") projectStats.doneTaskCount += group._count._all;
+        stats.set(group.projectId, projectStats);
+    }
 
     return {
-        data: projects.map(serializeProject),
+        data: projects.map((project) => serializeProject(project, stats.get(project.id))),
     };
 }
 
@@ -145,47 +180,76 @@ export async function createProject(
         );
     }
 
+    const description = input.description?.trim() || null;
     const memberIds = [
         ...new Set(input.memberIds ?? []),
     ];
 
-    if (memberIds.length > 0) {
-        const employees =
-            await prisma.employee.findMany({
-                where: {
-                    id: {
-                        in: memberIds,
-                    },
-                    status: "Active",
-                },
-                select: {
-                    id: true,
-                },
-            });
-
-        if (employees.length !== memberIds.length) {
-            throw AppError.badRequest(
-                "One or more project members are invalid or inactive"
-            );
-        }
+    if (memberIds.length === 0) {
+        throw AppError.badRequest(
+            "A project must include at least one team member"
+        );
     }
 
-    const project =
-        await prisma.taskProject.create({
-            data: {
-                name,
+    if (input.projectLeadId && !memberIds.includes(input.projectLeadId)) {
+        throw AppError.badRequest(
+            "Project lead must be part of the selected team"
+        );
+    }
 
-                members: {
-                    create: memberIds.map(
-                        (employeeId) => ({
-                            employeeId,
-                        })
-                    ),
+    const projectLeadId = input.projectLeadId || memberIds[0];
+
+    const employees =
+        await prisma.employee.findMany({
+            where: {
+                id: {
+                    in: memberIds,
                 },
+                status: "Active",
             },
-
-            include: PROJECT_INCLUDE,
+            select: {
+                id: true,
+            },
         });
+
+    if (employees.length !== memberIds.length) {
+        throw AppError.badRequest(
+            "One or more project members are invalid or inactive"
+        );
+    }
+
+    const startDate = input.startDate ? parseDate(input.startDate, "Project start date") : null;
+    const targetEndDate = input.targetEndDate ? parseDate(input.targetEndDate, "Project target end date") : null;
+
+    if (startDate && targetEndDate && targetEndDate < startDate) {
+        throw AppError.badRequest(
+            "Project target end date cannot be before the start date"
+        );
+    }
+
+    const project = await prisma.taskProject.create({
+        data: {
+            name,
+            description,
+            projectLeadId,
+            startDate: startDate ?? undefined,
+            targetEndDate: targetEndDate ?? undefined,
+            members: {
+                create: memberIds.map(
+                    (employeeId) => ({
+                        employeeId,
+                    })
+                ),
+            },
+            milestones: {
+                create: (input.milestones ?? []).map((milestone) => ({
+                    title: milestone.title?.trim(),
+                    dueDate: parseDate(milestone.dueDate, "Milestone due date"),
+                })).filter((milestone) => Boolean(milestone.title)),
+            },
+        },
+        include: PROJECT_INCLUDE,
+    });
 
     return {
         data: serializeProject(project),
@@ -245,10 +309,14 @@ export async function createMilestone(
    ========================================================= */
 
 export async function listTasks(actor?: AccessTokenPayload) {
-    if (!actor?.employeeId) throw AppError.forbidden("Account is not linked to an employee record");
-    const where: Prisma.TaskWhereInput = actor.role === "EMPLOYEE"
-        ? { assigneeId: actor.employeeId }
-        : actor.role === "MANAGER"
+    if (!actor) throw AppError.unauthorized("Authentication required");
+    const role = actor.role?.toUpperCase();
+    if ((role === "EMPLOYEE" || role === "MANAGER") && !actor.employeeId) {
+        throw AppError.forbidden("Account is not linked to an employee record");
+    }
+    const where: Prisma.TaskWhereInput = role === "EMPLOYEE"
+        ? { assigneeId: actor.employeeId, project: { members: { some: { employeeId: actor.employeeId! } } } }
+        : role === "MANAGER"
             ? { OR: [{ assigneeId: actor.employeeId }, { assignee: { reportingManagerId: actor.employeeId } }] }
             : {};
     const tasks =
@@ -351,6 +419,10 @@ export async function createTask(
         }
     }
 
+    const comments = input.comments?.trim() || null;
+
+    const subtasks = normalizeSubtasksInput(input.subtasks);
+
     const blockerTaskIds = [
         ...new Set(
             input.blockerTaskIds ?? []
@@ -381,16 +453,8 @@ export async function createTask(
             );
         }
 
-        const hasSelfDependency =
-            blockerTaskIds.includes(
-                // temporary value; actual task doesn't exist yet
-                ""
-            );
-
-        if (hasSelfDependency) {
-            throw AppError.badRequest(
-                "A task cannot block itself"
-            );
+        if (blockers.some((blocker) => blocker.projectId !== input.projectId)) {
+            throw AppError.badRequest("Blocker tasks must belong to the same project");
         }
     }
 
@@ -424,6 +488,8 @@ export async function createTask(
                                 "Medium",
 
                             dueDate,
+                            comments,
+                            subtasks: JSON.stringify(subtasks),
 
                             dependencies:
                                 blockerTaskIds.length >
@@ -464,6 +530,139 @@ export async function createTask(
    UPDATE TASK STATUS
    ========================================================= */
 
+export function getTaskDoneBlockers(task: any) {
+    const openBlockers = (task.dependencies ?? [])
+        .filter((dependency: any) => dependency?.blocker && dependency.blocker.status !== "Done")
+        .map((dependency: any) => ({
+            id: dependency.blocker.id,
+            title: dependency.blocker.title,
+            status: dependency.blocker.status,
+        }));
+
+    const openSubtasks = parseStoredSubtasks(task.subtasks)
+        .filter((subtask) => !subtask.done)
+        .map((subtask) => subtask.title);
+
+    return {
+        openBlockers,
+        openSubtasks,
+    };
+}
+
+export function assertActiveTaskAssignee(status: string | null | undefined) {
+    if (status !== "Active") {
+        throw AppError.conflict("Reassign this task to an active employee before changing its status.");
+    }
+}
+
+export function assertTaskReopenAllowed(
+    task: { project?: { projectLeadId?: string | null } },
+    actor: AccessTokenPayload | undefined
+) {
+    if (
+        actor?.role?.toUpperCase() !== "ADMIN" &&
+        (!actor?.employeeId || task.project?.projectLeadId !== actor.employeeId)
+    ) {
+        throw AppError.forbidden("Only the Project Lead or an Admin can reopen a completed task.");
+    }
+}
+
+export function assertNoTaskDependencyCycle(
+    taskId: string,
+    blockerIds: string[],
+    dependencies: Array<{ taskId: string; blockerId: string }>
+) {
+    const graph = new Map<string, string[]>();
+    for (const dependency of dependencies) {
+        const blockers = graph.get(dependency.taskId) ?? [];
+        blockers.push(dependency.blockerId);
+        graph.set(dependency.taskId, blockers);
+    }
+    graph.set(taskId, blockerIds);
+
+    const reachesTask = (currentId: string, visited: Set<string>): boolean => {
+        if (currentId === taskId) return true;
+        if (visited.has(currentId)) return false;
+        visited.add(currentId);
+        return (graph.get(currentId) ?? []).some((blockerId) => reachesTask(blockerId, visited));
+    };
+
+    if (blockerIds.some((blockerId) => reachesTask(blockerId, new Set()))) {
+        throw AppError.badRequest("Task dependencies cannot contain a cycle.");
+    }
+}
+
+export async function replaceTaskDependencies(
+    taskId: string,
+    rawBlockerIds: unknown,
+    actor: AccessTokenPayload
+) {
+    if (!Array.isArray(rawBlockerIds) || rawBlockerIds.some((id) => typeof id !== "string")) {
+        throw AppError.badRequest("Blocker task IDs must be an array of task IDs.");
+    }
+    const blockerIds = [...new Set(rawBlockerIds as string[])];
+    const task = await prisma.task.findUnique({
+        where: { id: taskId },
+        select: { id: true, projectId: true },
+    });
+    if (!task) throw AppError.notFound("Task not found");
+
+    const blockers = blockerIds.length
+        ? await prisma.task.findMany({
+            where: { id: { in: blockerIds } },
+            select: { id: true, projectId: true },
+        })
+        : [];
+    if (blockers.length !== blockerIds.length || blockers.some((blocker) => blocker.projectId !== task.projectId)) {
+        throw AppError.badRequest("Blocker tasks must exist in the same project.");
+    }
+
+    const dependencies = await prisma.taskDependency.findMany({
+        where: { task: { projectId: task.projectId } },
+        select: { taskId: true, blockerId: true },
+    });
+    assertNoTaskDependencyCycle(taskId, blockerIds, dependencies);
+
+    await prisma.$transaction(async (tx) => {
+        await tx.taskDependency.deleteMany({ where: { taskId } });
+        if (blockerIds.length) {
+            await tx.taskDependency.createMany({
+                data: blockerIds.map((blockerId) => ({ taskId, blockerId })),
+            });
+        }
+        await tx.taskHistory.create({
+            data: {
+                taskId,
+                action: "DEPENDENCIES_CHANGED",
+                detail: blockerIds.length
+                    ? `Blockers updated: ${blockerIds.join(", ")}`
+                    : "Blockers cleared",
+                actorId: actor.employeeId ?? null,
+                actorName: actor.name ?? ([actor.firstName, actor.lastName].filter(Boolean).join(" ") || null),
+            },
+        });
+    });
+}
+
+export function assertForceCloseAllowed(
+    task: { project?: { projectLeadId?: string | null } },
+    actor: AccessTokenPayload | undefined,
+    openBlockers: unknown[],
+    openSubtasks: unknown[],
+    reason?: string
+) {
+    if (openSubtasks.length > 0) {
+        throw AppError.badRequest("Open checklist items must be completed before closing a task.");
+    }
+    if (openBlockers.length === 0) return;
+    if (!actor?.employeeId || task.project?.projectLeadId !== actor.employeeId) {
+        throw AppError.forbidden("Only the Project Lead can force-close a task with open blockers.");
+    }
+    if (!reason?.trim()) {
+        throw AppError.badRequest("Force-close reason is required");
+    }
+}
+
 export async function updateTaskStatus(
     taskId: string,
     newStatus: string,
@@ -479,6 +678,16 @@ export async function updateTaskStatus(
             },
 
             include: {
+                assignee: {
+                    select: {
+                        status: true,
+                    },
+                },
+                project: {
+                    select: {
+                        projectLeadId: true,
+                    },
+                },
                 dependencies: {
                     include: {
                         blocker: {
@@ -499,54 +708,52 @@ export async function updateTaskStatus(
         );
     }
 
-    if (actor?.role === "EMPLOYEE" && task.assigneeId !== actor.employeeId) {
+    assertActiveTaskAssignee(task.assignee?.status);
+
+    const actorRole = actor?.role?.toUpperCase();
+    if (actorRole === "EMPLOYEE" && task.assigneeId !== actor?.employeeId) {
         throw AppError.forbidden("Employees can update only their assigned tasks");
     }
+    if (task.status === "Done" && newStatus !== "Done") {
+        assertTaskReopenAllowed(task, actor);
+    }
 
-    const openBlockers =
-        task.dependencies
-            .filter(
-                (dependency) =>
-                    dependency.blocker.status !==
-                    "Done"
-            )
-            .map((dependency) => ({
-                id: dependency.blocker.id,
-                title: dependency.blocker.title,
-                status: dependency.blocker.status,
-            }));
+    const { openBlockers, openSubtasks } = getTaskDoneBlockers(task);
+
+    if (
+        openBlockers.length > 0 &&
+        newStatus !== "Todo" &&
+        !(newStatus === "Done" && options.force)
+    ) {
+        return {
+            data: {
+                error: "blocked",
+                openBlockers,
+                openSubtasks,
+            },
+        };
+    }
 
     /*
      * Normal Done:
-     * blockers must be completed.
+     * blockers and open subtasks must be completed.
      */
     if (
         newStatus === "Done" &&
-        openBlockers.length > 0 &&
+        (openBlockers.length > 0 || openSubtasks.length > 0) &&
         !options.force
     ) {
         return {
             data: {
                 error: "blocked",
                 openBlockers,
+                openSubtasks,
             },
         };
     }
 
-    /*
-     * Force close:
-     * reason is mandatory.
-     */
-    if (
-        newStatus === "Done" &&
-        openBlockers.length > 0 &&
-        options.force
-    ) {
-        if (!options.reason?.trim()) {
-            throw AppError.badRequest(
-                "Force-close reason is required"
-            );
-        }
+    if (newStatus === "Done" && options.force) {
+        assertForceCloseAllowed(task, actor, openBlockers, openSubtasks, options.reason);
     }
 
     const updated =
@@ -604,12 +811,31 @@ export async function updateTaskStatus(
                                 : "STATUS_CHANGED",
 
                         detail,
+                        actorId: actor?.employeeId ?? null,
+                        actorName: actor?.name ?? ([actor?.firstName, actor?.lastName].filter(Boolean).join(" ") || null),
                     },
                 });
 
                 return updatedTask;
             }
         );
+
+    await writeAuditLog({
+        actorUserId: actor?.sub,
+        action: "UPDATE",
+        entityType: "Task",
+        entityId: updated.id,
+        oldValue: {
+            status: task.status,
+            forceClosed: task.forceClosed,
+            forceCloseReason: task.forceCloseReason,
+        },
+        newValue: {
+            status: updated.status,
+            forceClosed: updated.forceClosed,
+            forceCloseReason: updated.forceCloseReason,
+        },
+    });
 
     return {
         data: {
@@ -1168,13 +1394,64 @@ export async function getTaskMeta(
    SERIALIZERS
    ========================================================= */
 
+export function normalizeTaskUpdateInput(input: Record<string, any>) {
+    const update: Record<string, unknown> = {};
+
+    if ("title" in input) {
+        const title = String(input.title ?? "").trim();
+        if (!title) {
+            throw AppError.badRequest("Task title is required");
+        }
+        update.title = title;
+    }
+
+    if ("priority" in input) {
+        validatePriority(String(input.priority ?? "Medium"));
+        update.priority = String(input.priority);
+    }
+
+    if ("dueDate" in input && input.dueDate !== undefined && input.dueDate !== null && input.dueDate !== "") {
+        update.dueDate = parseDate(String(input.dueDate), "Task due date");
+    }
+
+    if ("comments" in input) {
+        const comments = String(input.comments ?? "").trim();
+        if (
+            comments.length > 1500
+        ) {
+            throw AppError.badRequest("Task comments cannot exceed 1500 characters");
+        }
+        update.comments = comments || null;
+    }
+
+    if ("subtasks" in input) {
+        const subtasks = normalizeSubtasksInput(input.subtasks);
+        update.subtasks = JSON.stringify(subtasks);
+    }
+
+    if (Object.keys(update).length === 0) {
+        throw AppError.badRequest("No supported task fields were provided");
+    }
+
+    return update;
+}
+
 function serializeProject(
-    project: any
+    project: any,
+    stats: { taskCount: number; doneTaskCount: number } = { taskCount: 0, doneTaskCount: 0 }
 ) {
     return {
         id: project.id,
 
         name: project.name,
+        description: project.description ?? null,
+        projectLeadId: project.projectLeadId ?? project.projectLead?.id ?? null,
+        leadName: project.projectLead ? employeeName(project.projectLead) : null,
+        taskCount: stats.taskCount,
+        doneTaskCount: stats.doneTaskCount,
+        progress: stats.taskCount ? Math.round((stats.doneTaskCount / stats.taskCount) * 100) : 0,
+        startDate: project.startDate ? toDateString(project.startDate) : null,
+        targetEndDate: project.targetEndDate ? toDateString(project.targetEndDate) : null,
 
         members:
             project.members?.map(
@@ -1218,7 +1495,7 @@ function serializeMilestone(
     };
 }
 
-function serializeTask(task: any) {
+export function serializeTask(task: any) {
     const blockerIds =
         task.dependencies?.map(
             (dependency: any) =>
@@ -1232,6 +1509,9 @@ function serializeTask(task: any) {
 
         projectName:
             task.project?.name ?? null,
+
+        projectLeadId:
+            task.project?.projectLeadId ?? null,
 
         milestoneId:
             task.milestoneId,
@@ -1264,6 +1544,9 @@ function serializeTask(task: any) {
                 )
                 : null,
 
+        assigneeStatus:
+            task.assignee?.status ?? null,
+
         status: task.status,
 
         priority: task.priority,
@@ -1271,6 +1554,9 @@ function serializeTask(task: any) {
         dueDate: toDateString(
             task.dueDate
         ),
+
+        comments: task.comments ?? null,
+        subtasks: parseStoredSubtasks(task.subtasks),
 
         blockedByTaskIds:
             blockerIds,
@@ -1308,7 +1594,7 @@ function serializeTask(task: any) {
    VALIDATION / HELPERS
    ========================================================= */
 
-function validateStatus(
+export function validateStatus(
     status: string
 ) {
     if (
@@ -1324,7 +1610,7 @@ function validateStatus(
     }
 }
 
-function validatePriority(
+export function validatePriority(
     priority?: string
 ) {
     const value = priority ?? "Medium";
@@ -1369,6 +1655,50 @@ function toDateString(
     return new Date(value)
         .toISOString()
         .slice(0, 10);
+}
+
+function normalizeSubtasksInput(raw: unknown): Array<{ id: string; title: string; done: boolean }> {
+    if (!raw) return [];
+
+    const items = Array.isArray(raw) ? raw : String(raw).split(/\r?\n/);
+    const normalized = items
+        .map((entry) => {
+            if (typeof entry === "string") {
+                const title = entry.trim();
+                return title ? { id: crypto.randomUUID(), title, done: false } : null;
+            }
+            if (entry && typeof entry === "object") {
+                const title = String((entry as any).title ?? "").trim();
+                const done = Boolean((entry as any).done);
+                if (!title) return null;
+                return {
+                    id: String((entry as any).id ?? crypto.randomUUID()),
+                    title,
+                    done,
+                };
+            }
+            return null;
+        })
+        .filter(Boolean) as Array<{ id: string; title: string; done: boolean }>;
+
+    return normalized.filter((item, index, arr) => arr.findIndex((candidate) => candidate.title.toLowerCase() === item.title.toLowerCase()) === index);
+}
+
+function parseStoredSubtasks(raw: string | null | undefined): Array<{ id: string; title: string; done: boolean }> {
+    if (!raw) return [];
+    try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+            return parsed.map((item: any) => ({
+                id: String(item.id ?? crypto.randomUUID()),
+                title: String(item.title ?? "").trim(),
+                done: Boolean(item.done),
+            })).filter((item) => item.title);
+        }
+    } catch {
+        // noop
+    }
+    return [];
 }
 
 function employeeName(

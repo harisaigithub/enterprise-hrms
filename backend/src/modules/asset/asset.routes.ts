@@ -3,6 +3,10 @@ import { Router } from "express";
 import {
     getInventory,
     addInventoryItem,
+    updateInventoryItem,
+    assignInventoryItem,
+    retireInventoryItem,
+    setAssetMaintenance,
     getAssetHistory,
     getLicenseAlerts,
 
@@ -21,6 +25,17 @@ import {
 
 import { authenticate } from "../../middlewares/auth";
 import { requirePermission, requireRole } from "../../middlewares/rbac";
+import { validate } from "../../middlewares/validate";
+import {
+    addInventorySchema,
+    assignAssetSchema,
+    fulfillRequestSchema,
+    retireAssetSchema,
+    rejectAssetRequestSchema,
+    raiseRequestSchema,
+    returnAssetSchema,
+    updateInventorySchema,
+} from "./asset.validation";
 
 const router = Router();
 
@@ -30,10 +45,11 @@ router.use(authenticate);
    INVENTORY
 ========================================================= */
 
-// ADMIN / HR / MANAGER / EMPLOYEE → Read inventory
+// Inventory exposes organization-wide asset and holder details.
 router.get(
     "/inventory",
     requirePermission("assets:read"),
+    requireRole("ADMIN", "HR"),
     getInventory
 );
 
@@ -42,7 +58,40 @@ router.post(
     "/inventory",
     requirePermission("assets:write"),
     requireRole("ADMIN", "HR", "MANAGER"),
+    validate({ body: addInventorySchema }),
     addInventoryItem
+);
+
+router.patch(
+    "/inventory/:assetId",
+    requirePermission("assets:write"),
+    requireRole("ADMIN", "HR", "MANAGER"),
+    validate({ body: updateInventorySchema }),
+    updateInventoryItem
+);
+
+router.post(
+    "/inventory/:assetId/assign",
+    requirePermission("assets:write"),
+    requireRole("ADMIN", "HR", "MANAGER"),
+    validate({ body: assignAssetSchema }),
+    assignInventoryItem
+);
+
+router.patch(
+    "/inventory/:assetId/retire",
+    requirePermission("assets:write"),
+    requireRole("ADMIN", "HR", "MANAGER"),
+    validate({ body: retireAssetSchema }),
+    retireInventoryItem
+);
+
+router.patch(
+    "/inventory/:assetId/maintenance",
+    requirePermission("assets:write"),
+    requireRole("ADMIN", "HR", "MANAGER"),
+    validate({ body: retireAssetSchema }),
+    setAssetMaintenance
 );
 
 // Only ADMIN / HR / MANAGER
@@ -80,6 +129,7 @@ router.get(
 router.post(
     "/requests",
     requirePermission("assets:write"),
+    validate({ body: raiseRequestSchema }),
     raiseRequest
 );
 
@@ -96,6 +146,7 @@ router.patch(
     "/requests/:id/reject",
     requirePermission("assets:write"),
     requireRole("ADMIN", "HR", "MANAGER"),
+    validate({ body: rejectAssetRequestSchema }),
     rejectRequest
 );
 
@@ -104,6 +155,7 @@ router.patch(
     "/requests/:id/fulfill",
     requirePermission("assets:write"),
     requireRole("ADMIN", "HR", "MANAGER"),
+    validate({ body: fulfillRequestSchema }),
     fulfillRequest
 );
 
@@ -131,6 +183,7 @@ router.patch(
 router.patch(
     "/:id/return",
     requirePermission("assets:write"),
+    validate({ body: returnAssetSchema }),
     returnAsset
 );
 

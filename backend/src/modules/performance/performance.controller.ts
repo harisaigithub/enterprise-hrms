@@ -526,7 +526,8 @@ export const releaseCalibratedRating = asyncHandler(
   async (req: Request, res: Response) => {
     const result = await performanceService.releaseCalibratedRating(
       req.body,
-      req.auth?.sub
+      req.auth?.sub,
+      req.auth?.employeeCode
     );
     sendSuccess(res, result.data, undefined, 201);
   }

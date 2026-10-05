@@ -44,7 +44,8 @@ export default function Modal({ isOpen, title, onClose, children, width = "520px
           width: "100%",
           maxWidth: width,
           maxHeight: "90vh",
-          overflowY: "auto",
+          overflow: "hidden",
+          minHeight: 0,
           boxShadow: "var(--shadow-lg)",
           animation: "dialog-in 0.18s ease",
           display: "flex",
@@ -63,6 +64,7 @@ export default function Modal({ isOpen, title, onClose, children, width = "520px
             top: 0,
             background: "var(--card)",
             zIndex: 1,
+            flexShrink: 0,
           }}
         >
           <h2 style={{ fontSize: "15px", fontWeight: 700, color: "var(--text)" }}>{title}</h2>
@@ -88,7 +90,7 @@ export default function Modal({ isOpen, title, onClose, children, width = "520px
         </div>
 
         {/* Body */}
-        <div style={{ padding: "24px", flex: 1 }}>{children}</div>
+        <div style={{ padding: "24px", flex: "1 1 auto", minHeight: 0, overflowY: "auto" }}>{children}</div>
       </div>
     </div>
   );

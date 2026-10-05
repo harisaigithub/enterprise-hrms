@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
 import { serializeInstance, serializeDefinition } from "../../serializers/workflow.serializer";
+import { workflowInstanceReadFilter, type WorkflowReadScope } from "./workflow.access";
 
 /**
  * Workflow Engine (Module 21) — generic approval engine.
@@ -21,6 +22,7 @@ import { serializeInstance, serializeDefinition } from "../../serializers/workfl
 const APPROVER_RULES = [
   "Direct Reporting Manager",
   "Department Head",
+  "Next Level Manager",
   "Named Role: Finance",
   "Named Role: HR",
 ] as const;
@@ -38,6 +40,12 @@ interface Person {
 const INSTANCE_INCLUDE = {
   definition: { select: { requestType: true } },
   requester: { select: { employeeCode: true, firstName: true, lastName: true } },
+  assetRequest: { select: { id: true } },
+  performanceGoal: { select: { id: true } },
+  performanceRatingProposal: { select: { id: true } },
+  separation: { select: { id: true } },
+  policyVersion: { select: { id: true } },
+  complianceObligation: { select: { id: true } },
   steps: {
     include: { definitionStep: { select: { orderIndex: true } } },
     orderBy: { startedAt: "asc" as const },
@@ -52,11 +60,12 @@ async function findPerson(code: string): Promise<Person | null> {
       employeeCode: true,
       firstName: true,
       lastName: true,
+      status: true,
       departmentId: true,
       reportingManager: { select: { employeeCode: true } },
     },
   });
-  if (!p) return null;
+  if (!p || p.status !== "Active") return null;
   return {
     dbId: p.id,
     id: p.employeeCode,
@@ -66,8 +75,9 @@ async function findPerson(code: string): Promise<Person | null> {
   };
 }
 
-async function logEvent(instanceId: string, type: string, detail: string, actorName?: string): Promise<void> {
-  await prisma.workflowEvent.create({ data: { instanceId, type, detail, actorName } });
+async function logEvent(instanceId: string, type: string, detail: string, actorName?: string, tx?: Prisma.TransactionClient): Promise<void> {
+  const db = tx ?? prisma;
+  await db.workflowEvent.create({ data: { instanceId, type, detail, actorName } });
 }
 
 export async function getInstance(id: string) {
@@ -80,12 +90,21 @@ type Resolution =
   | { approverId: string; approverName: string; selfApprovalBlocked?: boolean }
   | { error: string };
 
+export async function findNextLevelManager(
+  managerId: string | null,
+  lookup: (employeeCode: string) => Promise<Pick<Person, "id" | "managerId" | "name"> | null>
+): Promise<{ approverId: string; approverName: string } | null> {
+  const manager = managerId ? await lookup(managerId) : null;
+  const nextLevel = manager?.managerId ? await lookup(manager.managerId) : null;
+  return nextLevel ? { approverId: nextLevel.id, approverName: nextLevel.name } : null;
+}
+
 /** Resolve a single approver rule against live org data. */
 async function resolveOne(rule: string, requester: Person): Promise<Resolution> {
   if (rule === "Direct Reporting Manager") {
     if (requester.managerId) {
       const mgr = await findPerson(requester.managerId);
-      if (mgr && mgr.id !== requester.id) {
+      if (mgr) {
         return { approverId: mgr.id, approverName: mgr.name };
       }
     }
@@ -95,7 +114,7 @@ async function resolveOne(rule: string, requester: Person): Promise<Resolution> 
         where: { departmentId: requester.departmentId, isDepartmentHead: true, status: "Active" },
         select: { employeeCode: true, firstName: true, lastName: true },
       });
-      if (head && head.employeeCode !== requester.id) {
+      if (head) {
         return { approverId: head.employeeCode, approverName: `${head.firstName} ${head.lastName}`.trim() };
       }
     }
@@ -108,17 +127,22 @@ async function resolveOne(rule: string, requester: Person): Promise<Resolution> 
           select: { employeeCode: true, firstName: true, lastName: true },
         })
       : null;
-    if (head && head.employeeCode !== requester.id) {
+    if (head) {
       return { approverId: head.employeeCode, approverName: `${head.firstName} ${head.lastName}`.trim() };
     }
     // Fallback to direct reporting manager if department head is missing or self
     if (requester.managerId) {
       const mgr = await findPerson(requester.managerId);
-      if (mgr && mgr.id !== requester.id) {
+      if (mgr) {
         return { approverId: mgr.id, approverName: mgr.name };
       }
     }
     return { error: `No Department Head or Direct Manager configured for ${requester.name}'s department.` };
+  }
+  if (rule === "Next Level Manager") {
+    const nextLevel = await findNextLevelManager(requester.managerId, findPerson);
+    if (nextLevel) return nextLevel;
+    return { error: `The next-level manager could not be resolved for ${requester.name}.` };
   }
   if (rule === "Named Role: Finance") {
     return { approverId: "role-finance", approverName: "Finance Approver" };
@@ -139,21 +163,33 @@ async function resolveWithSelfApprovalGuard(rule: string, requester: Person): Pr
   if ("error" in resolved) return resolved;
   if (resolved.approverId !== requester.id) return resolved;
 
-  let candidate = requester.managerId && requester.managerId !== requester.id ? requester.managerId : null;
-  let guard = 0;
-  while (candidate && candidate === requester.id && guard < 5) {
-    const person = await findPerson(candidate);
-    candidate = person?.managerId ?? null;
-    guard += 1;
-  }
+  const candidate = await findEscalationCandidate(requester.id, requester.managerId, findPerson);
   if (!candidate) {
     return {
       error: `Self-approval blocked for ${requester.name}, and no valid next-level approver could be found — flagged for manual assignment.`,
     };
   }
   const person = await findPerson(candidate);
-  if (!person) return { error: `Escalation target ${candidate} could not be resolved.` };
+  if (!person || person.id === requester.id) return { error: `Escalation target ${candidate} could not be resolved.` };
   return { approverId: person.id, approverName: person.name, selfApprovalBlocked: true };
+}
+
+export async function findEscalationCandidate(
+  requesterId: string,
+  initialCandidate: string | null,
+  lookup: (employeeCode: string) => Promise<Pick<Person, "id" | "managerId"> | null>
+): Promise<string | null> {
+  const visited = new Set([requesterId]);
+  let candidate = initialCandidate;
+  let traversed = 0;
+  while (candidate && visited.has(candidate) && traversed < 10) {
+    const person = await lookup(candidate);
+    if (!person) return null;
+    visited.add(person.id);
+    candidate = person.managerId;
+    traversed += 1;
+  }
+  return candidate && !visited.has(candidate) ? candidate : null;
 }
 
 function conditionPasses(condition: unknown, attributes: Record<string, unknown>): boolean {
@@ -161,7 +197,7 @@ function conditionPasses(condition: unknown, attributes: Record<string, unknown>
   const c = condition as { field?: string; operator?: string; value?: number };
   if (!c.field) return true;
   const value = attributes[c.field];
-  if (value === undefined) return true; // missing attribute -> step not applicable
+  if (value === undefined) return false; // missing attribute -> conditional step is not applicable
   switch (c.operator) {
     case ">":
       return Number(value) > Number(c.value);
@@ -174,6 +210,28 @@ function conditionPasses(condition: unknown, attributes: Record<string, unknown>
     default:
       return true;
   }
+}
+
+function validateParallelGroups(steps: WorkflowStepInput[]): void {
+  const closedGroups = new Set<string>();
+  let previousGroup: string | null = null;
+  for (const step of steps) {
+    const group = step.parallelGroup?.trim() || null;
+    if (group !== previousGroup && previousGroup) closedGroups.add(previousGroup);
+    if (group && closedGroups.has(group)) {
+      throw AppError.badRequest(`Parallel group "${group}" must occupy one contiguous sequence of steps.`);
+    }
+    previousGroup = group;
+  }
+}
+
+function activeStepGroup<T extends { parallelGroup: string | null }>(steps: T[], index: number): T[] {
+  const current = steps[index];
+  if (!current) return [];
+  if (!current.parallelGroup) return [current];
+  let end = index + 1;
+  while (end < steps.length && steps[end].parallelGroup === current.parallelGroup) end += 1;
+  return steps.slice(index, end);
 }
 
 // ── Roster ────────────────────────────────────────────────────────────────
@@ -208,7 +266,24 @@ export async function listDefinitions() {
     include: { steps: { orderBy: { orderIndex: "asc" } } },
     orderBy: { createdAt: "desc" },
   });
-  return { data: defs.map((d) => serializeDefinition(d)) };
+  const activeCounts = await prisma.workflowInstance.groupBy({
+    by: ["definitionId"],
+    where: { status: { in: ["In Progress", "Approver Resolution Failed"] } },
+    _count: { _all: true },
+  });
+  const totalCounts = await prisma.workflowInstance.groupBy({
+    by: ["definitionId"],
+    _count: { _all: true },
+  });
+  const activeCountByDefinition = new Map(activeCounts.map((item) => [item.definitionId, item._count._all]));
+  const totalCountByDefinition = new Map(totalCounts.map((item) => [item.definitionId, item._count._all]));
+  return {
+    data: defs.map((definition) => ({
+      ...serializeDefinition(definition),
+      activeInstanceCount: activeCountByDefinition.get(definition.id) ?? 0,
+      totalInstanceCount: totalCountByDefinition.get(definition.id) ?? 0,
+    })),
+  };
 }
 
 export interface WorkflowStepInput {
@@ -232,6 +307,8 @@ export interface WorkflowBlueprint extends CreateDefinitionInput {
   trigger: string;
   attributes: string[];
 }
+
+export const ASSET_ALLOCATION_APPROVAL_THRESHOLD = 25_000;
 
 export const WORKFLOW_BLUEPRINTS: WorkflowBlueprint[] = [
   {
@@ -324,7 +401,7 @@ export const WORKFLOW_BLUEPRINTS: WorkflowBlueprint[] = [
     attributes: ["asset_value"],
     steps: [
       { name: "Manager Need Approval", approverRule: "Direct Reporting Manager", slaHours: 24 },
-      { name: "Finance Purchase Approval", approverRule: "Named Role: Finance", slaHours: 24, condition: { field: "asset_value", operator: ">", value: 25000 } },
+      { name: "Finance Purchase Approval", approverRule: "Named Role: Finance", slaHours: 24, condition: { field: "asset_value", operator: ">", value: ASSET_ALLOCATION_APPROVAL_THRESHOLD } },
     ],
   },
   {
@@ -351,6 +428,19 @@ export const WORKFLOW_BLUEPRINTS: WorkflowBlueprint[] = [
     steps: [
       { name: "Manager Alignment", approverRule: "Direct Reporting Manager", slaHours: 24 },
       { name: "Department Review", approverRule: "Department Head", slaHours: 24, condition: { field: "weightage", operator: ">=", value: 40 } },
+    ],
+  },
+  {
+    key: "performance-rating-release",
+    module: "Performance",
+    title: "Promotion & Increment Release",
+    requestType: "Performance Rating Release",
+    description: "Calibrated ratings, promotions and increments require HR review followed by Finance approval before employee history is updated.",
+    trigger: "HR submits a calibrated compensation recommendation",
+    attributes: ["final_rating", "increment_percent", "promotion"],
+    steps: [
+      { name: "HR Compensation Review", approverRule: "Named Role: HR", slaHours: 24 },
+      { name: "Finance Budget Approval", approverRule: "Named Role: Finance", slaHours: 24 },
     ],
   },
   {
@@ -399,8 +489,8 @@ export const WORKFLOW_BLUEPRINTS: WorkflowBlueprint[] = [
     title: "Compliance Filing",
     requestType: "Compliance Filing",
     description: "Owner validation with Finance and HR sign-off.",
-    trigger: "A statutory filing is prepared",
-    attributes: ["financial_impact"],
+    trigger: "A filing owner submits an obligation for filing approval",
+    attributes: [],
     steps: [
       { name: "Finance Validation", approverRule: "Named Role: Finance", slaHours: 12, parallelGroup: "signoff" },
       { name: "HR Compliance Sign-off", approverRule: "Named Role: HR", slaHours: 12, parallelGroup: "signoff" },
@@ -421,6 +511,27 @@ export const WORKFLOW_BLUEPRINTS: WorkflowBlueprint[] = [
   },
 ];
 
+const WIRED_WORKFLOW_BLUEPRINTS = new Set([
+  "leave-request",
+  "payroll-run",
+  "asset-allocation",
+  "attendance-regularization",
+  "expense-claim",
+  "travel-request",
+  "performance-goal",
+  "performance-rating-release",
+  "separation-request",
+  "policy-publication",
+  "compliance-filing",
+]);
+
+const BLUEPRINT_INTEGRATION_NOTES: Record<string, string> = {
+  "employee-onboarding": "The onboarding record is created only after offer acceptance, document verification, and employee creation, so it does not exist at the template's candidate-acceptance trigger.",
+  "recruitment-offer": "Recruitment already has a separate two-person approval and candidate offer/consent lifecycle; replacing it risks duplicate or bypassed approvals.",
+  "helpdesk-exception": "Escalation is currently derived from ticket SLA timing and has no persisted approval-controlled ticket transition.",
+  "learning-enrollment": "Courses have no cost field or approval-pending enrollment state for paid enrollment routing.",
+};
+
 export async function listBlueprints() {
   const definitions = await prisma.workflowDefinition.findMany({
     where: { requestType: { in: WORKFLOW_BLUEPRINTS.map((b) => b.requestType) } },
@@ -430,7 +541,13 @@ export async function listBlueprints() {
   return {
     data: WORKFLOW_BLUEPRINTS.map((blueprint) => {
       const installed = definitions.find((d) => d.requestType === blueprint.requestType && d.status === "Active");
-      return { ...blueprint, installed: !!installed, definitionId: installed?.id ?? null };
+      return {
+        ...blueprint,
+        installed: !!installed,
+        definitionId: installed?.id ?? null,
+        moduleIntegrated: WIRED_WORKFLOW_BLUEPRINTS.has(blueprint.key),
+        integrationNote: BLUEPRINT_INTEGRATION_NOTES[blueprint.key] ?? null,
+      };
     }),
   };
 }
@@ -452,7 +569,7 @@ export async function installBlueprint(key: string) {
             name: step.name,
             approverRule: step.approverRule,
             slaHours: step.slaHours ?? 24,
-            parallelGroup: step.parallelGroup || null,
+            parallelGroup: step.parallelGroup?.trim() || null,
             condition: (step.condition as Prisma.InputJsonValue) ?? Prisma.JsonNull,
             orderIndex,
           })),
@@ -466,29 +583,56 @@ export async function installBlueprint(key: string) {
 }
 
 export async function createDefinition(input: CreateDefinitionInput) {
+  validateDefinitionInput(input);
+  const requestType = input.requestType.trim();
+  const def = await prisma.workflowDefinition.create({
+    data: {
+      requestType,
+      steps: { create: buildDefinitionSteps(input.steps) },
+    },
+    include: { steps: { orderBy: { orderIndex: "asc" } } },
+  });
+  return { data: serializeDefinition(def) };
+}
+
+function validateDefinitionInput(input: CreateDefinitionInput): void {
+  if (!input.requestType?.trim()) throw AppError.badRequest("Request type is required");
+  validateParallelGroups(input.steps);
   const ruleSet = new Set<string>(APPROVER_RULES);
   for (const s of input.steps) {
     if (!ruleSet.has(s.approverRule)) {
       throw AppError.badRequest(`Unknown approver rule: ${s.approverRule}`);
     }
   }
-  const def = await prisma.workflowDefinition.create({
-    data: {
-      requestType: input.requestType,
-      steps: {
-        create: input.steps.map((s, i) => ({
-          name: s.name,
-          approverRule: s.approverRule,
-          slaHours: s.slaHours ?? 24,
-          parallelGroup: s.parallelGroup || null,
-          condition: (s.condition as Prisma.InputJsonValue) ?? Prisma.JsonNull,
-          orderIndex: i,
-        })),
-      },
-    },
-    include: { steps: { orderBy: { orderIndex: "asc" } } },
+}
+
+function buildDefinitionSteps(steps: WorkflowStepInput[]) {
+  return steps.map((step, orderIndex) => ({
+    name: step.name.trim(),
+    approverRule: step.approverRule,
+    slaHours: step.slaHours ?? 24,
+    parallelGroup: step.parallelGroup?.trim() || null,
+    condition: (step.condition as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+    orderIndex,
+  }));
+}
+
+export async function reviseDefinition(id: string, input: CreateDefinitionInput) {
+  validateDefinitionInput(input);
+  const existing = await prisma.workflowDefinition.findUnique({ where: { id } });
+  if (!existing) throw AppError.notFound("Workflow definition not found");
+  const requestType = input.requestType.trim();
+  const revised = await prisma.$transaction(async (tx) => {
+    await tx.workflowDefinition.updateMany({
+      where: { requestType: { in: [...new Set([existing.requestType, requestType])] }, status: "Active" },
+      data: { status: "Inactive" },
+    });
+    return tx.workflowDefinition.create({
+      data: { requestType, steps: { create: buildDefinitionSteps(input.steps) } },
+      include: { steps: { orderBy: { orderIndex: "asc" } } },
+    });
   });
-  return { data: serializeDefinition(def) };
+  return { data: serializeDefinition(revised) };
 }
 
 export async function deactivateDefinition(id: string) {
@@ -505,12 +649,18 @@ export async function deactivateDefinition(id: string) {
 export async function deleteDefinition(id: string) {
   const existing = await prisma.workflowDefinition.findUnique({ where: { id } });
   if (!existing) throw AppError.notFound("Workflow definition not found");
-  const referencing = await prisma.workflowInstance.count({
+  const activeReferences = await prisma.workflowInstance.count({
     where: { definitionId: id, status: { in: ["In Progress", "Approver Resolution Failed"] } },
   });
-  if (referencing > 0) {
+  if (activeReferences > 0) {
     throw AppError.conflict(
-      "Cannot delete — active workflow instances still reference this definition. Deactivate it instead; in-flight instances will complete against their original version."
+      `Cannot delete: ${activeReferences} active workflow instance(s) reference this definition. Deactivate it instead; in-flight instances keep their original version.`
+    );
+  }
+  const totalReferences = await prisma.workflowInstance.count({ where: { definitionId: id } });
+  if (totalReferences > 0) {
+    throw AppError.conflict(
+      `Cannot delete: ${totalReferences} historical workflow instance(s) reference this definition and must remain available for audit.`
     );
   }
   await prisma.workflowDefinition.delete({ where: { id } });
@@ -519,16 +669,23 @@ export async function deleteDefinition(id: string) {
 
 // ── Instances ─────────────────────────────────────────────────────────────
 
-export async function listInstances() {
+export async function listInstances(scope?: WorkflowReadScope) {
   const instances = await prisma.workflowInstance.findMany({
+    where: workflowInstanceReadFilter(scope),
     include: INSTANCE_INCLUDE,
     orderBy: { createdAt: "desc" },
   });
   return { data: instances.map((i) => serializeInstance(i)) };
 }
 
-export async function submitRequest(definitionId: string, requesterCode: string, attributes: Record<string, unknown>) {
-  const def = await prisma.workflowDefinition.findUnique({
+export async function submitRequest(
+  definitionId: string,
+  requesterCode: string,
+  attributes: Record<string, unknown>,
+  tx?: Prisma.TransactionClient
+) {
+  const db = tx ?? prisma;
+  const def = await db.workflowDefinition.findUnique({
     where: { id: definitionId },
     include: { steps: { orderBy: { orderIndex: "asc" } } },
   });
@@ -539,6 +696,9 @@ export async function submitRequest(definitionId: string, requesterCode: string,
   if (!requester) throw AppError.notFound("Requester not found");
 
   const applicableSteps = def.steps.filter((s) => conditionPasses(s.condition, attributes));
+  if (applicableSteps.length === 0) {
+    throw AppError.badRequest("No approval steps apply to the submitted request.");
+  }
   let resolutionFailure: string | null = null;
 
   const resolvedSteps: Prisma.WorkflowInstanceStepCreateManyInstanceInput[] = [];
@@ -561,7 +721,7 @@ export async function submitRequest(definitionId: string, requesterCode: string,
     });
   }
 
-  const instance = await prisma.workflowInstance.create({
+  const instance = await db.workflowInstance.create({
     data: {
       definitionId: def.id,
       requesterId: requester.dbId,
@@ -577,14 +737,220 @@ export async function submitRequest(definitionId: string, requesterCode: string,
     instance.id,
     `${def.requestType}.submitted`,
     `${requester.name} submitted a request${resolutionFailure ? " — approver resolution failed, held for HR" : ""}.`,
-    requester.name
+    requester.name,
+    tx
   );
 
   return { data: serializeInstance(instance) };
 }
 
+export async function previewRequest(definitionId: string, requesterCode: string, attributes: Record<string, unknown>) {
+  const def = await prisma.workflowDefinition.findUnique({
+    where: { id: definitionId },
+    include: { steps: { orderBy: { orderIndex: "asc" } } },
+  });
+  if (!def || def.status !== "Active") throw AppError.badRequest("No active workflow definition for this request type.");
+  const requester = await findPerson(requesterCode);
+  if (!requester) throw AppError.notFound("Requester not found");
+  const applicableSteps = def.steps.filter((step) => conditionPasses(step.condition, attributes));
+  if (applicableSteps.length === 0) throw AppError.badRequest("No approval steps apply to the submitted request.");
+  const steps = await Promise.all(applicableSteps.map(async (step) => {
+    const resolution = await resolveWithSelfApprovalGuard(step.approverRule, requester);
+    return {
+      name: step.name,
+      approverRule: step.approverRule,
+      approverId: "error" in resolution ? null : resolution.approverId,
+      approverName: "error" in resolution ? null : resolution.approverName,
+      selfApprovalBlocked: "error" in resolution ? false : !!resolution.selfApprovalBlocked,
+      resolutionError: "error" in resolution ? resolution.error : null,
+    };
+  }));
+  return { data: { requestType: def.requestType, requesterName: requester.name, steps } };
+}
+
 export interface ActOptions {
   bypassRoleApprover?: boolean;
+  actorRole?: string;
+}
+
+export function canActOnNamedRoleStep(approverId: string, actorRole?: string, adminOverride = false): boolean {
+  const requiredRole = approverId === "role-finance" ? "FINANCE" : approverId === "role-hr" ? "HR" : null;
+  if (!requiredRole) return false;
+  const role = actorRole?.toUpperCase();
+  return role === requiredRole || (role === "ADMIN" && adminOverride);
+}
+
+export async function syncWorkflowModuleState(
+  tx: Prisma.TransactionClient,
+  instance: any,
+  step: any,
+  action: "approve" | "reject",
+  workflowStatus: string,
+  reason?: string,
+  actorName?: string
+) {
+  if (instance.assetRequest && (action === "reject" || workflowStatus === "Approved")) {
+    await tx.assetRequest.update({
+      where: { id: instance.assetRequest.id },
+      data: action === "reject"
+        ? { status: "REJECTED", rejectionReason: reason?.trim() || null }
+        : { status: "APPROVED", approvedBy: actorName ?? null, approvedAt: new Date() },
+    });
+  }
+
+  if (instance.performanceGoal && (action === "reject" || workflowStatus === "Approved")) {
+    await tx.performanceGoal.update({
+      where: { id: instance.performanceGoal.id },
+      data: { status: action === "reject" ? "Revision Requested" : "Locked" },
+    });
+  }
+
+  if (instance.performanceRatingProposal) {
+    if (action === "reject") {
+      await tx.performanceRatingProposal.update({
+        where: { id: instance.performanceRatingProposal.id },
+        data: { status: "Rejected", decidedAt: new Date() },
+      });
+    } else if (workflowStatus === "Approved") {
+      const proposal = await tx.performanceRatingProposal.findUnique({
+        where: { id: instance.performanceRatingProposal.id },
+      });
+      if (proposal?.status === "Pending Approval") {
+        await tx.performanceRatingHistory.create({
+          data: {
+            employeeId: proposal.employeeId,
+            reviewCycleId: proposal.reviewCycleId,
+            cycleName: proposal.cycleName,
+            selfRating: proposal.selfRating,
+            originalManagerRating: proposal.originalManagerRating,
+            finalRating: proposal.finalRating,
+            calibrationAdjusted: proposal.finalRating !== proposal.originalManagerRating,
+            increment: proposal.increment,
+            promotion: proposal.promotion,
+            appraisalLetterUrl: proposal.appraisalLetterUrl,
+            releasedOn: new Date(),
+          },
+        });
+        await tx.performanceRatingProposal.update({
+          where: { id: proposal.id },
+          data: { status: "Released", decidedAt: new Date() },
+        });
+      }
+    }
+  }
+
+  if (instance.policyVersion && (action === "reject" || workflowStatus === "Approved")) {
+    const version = await tx.policyVersion.findUnique({
+      where: { id: instance.policyVersion.id },
+      include: { policy: { include: { versions: { orderBy: { versionNumber: "asc" } } } } },
+    });
+    if (!version) throw new Error("Workflow-linked policy version no longer exists.");
+    if (action === "reject") {
+      await tx.policyVersion.update({ where: { id: version.id }, data: { approvalStatus: "Rejected", decidedAt: new Date() } });
+      await tx.policy.update({ where: { id: version.policyId }, data: { status: "Draft", nextReviewDate: null } });
+    } else if (version.approvalStatus === "Pending Approval") {
+      if (!version.effectiveDate) throw new Error("Policy version has no effective date.");
+      const now = new Date();
+      const nextReviewDate = version.policy.reviewCycleMonths
+        ? new Date(Date.UTC(version.effectiveDate.getUTCFullYear(), version.effectiveDate.getUTCMonth() + version.policy.reviewCycleMonths, version.effectiveDate.getUTCDate()))
+        : null;
+      await tx.policy.update({ where: { id: version.policyId }, data: { status: "Published", nextReviewDate } });
+      await tx.policyVersion.update({ where: { id: version.id }, data: { approvalStatus: "Approved", decidedAt: now, publishedAt: now } });
+      const previous = version.policy.versions.filter((item) => item.versionNumber < version.versionNumber).at(-1);
+      if (!version.requiresReacknowledgement && previous) {
+        const acknowledgements = await tx.policyAcknowledgement.findMany({ where: { versionId: previous.id } });
+        if (acknowledgements.length) {
+          await tx.policyAcknowledgement.createMany({
+            data: acknowledgements.map((acknowledgement) => ({
+              versionId: version.id,
+              employeeId: acknowledgement.employeeId,
+              acknowledgedAt: acknowledgement.acknowledgedAt,
+              device: acknowledgement.device,
+            })),
+            skipDuplicates: true,
+          });
+        }
+      }
+    }
+  }
+
+  if (instance.complianceObligation && (action === "reject" || workflowStatus === "Approved")) {
+    const obligation = await tx.complianceObligation.findUnique({ where: { id: instance.complianceObligation.id } });
+    if (!obligation) throw new Error("Workflow-linked compliance obligation no longer exists.");
+    const approver = step.actedBy
+      ? await tx.employee.findUnique({ where: { employeeCode: step.actedBy }, select: { userId: true } })
+      : null;
+    const status = action === "reject"
+      ? "Rejected"
+      : ["POSH Training Review", "Policy Acknowledgement Review"].includes(obligation.category) ? "Completed" : "Filed";
+    await tx.complianceObligation.update({
+      where: { id: obligation.id },
+      data: { status, filedAt: action === "approve" ? new Date() : null, filedByUserId: action === "approve" ? approver?.userId ?? null : null },
+    });
+    await tx.complianceActivity.create({
+      data: {
+        actorName: actorName ?? "Workflow approver",
+        action: action === "approve" ? "Obligation filed" : "Obligation filing rejected",
+        category: "Calendar",
+        details: `${obligation.title} ${action === "approve" ? `was marked ${status}` : "was returned for correction"}.`,
+        severity: action === "approve" ? "info" : "warning",
+      },
+    });
+  }
+
+  if (instance.separation) {
+    const clearanceNameByStep: Record<string, string> = {
+      "Manager Acknowledgement": "Manager Clearance",
+      "HR Clearance": "HR Clearance",
+      "Finance Settlement": "Finance Clearance",
+    };
+    const clearanceName = clearanceNameByStep[step.name];
+    if (!clearanceName) return;
+    const clearance = await tx.separationClearance.findFirst({
+      where: { separationId: instance.separation.id, item: clearanceName },
+      select: { id: true },
+    });
+    if (!clearance) return;
+    await tx.separationClearance.update({
+      where: { id: clearance.id },
+      data: {
+        status: action === "approve" ? "Complete" : "Flagged",
+        notes: action === "reject" ? reason?.trim() || "Rejected in workflow" : null,
+        completedAt: action === "approve" ? new Date() : null,
+      },
+    });
+    const outstanding = await tx.separationClearance.count({
+      where: { separationId: instance.separation.id, status: { not: "Complete" } },
+    });
+    await tx.separation.update({
+      where: { id: instance.separation.id },
+      data: { status: outstanding === 0 ? "Cleared" : "Clearance In Progress" },
+    });
+  }
+}
+
+export function assertDistinctParallelApprover(group: any[], currentStepId: string, actorCode: string): void {
+  if (group.some((candidate) => candidate.id !== currentStepId && candidate.status === "Approved" && candidate.actedBy === actorCode)) {
+    throw AppError.forbidden("A different approver must complete each step in a parallel approval group.");
+  }
+}
+
+export function assertRequesterCannotApprove(requesterCode: string, actorCode: string): void {
+  if (requesterCode === actorCode) {
+    throw AppError.forbidden("Requesters cannot approve or reject their own workflow requests.");
+  }
+}
+
+export async function cancelPendingStepsAfterRejection(
+  tx: Prisma.TransactionClient,
+  instanceId: string,
+  rejectedStepId: string
+): Promise<number> {
+  const result = await tx.workflowInstanceStep.updateMany({
+    where: { instanceId, id: { not: rejectedStepId }, status: "Pending" },
+    data: { status: "Cancelled" },
+  });
+  return result.count;
 }
 
 export async function actOnStep(
@@ -593,75 +959,136 @@ export async function actOnStep(
   actorName: string,
   action: "approve" | "reject",
   reason?: string,
-  opts: ActOptions = {}
+  opts: ActOptions = {},
+  stepId?: string
 ) {
   const instance = await prisma.workflowInstance.findUnique({ where: { id: instanceId }, include: INSTANCE_INCLUDE });
   if (!instance) throw AppError.notFound("Workflow instance not found");
   if (instance.status !== "In Progress") {
     throw AppError.badRequest(`This request is already ${instance.status}.`);
   }
+  assertRequesterCannotApprove(instance.requester.employeeCode, actorCode);
 
   const orderedSteps = [...instance.steps].sort(
     (a, b) => (a.definitionStep?.orderIndex ?? 0) - (b.definitionStep?.orderIndex ?? 0)
   );
   const current = orderedSteps[instance.currentStepIndex];
   if (!current) throw AppError.badRequest("This request has no steps awaiting action.");
-  const group = orderedSteps.filter((s) =>
-    current.parallelGroup ? s.parallelGroup === current.parallelGroup : s === current
-  );
-  const step = group.find((s) => s.status === "Pending");
-  if (!step) {
+  const group = activeStepGroup(orderedSteps, instance.currentStepIndex);
+  const eligiblePending = group.filter((candidate) => {
+    if (candidate.status !== "Pending") return false;
+    const roleStep = (candidate.approverId ?? "").startsWith("role-");
+    return roleStep
+      ? canActOnNamedRoleStep(candidate.approverId ?? "", opts.actorRole, opts.bypassRoleApprover)
+      : candidate.approverId === actorCode || candidate.escalatedTo === actorCode;
+  });
+  const step = stepId
+    ? group.find((candidate) => candidate.id === stepId)
+    : eligiblePending.length === 1 ? eligiblePending[0] : undefined;
+  if (!step || step.status !== "Pending") {
+    if (!stepId && eligiblePending.length === 0 && group.some((candidate) => candidate.status === "Pending")) {
+      throw AppError.forbidden(`${actorName} is not an eligible approver for this step.`);
+    }
     throw AppError.badRequest("This step is not awaiting action.");
+  }
+  if (!stepId && eligiblePending.length > 1) {
+    throw AppError.badRequest("An explicit step identifier is required when multiple parallel steps are actionable.");
   }
 
   const isRoleStep = (step.approverId ?? "").startsWith("role-");
   const eligible = [step.approverId, step.escalatedTo].filter(Boolean);
-  const canAct = isRoleStep ? !!opts.bypassRoleApprover : eligible.includes(actorCode);
+  const canAct = isRoleStep
+    ? canActOnNamedRoleStep(step.approverId ?? "", opts.actorRole, opts.bypassRoleApprover)
+    : eligible.includes(actorCode);
   if (!canAct) {
     throw AppError.forbidden(`${actorName} is not an eligible approver for this step.`);
   }
+  if (step.parallelGroup) assertDistinctParallelApprover(group, step.id, actorCode);
 
   const now = new Date();
+  let rejected = false;
+  let groupComplete = false;
+  let cancelledStepCount = 0;
   await prisma.$transaction(async (tx: any) => {
-    // Atomic first-action-wins: only a still-Pending row can be claimed.
+    // Serialize transitions for an instance, then claim only an unacted step.
+    const locked = await tx.workflowInstance.updateMany({
+      where: { id: instanceId, status: "In Progress", currentStepIndex: instance.currentStepIndex },
+      data: { currentStepIndex: instance.currentStepIndex },
+    });
+    if (locked.count === 0) throw AppError.conflict("The workflow changed while this action was being processed.");
+
     const claimed = await tx.workflowInstanceStep.updateMany({
-      where: { id: step.id, status: "Pending" },
+      where: { id: step.id, instanceId, status: "Pending" },
       data: {
         status: action === "approve" ? "Approved" : "Rejected",
         actedBy: actorCode,
         actedByName: actorName,
+        roleApproverOverride: isRoleStep && opts.actorRole?.toUpperCase() === "ADMIN" && opts.bypassRoleApprover === true,
         actedAt: now,
         rejectionReason: action === "reject" ? reason ?? null : null,
       },
     });
     if (claimed.count === 0) {
-      throw AppError.badRequest(`Already actioned by ${step.actedByName ?? "someone else"} — first action wins, no change made.`);
+      throw AppError.conflict(`Already actioned by ${step.actedByName ?? "someone else"} — first action wins, no change made.`);
     }
+
+    if (action === "reject") {
+      cancelledStepCount = await cancelPendingStepsAfterRejection(tx, instanceId, step.id);
+      await tx.workflowInstance.updateMany({
+        where: { id: instanceId, status: "In Progress", currentStepIndex: instance.currentStepIndex },
+        data: { status: "Rejected" },
+      });
+      await syncWorkflowModuleState(tx, instance, step, action, "Rejected", reason, actorName);
+      rejected = true;
+      return;
+    }
+
+    const groupStates = await tx.workflowInstanceStep.findMany({
+      where: { instanceId, id: { in: group.map((item) => item.id) } },
+      select: { status: true },
+    });
+    groupComplete = groupStates.length === group.length && groupStates.every((item: { status: string }) => item.status === "Approved");
+    if (groupComplete) {
+      const newIndex = instance.currentStepIndex + group.length;
+      await tx.workflowInstance.updateMany({
+        where: { id: instanceId, status: "In Progress", currentStepIndex: instance.currentStepIndex },
+        data: newIndex >= orderedSteps.length
+          ? { status: "Approved", currentStepIndex: orderedSteps.length }
+          : { currentStepIndex: newIndex },
+      });
+      if (newIndex >= orderedSteps.length) {
+        await syncWorkflowModuleState(tx, instance, step, action, "Approved", undefined, actorName);
+      }
+    }
+
+    await syncWorkflowModuleState(tx, instance, step, action, "In Progress", undefined, actorName);
   });
 
-  if (action === "reject") {
-    await prisma.workflowInstance.update({ where: { id: instanceId }, data: { status: "Rejected" } });
+  if (rejected) {
     await logEvent(instanceId, `${instance.definition?.requestType ?? "Workflow"}.rejected`, `Request from ${instance.requester.firstName} ${instance.requester.lastName} rejected at step "${step.name}".`, actorName);
     await logEvent(instanceId, `${instance.definition?.requestType ?? "Workflow"}.step_rejected`, `${actorName} rejected "${step.name}" for ${instance.requester.firstName} ${instance.requester.lastName}.`, actorName);
+    if (cancelledStepCount > 0) {
+      await logEvent(instanceId, `${instance.definition?.requestType ?? "Workflow"}.steps_cancelled`, `${cancelledStepCount} pending approval step(s) were cancelled after rejection.`, actorName);
+    }
     return getInstance(instanceId);
   }
 
   await logEvent(instanceId, `${instance.definition?.requestType ?? "Workflow"}.step_approved`, `${actorName} approved "${step.name}" for ${instance.requester.firstName} ${instance.requester.lastName}.`, actorName);
+  if (isRoleStep && opts.actorRole?.toUpperCase() === "ADMIN" && opts.bypassRoleApprover === true) {
+    await logEvent(
+      instanceId,
+      `${instance.definition?.requestType ?? "Workflow"}.role_approver_override`,
+      `${actorName} (Admin) used an explicit override to approve the "${step.name}" role-based step.`,
+      actorName
+    );
+  }
 
-  // Parallel-group gate: advance only when EVERY step in the current group is
-  // approved. The step we just approved counts as approved; the others are
-  // read from the pre-transaction snapshot (still accurate, they changed not).
-  const groupComplete = group.length > 0 && group.every((s) => s.id === step.id || s.status === "Approved");
   if (!groupComplete) {
     return getInstance(instanceId);
   }
 
-  const newIndex = instance.currentStepIndex + group.length;
-  if (newIndex >= orderedSteps.length) {
-    await prisma.workflowInstance.update({ where: { id: instanceId }, data: { status: "Approved", currentStepIndex: orderedSteps.length } });
+  if (instance.currentStepIndex + group.length >= orderedSteps.length) {
     await logEvent(instanceId, `${instance.definition?.requestType ?? "Workflow"}.approved`, `Request from ${instance.requester.firstName} ${instance.requester.lastName} fully approved.`, actorName);
-  } else {
-    await prisma.workflowInstance.update({ where: { id: instanceId }, data: { currentStepIndex: newIndex } });
   }
 
   return getInstance(instanceId);
@@ -681,59 +1108,78 @@ export async function runSlaCheck(now = new Date()) {
     const orderedSteps = [...inst.steps].sort(
       (a, b) => (a.definitionStep?.orderIndex ?? 0) - (b.definitionStep?.orderIndex ?? 0)
     );
-    const step = orderedSteps[inst.currentStepIndex];
-    if (!step || step.status !== "Pending" || step.escalatedTo) continue;
+    const current = orderedSteps[inst.currentStepIndex];
+    if (!current) continue;
+    const currentGroup = activeStepGroup(orderedSteps, inst.currentStepIndex);
 
-    const elapsedHours = (now.getTime() - step.startedAt.getTime()) / 3600000;
-    if (elapsedHours < step.slaHours) continue;
+    for (const step of currentGroup) {
+      if (step.status !== "Pending" || step.escalatedTo) continue;
+      const elapsedHours = (now.getTime() - step.startedAt.getTime()) / 3600000;
+      if (elapsedHours < step.slaHours) continue;
 
-    const original = step.approverId ? await findPerson(step.approverId) : null;
-    const escalateTo = original?.managerId && original.managerId !== step.approverId ? original.managerId : "role-hr";
-    const escalateToName = escalateTo === "role-hr" ? "HR Escalation Contact" : (await findPerson(escalateTo))?.name ?? escalateTo;
-
-    await prisma.workflowInstanceStep.update({ where: { id: step.id }, data: { escalatedTo: escalateTo, escalatedToName: escalateToName } });
-    await logEvent(
-      inst.id,
-      `${inst.definition?.requestType ?? "Workflow"}.escalated`,
-      `Step "${step.name}" for ${inst.requester.firstName} ${inst.requester.lastName} escalated to ${escalateToName} (SLA of ${step.slaHours}h exceeded); ${step.approverName} can still act.`
-    );
-    escalatedCount += 1;
+      const original = step.approverId ? await findPerson(step.approverId) : null;
+      const escalateTo = original?.managerId && original.managerId !== step.approverId ? original.managerId : "role-hr";
+      const escalateToName = escalateTo === "role-hr" ? "HR Escalation Contact" : (await findPerson(escalateTo))?.name ?? escalateTo;
+      const updated = await prisma.workflowInstanceStep.updateMany({
+        where: { id: step.id, status: "Pending", escalatedTo: null },
+        data: { escalatedTo: escalateTo, escalatedToName: escalateToName },
+      });
+      if (!updated.count) continue;
+      await logEvent(
+        inst.id,
+        `${inst.definition?.requestType ?? "Workflow"}.escalated`,
+        `Step "${step.name}" for ${inst.requester.firstName} ${inst.requester.lastName} escalated to ${escalateToName} (SLA of ${step.slaHours}h exceeded); ${step.approverName} can still act.`
+      );
+      escalatedCount += 1;
+    }
   }
 
   return { data: { escalatedCount } };
 }
 
-export async function manuallyAssignApprover(instanceId: string, approverCode: string, approverName?: string) {
+export async function manuallyAssignApprover(instanceId: string, stepId: string, approverCode: string, actorName: string) {
   const instance = await prisma.workflowInstance.findUnique({ where: { id: instanceId }, include: INSTANCE_INCLUDE });
   if (!instance) throw AppError.notFound("Workflow instance not found");
+  if (instance.status !== "Approver Resolution Failed") {
+    throw AppError.badRequest("This instance is not awaiting manual approver resolution.");
+  }
 
-  const orderedSteps = [...instance.steps].sort(
-    (a, b) => (a.definitionStep?.orderIndex ?? 0) - (b.definitionStep?.orderIndex ?? 0)
-  );
-  const unresolved = orderedSteps.find((s) => s.status === "Unresolved");
+  const unresolved = instance.steps.find((s) => s.id === stepId && s.status === "Unresolved");
   if (!unresolved) throw AppError.badRequest("No unresolved step found on this instance.");
 
-  const person = approverName
-    ? { id: approverCode, name: approverName }
-    : await findPerson(approverCode);
+  const person = await findPerson(approverCode);
   if (!person) throw AppError.badRequest("Approver not found.");
+  if (person.id === instance.requester.employeeCode) {
+    throw AppError.badRequest("The requester cannot be assigned as their own approver.");
+  }
 
-  await prisma.$transaction([
-    prisma.workflowInstanceStep.update({
-      where: { id: unresolved.id },
+  await prisma.$transaction(async (tx: any) => {
+    const locked = await tx.workflowInstance.updateMany({
+      where: { id: instanceId, status: "Approver Resolution Failed" },
+      data: { status: "Approver Resolution Failed" },
+    });
+    if (!locked.count) throw AppError.conflict("The workflow changed while approvers were being assigned.");
+
+    const assigned = await tx.workflowInstanceStep.updateMany({
+      where: { id: unresolved.id, instanceId, status: "Unresolved" },
       data: { approverId: person.id, approverName: person.name, status: "Pending", startedAt: new Date() },
-    }),
-    prisma.workflowInstance.update({
+    });
+    if (!assigned.count) throw AppError.conflict("This step has already been resolved.");
+
+    const unresolvedCount = await tx.workflowInstanceStep.count({ where: { instanceId, status: "Unresolved" } });
+    await tx.workflowInstance.update({
       where: { id: instanceId },
-      data: { status: "In Progress", resolutionFailure: null },
-    }),
-  ]);
+      data: unresolvedCount === 0
+        ? { status: "In Progress", resolutionFailure: null }
+        : { resolutionFailure: `${unresolvedCount} approval step(s) still require manual resolution.` },
+    });
+  });
 
   await logEvent(
     instanceId,
     `${instance.definition?.requestType ?? "Workflow"}.approver_manually_assigned`,
-    `HR manually assigned ${person.name} after resolution failure for ${instance.requester.firstName} ${instance.requester.lastName}'s request.`,
-    person.name
+    `HR manually assigned ${person.name} to "${unresolved.name}" after resolution failure for ${instance.requester.firstName} ${instance.requester.lastName}'s request.`,
+    actorName
   );
 
   return getInstance(instanceId);
@@ -741,14 +1187,16 @@ export async function manuallyAssignApprover(instanceId: string, approverCode: s
 
 // ── Event log ─────────────────────────────────────────────────────────────
 
-export async function getEventLog() {
+export async function getEventLog(scope?: WorkflowReadScope) {
   const events = await prisma.workflowEvent.findMany({
+    where: scope ? { instance: { is: workflowInstanceReadFilter(scope) } } : undefined,
     orderBy: { at: "desc" },
     take: 100,
   });
   return {
     data: events.map((e) => ({
       id: e.id,
+      instanceId: e.instanceId,
       type: e.type,
       detail: e.detail,
       at: e.at.toISOString(),

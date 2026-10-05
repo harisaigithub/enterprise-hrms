@@ -3,8 +3,10 @@ import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
 import { writeAuditLog } from "../../services/audit.service";
 import type { AccessTokenPayload } from "../../lib/jwt";
+import * as workflowService from "../workflow/workflow.service";
+import { submitAndLinkWorkflow } from "../workflow/submission";
 
-const include = { versions: { orderBy: { versionNumber: "asc" as const } } };
+const include = { versions: { orderBy: { versionNumber: "asc" as const }, include: { workflowInstance: { select: { id: true, status: true } } } } };
 
 function requireEmployee(actor?: AccessTokenPayload) {
   if (!actor?.employeeId) throw AppError.forbidden("Account is not linked to an employee record");
@@ -39,6 +41,9 @@ function serializePolicy(policy: any) {
       effectiveDate: dateOnly(version.effectiveDate),
       ackDeadlineDays: version.acknowledgementDeadlineDays,
       requiresReacknowledgement: version.requiresReacknowledgement,
+      approvalStatus: version.approvalStatus,
+      workflowInstanceId: version.workflowInstanceId,
+      workflowStatus: version.workflowInstance?.status ?? null,
       summary: version.summary,
       createdAt: dateOnly(version.createdAt),
       createdBy: version.createdByName,
@@ -130,30 +135,43 @@ export async function publishPolicy(id: string, actor?: AccessTokenPayload) {
   if (policy.mandatoryAcknowledgement && !current.acknowledgementDeadlineDays) {
     throw AppError.badRequest("Mandatory policies need an acknowledgement deadline before publishing");
   }
-  const nextReviewDate = policy.reviewCycleMonths
-    ? new Date(Date.UTC(current.effectiveDate.getUTCFullYear(), current.effectiveDate.getUTCMonth() + policy.reviewCycleMonths, current.effectiveDate.getUTCDate()))
+  if (current.approvalStatus === "Pending Approval" && current.workflowInstanceId) {
+    return { policy: serializePolicy(policy) };
+  }
+  if (policy.status === "Published") return { policy: serializePolicy(policy) };
+  if (current.approvalStatus === "Rejected") {
+    throw AppError.conflict("This policy version was rejected. Create a new version before resubmitting it.");
+  }
+  const requester = actor?.employeeId
+    ? await prisma.employee.findUnique({ where: { id: actor.employeeId }, select: { employeeCode: true, status: true } })
     : null;
-  await prisma.$transaction(async (tx: any) => {
-    await tx.policy.update({ where: { id }, data: { status: "Published", nextReviewDate } });
-    await tx.policyVersion.update({ where: { id: current.id }, data: { publishedAt: new Date() } });
-    const previous = policy.versions.at(-2);
-    if (!current.requiresReacknowledgement && previous) {
-      const previousAcknowledgements = await tx.policyAcknowledgement.findMany({ where: { versionId: previous.id } });
-      if (previousAcknowledgements.length) {
-        await tx.policyAcknowledgement.createMany({
-          data: previousAcknowledgements.map((acknowledgement) => ({
-            versionId: current.id,
-            employeeId: acknowledgement.employeeId,
-            acknowledgedAt: acknowledgement.acknowledgedAt,
-            device: acknowledgement.device,
-          })),
-          skipDuplicates: true,
-        });
+  if (!requester || requester.status !== "Active") throw AppError.forbidden("An active employee account is required to submit policy approval");
+
+  const result = await submitAndLinkWorkflow({
+    requestType: "Policy Publication",
+    requesterCode: requester.employeeCode,
+    attributes: async (tx) => {
+      const employeeWhere: Prisma.EmployeeWhereInput = { status: { not: "Inactive" } };
+      if (policy.scope.startsWith("Department: ")) {
+        employeeWhere.department = { is: { name: policy.scope.slice("Department: ".length) } };
+      } else if (policy.scope.startsWith("Location: ")) {
+        employeeWhere.location = { is: { name: policy.scope.slice("Location: ".length) } };
       }
-    }
+      return { affected_employee_count: await tx.employee.count({ where: employeeWhere }) };
+    },
+    submitRequest: workflowService.submitRequest,
+    linkOwner: async (tx, workflowInstanceId) => {
+      const claimed = await tx.policyVersion.updateMany({
+        where: { id: current.id, approvalStatus: current.approvalStatus, workflowInstanceId: current.workflowInstanceId },
+        data: { approvalStatus: "Pending Approval", workflowInstanceId },
+      });
+      if (claimed.count !== 1) throw AppError.conflict("This policy version changed while approval was being submitted.");
+      await tx.policy.update({ where: { id }, data: { status: "Pending Approval" } });
+      return tx.policy.findUniqueOrThrow({ where: { id }, include });
+    },
   });
-  void writeAuditLog({ actorUserId: actor?.sub, action: "UPDATE", entityType: "Policy", entityId: id, oldValue: { status: policy.status }, newValue: { status: "Published", versionNumber: current.versionNumber } });
-  return { policy: serializePolicy(await prisma.policy.findUniqueOrThrow({ where: { id }, include })) };
+  void writeAuditLog({ actorUserId: actor?.sub, action: "UPDATE", entityType: "Policy", entityId: id, oldValue: { status: policy.status }, newValue: { status: "Pending Approval", versionNumber: current.versionNumber } });
+  return { policy: serializePolicy(result) };
 }
 
 function serializeAcknowledgement(row: any) {

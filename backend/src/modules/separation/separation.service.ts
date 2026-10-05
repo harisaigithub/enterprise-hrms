@@ -1,4 +1,6 @@
 import { prisma } from "../../lib/prisma";
+import { AppError } from "../../lib/errors";
+import * as workflowService from "../workflow/workflow.service";
 
 const separationInclude = {
   employee: {
@@ -10,7 +12,21 @@ const separationInclude = {
     },
   },
   settlement: true,
+  workflowInstance: {
+    select: {
+      id: true,
+      status: true,
+      currentStepIndex: true,
+      steps: { select: { name: true, status: true, approverName: true } },
+    },
+  },
 } as const;
+
+export function assertAssetReturnClearanceCanComplete(assignedAssetCount: number) {
+  if (assignedAssetCount > 0) {
+    throw AppError.conflict("Asset clearance cannot be completed until all assigned assets are returned.");
+  }
+}
 
 function serializeSeparation(separation: any) {
   return {
@@ -127,6 +143,15 @@ export async function initiateSeparation(input: {
     throw new Error(
       "Separation can only be initiated for an active employee"
     );
+  }
+
+  const definition = await prisma.workflowDefinition.findFirst({
+    where: { requestType: "Employee Separation", status: "Active" },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+  if (!definition) {
+    throw new Error("Employee Separation workflow is not installed. Install it from Workflow Library first.");
   }
 
   /* =========================================================
@@ -269,7 +294,17 @@ export async function initiateSeparation(input: {
         ],
       });
 
-      return createdSeparation;
+      const workflow = await workflowService.submitRequest(
+        definition.id,
+        employee.employeeCode,
+        { notice_shortfall_days: noticePeriodDays, settlement_amount: 0 },
+        tx
+      );
+      return tx.separation.update({
+        where: { id: createdSeparation.id },
+        data: { workflowInstanceId: workflow.data.id },
+        include: separationInclude,
+      });
     });
 
   /* =========================================================
@@ -309,7 +344,8 @@ export async function getClearanceItems(
 export async function updateClearanceItem(
   id: string,
   status: string,
-  notes?: string
+  notes?: string,
+  actor?: { employeeCode?: string; firstName?: string; lastName?: string; name?: string; role?: string; permissions?: string[] }
 ) {
   if (!["Pending", "Complete", "Flagged"].includes(status)) {
     throw new Error("Invalid clearance status");
@@ -319,10 +355,38 @@ export async function updateClearanceItem(
     where: {
       id,
     },
+    include: { separation: { select: { workflowInstanceId: true, employeeId: true } } },
   });
 
   if (!item) {
     throw new Error("Clearance item not found");
+  }
+
+  if (item.item === "Asset Return Clearance" && status === "Complete") {
+    const assignedAssets = await prisma.asset.count({
+      where: { currentHolderId: item.separation.employeeId, status: "ASSIGNED" },
+    });
+    assertAssetReturnClearanceCanComplete(assignedAssets);
+  }
+
+  const workflowStepByClearance: Record<string, string> = {
+    "Manager Clearance": "Manager Acknowledgement",
+    "HR Clearance": "HR Clearance",
+    "Finance Clearance": "Finance Settlement",
+  };
+  const workflowStepName = workflowStepByClearance[item.item];
+  if (status === "Complete" && item.status !== "Complete" && workflowStepName && item.separation.workflowInstanceId) {
+    if (!actor?.employeeCode) throw new Error("Clearance approver must be linked to an employee record");
+    const actorName = `${actor.firstName ?? ""} ${actor.lastName ?? ""}`.trim() || actor.name || actor.employeeCode;
+    const isFinanceStep = item.item === "Finance Clearance";
+    await workflowService.actOnStep(
+      item.separation.workflowInstanceId,
+      actor.employeeCode,
+      actorName,
+      "approve",
+      notes,
+      { bypassRoleApprover: actor.role === "ADMIN" && (actor.permissions?.includes("workflows:write") ?? false), actorRole: actor.role }
+    );
   }
 
   const updated = await prisma.separationClearance.update({
