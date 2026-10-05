@@ -37,6 +37,7 @@ import { useAuth } from "../../context/AuthContext";
 import {
   getPayslips,
   getPayrollRuns,
+  createPayrollRun,
   processPayrollRun,
   approvePayrollRun,
   rejectPayrollRun,
@@ -772,6 +773,7 @@ export default function Payroll() {
   const [adminTab, setAdminTab] = useState("my_payslips"); // "my_payslips" | "payroll_runs"
   const [payrollRunsList, setPayrollRunsList] = useState([]);
   const [payrollError, setPayrollError] = useState("");
+  const [creatingRun, setCreatingRun] = useState(false);
 
   useEffect(() => {
     getPayslips(user?.id)
@@ -924,9 +926,43 @@ export default function Payroll() {
         ) : canManagePayroll && adminTab === "payroll_runs" ? (
           /* Admin Payroll Runs Table */
           <div style={{ background: "var(--card)", borderRadius: "var(--radius-lg)", border: "1px solid var(--border)", boxShadow: "var(--shadow-sm)", overflow: "hidden" }}>
-            <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
-              <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Corporate Payroll Batches</h3>
-              <p style={{ fontSize: "12px", color: "var(--subtext)" }}>Review and process monthly organization-wide salary disbursements</p>
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+              <div>
+                <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Corporate Payroll Batches</h3>
+                <p style={{ fontSize: "12px", color: "var(--subtext)" }}>Review and process monthly organization-wide salary disbursements</p>
+              </div>
+              {canPreparePayroll && (
+                <button
+                  disabled={creatingRun}
+                  onClick={async () => {
+                    const now = new Date();
+                    const monthInput = window.prompt("Payroll month (1-12):", String(now.getMonth() + 1));
+                    if (monthInput === null) return;
+                    const yearInput = window.prompt("Payroll year:", String(now.getFullYear()));
+                    if (yearInput === null) return;
+                    const month = Number(monthInput);
+                    const year = Number(yearInput);
+                    if (!Number.isInteger(month) || month < 1 || month > 12 || !Number.isInteger(year)) {
+                      alert("Please enter a valid month and year.");
+                      return;
+                    }
+                    try {
+                      setCreatingRun(true);
+                      setPayrollError("");
+                      await createPayrollRun(month, year);
+                      const res = await getPayrollRuns();
+                      setPayrollRunsList(res.data || []);
+                    } catch (error) {
+                      setPayrollError(error?.message || "Payroll run could not be created.");
+                    } finally {
+                      setCreatingRun(false);
+                    }
+                  }}
+                  style={{ padding: "8px 14px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", fontSize: "12.5px", fontWeight: 700, cursor: creatingRun ? "not-allowed" : "pointer", opacity: creatingRun ? 0.65 : 1 }}
+                >
+                  {creatingRun ? "Creating..." : "+ Create Payroll Run"}
+                </button>
+              )}
             </div>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>

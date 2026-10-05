@@ -10,6 +10,14 @@ export const getPayrollRuns = async () => {
   return res.data;
 };
 
+export const createPayrollRun = async (month, year) => {
+  const res = await api.post("/payroll/runs", {
+    month: Number(month),
+    year: Number(year),
+  });
+  return res.data;
+};
+
 export const getPayslips = async (employeeId) => {
   if (!employeeId) {
     throw new Error("Employee ID is required.");

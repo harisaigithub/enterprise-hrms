@@ -24,6 +24,7 @@ export function serializeLeaveType(lt: LeaveTypePublic) {
     code: mnemonic(lt.name),
     maxDays: lt.defaultAnnualDays,
     carryForward: lt.carryForward,
+    isPaid: lt.isPaid,
   };
 }
 
@@ -72,7 +73,7 @@ type RequestWithRelations = LeaveRequest & {
  *    endDate, days, reason, status, appliedOn, approverId, approverName,
  *    approvedOn, comments }`.
  */
-export function serializeLeaveRequest(req: RequestWithRelations) {
+export function serializeLeaveRequest(req: RequestWithRelations, dayOverride?: number) {
   return {
     id: req.id,
     employeeId: req.employee?.employeeCode ?? "",
@@ -81,7 +82,9 @@ export function serializeLeaveRequest(req: RequestWithRelations) {
     leaveTypeName: req.leaveType?.name ?? "",
     startDate: formatDate(req.startDate),
     endDate: formatDate(req.endDate),
-    days: countWeekdays(req.startDate, req.endDate),
+    startDayPortion: req.startDayPortion,
+    endDayPortion: req.endDayPortion,
+    days: dayOverride ?? (req.startDate.getTime() === req.endDate.getTime() ? (req.startDayPortion === "FULL" && req.endDayPortion === "FULL" ? 1 : (req.startDayPortion === "FIRST_HALF" && req.endDayPortion === "SECOND_HALF" ? 1 : 0.5)) : countWeekdays(req.startDate, req.endDate) - (req.startDayPortion !== "FULL" ? 0.5 : 0) - (req.endDayPortion !== "FULL" ? 0.5 : 0)),
     reason: req.reason ?? "",
     status: req.status,
     appliedOn: formatDate(req.createdAt),
@@ -96,6 +99,11 @@ export function serializeLeaveRequest(req: RequestWithRelations) {
   };
 }
 
-export function serializeLeaveRequestList(requests: RequestWithRelations[]) {
-  return requests.map(serializeLeaveRequest);
+export function serializeLeaveRequestList(
+  requests: RequestWithRelations[],
+  dayOverrides?: Map<string, number>
+) {
+  return requests.map((request) =>
+    serializeLeaveRequest(request, dayOverrides?.get(request.id))
+  );
 }

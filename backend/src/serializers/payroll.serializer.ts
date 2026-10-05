@@ -70,6 +70,7 @@ export function serializePayslip(slip: SlipWithRelations) {
       medicalAllowance: toNumber(earnings.medicalAllowance),
       performanceBonus: toNumber(earnings.performanceBonus),
       otherAllowances: toNumber(earnings.otherAllowances),
+       expenseReimbursements: toNumber(earnings.expenseReimbursements),
       total: toNumber(earnings.total),
     },
     deductions: {
@@ -77,6 +78,7 @@ export function serializePayslip(slip: SlipWithRelations) {
       professionalTax: toNumber(deductions.professionalTax),
       incomeTax: toNumber(deductions.incomeTax),
       healthInsurance: toNumber(deductions.healthInsurance),
+      lopDeduction: toNumber(deductions.lopDeduction),
       total: toNumber(deductions.total),
     },
     netPay: toNumber(slip.netPay),

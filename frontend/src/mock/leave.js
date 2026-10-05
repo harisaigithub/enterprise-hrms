@@ -10,6 +10,7 @@ export const leaveTypes = [
   { id: "LT04", name: "Compensatory Off", code: "CO", maxDays: 10, carryForward: false },
   { id: "LT05", name: "Maternity Leave", code: "ML", maxDays: 180, carryForward: false },
   { id: "LT06", name: "Paternity Leave", code: "PL", maxDays: 15, carryForward: false },
+  { id: "LT07", name: "Leave Without Pay", code: "LWP", maxDays: 0, carryForward: false, isPaid: false },
 ];
 
 // Leave balance for current user (EMP001)

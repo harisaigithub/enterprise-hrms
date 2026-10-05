@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   Employee,
   Department,
   Designation,
@@ -110,6 +110,7 @@ export function serializeEmployee(emp: EmployeeWithRelations, options: Serialize
     designation: emp.designation?.title ?? "",
     designationLevel: emp.designation?.level ?? "L3",
     department: emp.department?.name ?? "",
+    locationId: emp.locationId ?? emp.location?.id ?? null,
     location: formatFullLocation(emp.location?.name),
     employmentType: emp.employmentType,
     status: emp.status,
@@ -153,4 +154,5 @@ export function serializeEmployee(emp: EmployeeWithRelations, options: Serialize
 export function serializeEmployeeList(employees: EmployeeWithRelations[], options: SerializerOptions = {}) {
   return employees.map((e) => serializeEmployee(e, options));
 }
+
 

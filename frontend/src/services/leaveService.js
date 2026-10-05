@@ -52,3 +52,8 @@ export const rejectLeave = async (requestId, comments = "") => {
   const res = await api.put(`/leave/${requestId}/reject`, { comments });
   return res.data;
 };
+
+export const cancelLeave = async (requestId) => {
+  const res = await api.put(`/leave/${requestId}/cancel`);
+  return res.data;
+};

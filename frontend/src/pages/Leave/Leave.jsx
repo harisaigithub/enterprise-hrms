@@ -42,6 +42,7 @@ import {
   applyLeave,
   approveLeave,
   rejectLeave,
+  cancelLeave,
   uploadLeaveDocument,
 } from "../../services/leaveService";
 import { useAuth } from "../../context/AuthContext";
@@ -169,6 +170,8 @@ function ApplyLeaveModal({ isOpen, onClose, leaveTypes, employeeId, onSaved }) {
     leaveTypeId: "",
     startDate: "",
     endDate: "",
+    startDayPortion: "FULL",
+    endDayPortion: "FULL",
     reason: "",
     document: null,
     documentName: "",
@@ -187,8 +190,25 @@ function ApplyLeaveModal({ isOpen, onClose, leaveTypes, employeeId, onSaved }) {
     form.reason.toLowerCase().includes("doctor");
 
   const daysBetween = () => {
-    if (!form.startDate || !form.endDate) return 0;
-    return Math.max(0, Math.round((new Date(form.endDate) - new Date(form.startDate)) / 86400000) + 1);
+    if (!form.startDate || !form.endDate || form.endDate < form.startDate) return 0;
+
+    const start = new Date(`${form.startDate}T00:00:00Z`);
+    const end = new Date(`${form.endDate}T00:00:00Z`);
+    const calendarDays = Math.round((end - start) / 86400000) + 1;
+
+    if (calendarDays === 1) {
+      return form.startDayPortion === "FULL" && form.endDayPortion === "FULL"
+        ? 1
+        : form.startDayPortion === "FIRST_HALF" && form.endDayPortion === "SECOND_HALF"
+          ? 1
+          : 0.5;
+    }
+
+    return Math.max(0,
+      calendarDays
+      - (form.startDayPortion !== "FULL" ? 0.5 : 0)
+      - (form.endDayPortion !== "FULL" ? 0.5 : 0)
+    );
   };
 
   const validate = () => {
@@ -230,6 +250,8 @@ function ApplyLeaveModal({ isOpen, onClose, leaveTypes, employeeId, onSaved }) {
         leaveTypeId: form.leaveTypeId,
         startDate: form.startDate,
         endDate: form.endDate,
+        startDayPortion: form.startDayPortion,
+        endDayPortion: form.endDayPortion,
         reason: form.reason,
 
         documentName:
@@ -253,6 +275,8 @@ function ApplyLeaveModal({ isOpen, onClose, leaveTypes, employeeId, onSaved }) {
         document: null,
         documentName: "",
         documentSize: "",
+        startDayPortion: "FULL",
+        endDayPortion: "FULL",
       });
 
       onClose();
@@ -278,7 +302,7 @@ function ApplyLeaveModal({ isOpen, onClose, leaveTypes, employeeId, onSaved }) {
           <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Leave Type *</label>
           <select value={form.leaveTypeId} onChange={(e) => setForm((p) => ({ ...p, leaveTypeId: e.target.value }))} style={inputStyle("leaveTypeId")}>
             <option value="">Select leave type</option>
-            {leaveTypes.map((t) => <option key={t.id} value={t.id}>{t.name} (max {t.maxDays} days)</option>)}
+            {leaveTypes.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.isPaid === false ? "unpaid" : `max ${t.maxDays} days`})</option>)}
           </select>
           {errors.leaveTypeId && <span style={{ fontSize: "11px", color: "var(--red)" }}>{errors.leaveTypeId}</span>}
         </div>
@@ -289,6 +313,19 @@ function ApplyLeaveModal({ isOpen, onClose, leaveTypes, employeeId, onSaved }) {
               <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>{label}</label>
               <input type="date" value={form[key]} onChange={(e) => setForm((p) => ({ ...p, [key]: e.target.value }))} style={inputStyle(key)} />
               {errors[key] && <span style={{ fontSize: "11px", color: "var(--red)" }}>{errors[key]}</span>}
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+          {[['startDayPortion', 'Start day portion'], ['endDayPortion', 'End day portion']].map(([key, label]) => (
+            <div key={key} style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+              <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>{label}</label>
+              <select value={form[key]} onChange={(e) => setForm((p) => ({ ...p, [key]: e.target.value }))} style={inputStyle(key)}>
+                <option value="FULL">Full day</option>
+                <option value="FIRST_HALF">First half</option>
+                <option value="SECOND_HALF">Second half</option>
+              </select>
             </div>
           ))}
         </div>

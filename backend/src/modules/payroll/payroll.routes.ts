@@ -12,8 +12,16 @@ const payslipQuerySchema = z.object({
   employeeId: z.string().optional(),
 });
 
+const createPayrollRunSchema = z.object({
+  month: z.number().int().min(1).max(12),
+  year: z.number().int().min(2000).max(2100),
+}).strict();
+
 // GET /api/payroll/runs — payroll:read
 router.get("/runs", authenticate, requirePermission("payroll:read"), payrollController.runs);
+
+// POST /api/payroll/runs — create a Draft payroll batch
+router.post("/runs", authenticate, requirePermission("payroll:write"), requireRole("HR", "ADMIN"), validate({ body: createPayrollRunSchema }), payrollController.createRun);
 
 // GET /api/payroll/runs/:id — payroll:read
 router.get("/runs/:id", authenticate, requirePermission("payroll:read"), payrollController.runDetail);

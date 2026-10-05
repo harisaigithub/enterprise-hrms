@@ -73,6 +73,41 @@ router.post(
 // LOCATIONS
 // =========================================================
 
+// =========================================================
+// TEAMS
+// =========================================================
+
+router.get(
+  "/teams",
+  organizationManagementController.getTeams.bind(
+    organizationManagementController
+  )
+);
+
+router.post(
+  "/teams",
+  requireOrganizationWrite,
+  organizationManagementController.addTeam.bind(
+    organizationManagementController
+  )
+);
+router.get(
+  "/teams/:id/members",
+  organizationManagementController.getTeamMembers.bind(organizationManagementController)
+);
+
+router.put(
+  "/teams/:id",
+  requireOrganizationWrite,
+  organizationManagementController.updateTeam.bind(organizationManagementController)
+);
+
+router.put(
+  "/teams/:id/members",
+  requireOrganizationWrite,
+  organizationManagementController.setTeamMembers.bind(organizationManagementController)
+);
+
 router.get(
   "/locations",
   organizationManagementController.getLocations.bind(
@@ -96,6 +131,14 @@ router.put(
   )
 );
 
+
+router.put(
+  "/locations/:id/activate",
+  requireOrganizationWrite,
+  organizationManagementController.activateLocation.bind(
+    organizationManagementController
+  )
+);
 // =========================================================
 // COST CENTERS
 // =========================================================
@@ -116,6 +159,29 @@ router.post(
 );
 
 // =========================================================
+router.put(
+  "/cost-centers/:id",
+  requireOrganizationWrite,
+  organizationManagementController.updateCostCenter.bind(
+    organizationManagementController
+  )
+);
+
+router.patch(
+  "/cost-centers/:id/deactivate",
+  requireOrganizationWrite,
+  organizationManagementController.deactivateCostCenter.bind(
+    organizationManagementController
+  )
+);
+
+router.patch(
+  "/cost-centers/:id/activate",
+  requireOrganizationWrite,
+  organizationManagementController.activateCostCenter.bind(
+    organizationManagementController
+  )
+);
 // DESIGNATIONS
 // =========================================================
 
@@ -238,3 +304,4 @@ router.delete(
 );
 
 export default router;
+

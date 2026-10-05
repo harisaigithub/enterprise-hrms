@@ -75,3 +75,9 @@ export const getLeaveTypePublic = asyncHandler(async (req: Request, res: Respons
     );
   }
 );
+
+
+export const cancel = asyncHandler(async (req: Request, res: Response) => {
+  const result = await leaveService.cancelLeave(req.params.id, req.auth);
+  sendSuccess(res, result.data);
+});

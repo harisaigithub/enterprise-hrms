@@ -25,13 +25,25 @@ export const list = asyncHandler(async (req: Request, res: Response) => {
       month: q.month ? Number(q.month) : undefined,
       year: q.year ? Number(q.year) : undefined,
     },
-    req.auth?.employeeId
+    req.auth
   );
   sendSuccess(res, result.data);
 });
 
-export const summary = asyncHandler(async (_req: Request, res: Response) => {
-  const result = await attendanceService.getTeamSummary();
+export const summary = asyncHandler(async (req: Request, res: Response) => {
+  const q = req.query as Record<string, string | undefined>;
+  const result = await attendanceService.getTeamSummary(req.auth, q.date);
+  sendSuccess(res, result.data);
+});
+
+export const summaryRows = asyncHandler(async (req: Request, res: Response) => {
+  const q = req.query as Record<string, string | undefined>;
+  const result = await attendanceService.getSummaryRows(req.auth, {
+    date: q.date,
+    bucket: q.bucket ?? "All", // <-- Fallback de diya taaki undefined na jaye
+    page: q.page ? Number(q.page) : undefined,
+    pageSize: q.pageSize ? Number(q.pageSize) : undefined,
+  });
   sendSuccess(res, result.data);
 });
 
@@ -100,6 +112,6 @@ export const listShifts = asyncHandler(async (_req: Request, res: Response) => {
 });
 
 export const createShift = asyncHandler(async (req: Request, res: Response) => {
-  const result = await attendanceService.createShift(req.body);
+  const result = await attendanceService.createShift(req.body, req.auth);
   sendSuccess(res, result.data, undefined, 201);
 });

@@ -9,6 +9,12 @@ export const runs = asyncHandler(async (_req: Request, res: Response) => {
   sendSuccess(res, result.data);
 });
 
+export const createRun = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.auth?.sub) throw AppError.unauthorized();
+  const result = await payrollService.createPayrollRun(req.body.month, req.body.year, req.auth.sub);
+  sendSuccess(res, result.data);
+});
+
 export const runDetail = asyncHandler(async (req: Request, res: Response) => {
   const result = await payrollService.getPayrollRun(req.params.id);
   sendSuccess(res, result.data);

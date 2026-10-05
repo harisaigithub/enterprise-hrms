@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+﻿import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
 import { writeAuditLog } from "../../services/audit.service";
@@ -6,11 +6,28 @@ import { createInAppForEmployee } from "../notifications/notifications.service";
 import * as workflowService from "../workflow/workflow.service";
 import { serializeAttendanceList, serializeTeamSummary } from "../../serializers/attendance.serializer";
 import { formatDate } from "../../serializers/helpers";
-import { startOfDay } from "../../serializers/helpers";
+import { attendanceEmployeeIds, requireAttendanceReader } from "./attendance.scope";
+import type { AttendanceActor } from "./attendance.scope";
+import { createShiftSchema } from "./attendance.schemas";
+import { assertPeriodOpen } from "./payroll-lock";
+import {
+  addDays,
+  DEFAULT_TIMEZONE,
+  formatLocalTime,
+  isValidLocalDate,
+  localDateOf,
+  localDateToDbDate,
+  timeColumnToMinutes,
+  zonedInstant,
+} from "./attendance.time";
+import type { ShiftSnapshot } from "./attendance.engine";
+
+// Re-export roster functions for controller binding
+export { getTeamSummary, getSummaryRows } from "./attendance.roster";
 
 function formatTime(d: Date | null | undefined): string | null {
   if (!d) return null;
-  return d.toISOString().slice(11, 16);
+  return formatLocalTime(d, DEFAULT_TIMEZONE);
 }
 
 function toNumber(val: any): number {
@@ -18,17 +35,20 @@ function toNumber(val: any): number {
 }
 
 const PUNCH_INCLUDE = {
-  employee: { select: { employeeCode: true } },
+  employee: {
+    select: {
+      employeeCode: true,
+      firstName: true,
+      lastName: true,
+    },
+  },
 } satisfies Prisma.AttendancePunchInclude;
 
-/** Resolve an employee code (EMP001) to the DB PK, with scope guard.
- *  If actorEmployeeId is given, the resolved employee must match the actor
- *  (employees can only check-in/out for themselves). HR/Admin callers
- *  pass undefined to bypass. */
 export async function resolveEmployeeId(employeeCode: string, actorEmployeeId?: string): Promise<string> {
+  if (!actorEmployeeId) throw AppError.forbidden("Account is not linked to an employee record");
   const emp = await prisma.employee.findUnique({ where: { employeeCode }, select: { id: true } });
   if (!emp) throw AppError.notFound("Employee not found");
-  if (actorEmployeeId && emp.id !== actorEmployeeId) {
+  if (emp.id !== actorEmployeeId) {
     throw AppError.forbidden("You can only manage your own attendance");
   }
   return emp.id;
@@ -40,196 +60,308 @@ export interface AttendanceFilters {
   year?: number;
 }
 
-export async function listAttendance(filters: AttendanceFilters, actorEmployeeId?: string) {
-  const where: Prisma.AttendancePunchWhereInput = {};
+export async function listAttendance(filters: AttendanceFilters, actor?: AttendanceActor) {
+  const visibleIds = await attendanceEmployeeIds(actor);
+
+  const punchWhere: Prisma.AttendancePunchWhereInput = {};
+  const dayWhere: Prisma.AttendanceDayWhereInput = {};
+
+  if (visibleIds !== null) {
+    punchWhere.employeeId = { in: visibleIds };
+    dayWhere.employeeId = { in: visibleIds };
+  }
 
   if (filters.employeeId) {
-    where.employee = { employeeCode: filters.employeeId };
-  } else if (actorEmployeeId) {
-    // Default to the authenticated employee's own records.
-    where.employee = { id: actorEmployeeId };
+    punchWhere.employee = { employeeCode: filters.employeeId };
+    dayWhere.employee = { employeeCode: filters.employeeId };
   }
 
   if (filters.month && filters.year) {
     const month = filters.month;
     const year = filters.year;
-    where.punchDate = {
+    const range = {
       gte: new Date(Date.UTC(year, month - 1, 1)),
       lt: new Date(Date.UTC(year, month, 1)),
     };
+    punchWhere.punchDate = range;
+    dayWhere.date = range;
   }
 
-  const rows = await prisma.attendancePunch.findMany({
-    where,
-    include: PUNCH_INCLUDE,
-    orderBy: { punchDate: "desc" },
-  });
-
-  return { data: serializeAttendanceList(rows) };
-}
-
-export async function getTeamSummary() {
-  const today = startOfDay(new Date());
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-
-  const [punches, onLeaveToday] = await Promise.all([
+  // AttendanceDay is the finalized daily/payroll truth. AttendancePunch only
+  // supplies raw punch-in/out details. Read both so leave/weekly-off/finalized
+  // rows remain visible even when no physical punch exists.
+  const [punches, days] = await Promise.all([
     prisma.attendancePunch.findMany({
-      where: { punchDate: { gte: today, lt: tomorrow } },
-      include: { employee: { select: { employeeCode: true } } },
+      where: punchWhere,
+      include: PUNCH_INCLUDE,
+      orderBy: { punchDate: "desc" },
     }),
-    prisma.leaveRequest.findMany({
-      where: {
-        status: "Approved",
-        startDate: { lte: today },
-        endDate: { gte: today },
-      },
-      select: { id: true },
+    prisma.attendanceDay.findMany({
+      where: dayWhere,
+      include: { employee: { select: { employeeCode: true, firstName: true, lastName: true } } },
+      orderBy: { date: "desc" },
     }),
   ]);
 
-  const present = punches.filter((p) => p.status === "Present").length;
-  const late = punches.filter((p) => p.status === "Late").length;
-  const wfh = punches.filter((p) => p.status === "WFH").length;
-  const total = punches.length + onLeaveToday.length; // total tracked employees
+  return { data: serializeAttendanceList(punches, days) };
+}
 
+async function resolveShiftSnapshot(employeeId: string, businessDate: string): Promise<ShiftSnapshot> {
+  const dbDate = localDateToDbDate(businessDate);
+  const employee = await prisma.employee.findUnique({
+    where: { id: employeeId },
+    select: {
+      shiftId: true,
+      shift: {
+        select: {
+          id: true, name: true, type: true, startTime: true, endTime: true,
+          gracePeriodMinutes: true, breakDurationMinutes: true,
+          overtimeThresholdHours: true,
+          requiredMinutes: true, weeklyOffDays: true,
+        },
+      },
+      shiftAssignments: {
+        where: { effectiveFrom: { lte: dbDate }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: dbDate } }] },
+        orderBy: { effectiveFrom: "desc" },
+        take: 1,
+        select: {
+          shift: {
+            select: {
+              id: true, name: true, type: true, startTime: true, endTime: true,
+              gracePeriodMinutes: true, breakDurationMinutes: true,
+              overtimeThresholdHours: true, requiredMinutes: true, weeklyOffDays: true,
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!employee) throw AppError.notFound("Employee not found");
+  const shift: any = employee.shiftAssignments[0]?.shift ?? employee.shift;
+  if (!shift) {
+    return {
+      id: null, name: "Default (09:00-18:00)", type: "FIXED",
+      startMinute: 540, endMinute: 1080, graceMinutes: 15, breakMinutes: 60,
+      weeklyOffDays: [0, 6], requiredMinutes: 480, overtimeThresholdMinutes: 480,
+    };
+  }
+  const startMinute = timeColumnToMinutes(shift.startTime);
+  const endMinute = timeColumnToMinutes(shift.endTime);
   return {
-    data: serializeTeamSummary({
-      date: formatDate(today) ?? "",
-      present,
-      late,
-      absent: Math.max(0, total - present - late - wfh - onLeaveToday.length),
-      onLeave: onLeaveToday.length,
-      wfh,
-      total,
-    }),
+    id: shift.id,
+    name: shift.name,
+    type: shift.type ?? (endMinute <= startMinute ? "OVERNIGHT" : "FIXED"),
+    startMinute,
+    endMinute,
+    graceMinutes: shift.gracePeriodMinutes,
+    breakMinutes: shift.breakDurationMinutes,
+    requiredMinutes: shift.requiredMinutes ?? null,
+    overtimeThresholdMinutes: shift.overtimeThresholdHours != null ? Math.round(Number(shift.overtimeThresholdHours) * 60) : null,
+    weeklyOffDays: Array.isArray(shift.weeklyOffDays) ? shift.weeklyOffDays.map(Number) : [0, 6],
   };
 }
 
+async function resolvePunchBusinessDate(employeeId: string, now: Date): Promise<{ date: string; shift: ShiftSnapshot }> {
+  const today = localDateOf(now, DEFAULT_TIMEZONE);
+  const candidates = [today, addDays(today, -1)];
+  for (const date of candidates) {
+    const shift = await resolveShiftSnapshot(employeeId, date);
+    const duration = (shift.endMinute - shift.startMinute + 1440) % 1440 || 1440;
+    const start = zonedInstant(date, shift.startMinute, DEFAULT_TIMEZONE);
+    const end = new Date(start.getTime() + duration * 60_000);
+    const buffer = 120 * 60_000;
+    if (now.getTime() >= start.getTime() && now.getTime() <= end.getTime() + buffer) {
+      return { date, shift };
+    }
+  }
+  return { date: today, shift: await resolveShiftSnapshot(employeeId, today) };
+}
+
+async function resolveOpenPunchContext(employeeId: string, now: Date) {
+  const today = localDateOf(now, DEFAULT_TIMEZONE);
+  for (const date of [today, addDays(today, -1)]) {
+    const punch = await prisma.attendancePunch.findUnique({
+      where: { employeeId_punchDate: { employeeId, punchDate: localDateToDbDate(date) } },
+    });
+    if (punch?.punchIn && !punch.punchOut) {
+      return { date, shift: await resolveShiftSnapshot(employeeId, date), punch };
+    }
+  }
+  return null;
+}
+
+async function refreshPunchFromEngine(employeeId: string, businessDate: string, now = new Date()) {
+  const rows = await import("./attendance.roster").then((m) => m.computeDayRows(businessDate, [employeeId], now, DEFAULT_TIMEZONE));
+  return rows[0]?.result ?? null;
+}
+
+async function persistAttendanceDayResult(employeeId: string, businessDate: string, result: any) {
+  if (!result?.isFinal) return;
+  const date = localDateToDbDate(businessDate);
+  const period = await prisma.payrollPeriod.findFirst({
+    where: { startDate: { lte: date }, endDate: { gte: date } },
+    select: { status: true },
+  });
+  if (period && period.status !== "OPEN") return;
+  await prisma.attendanceDay.upsert({
+    where: { employeeId_date: { employeeId, date } },
+   update: {
+  status: result.dayStatus,
+  scheduledHours: Number((result.scheduledMinutes / 60).toFixed(2)),
+  actualHours: Number((result.workedMinutes / 60).toFixed(2)),
+  shortfallHours: Number((result.shortfallMinutes / 60).toFixed(2)),
+  overtimeHours: Number((result.approvedOvertimeMinutes || 0).toFixed(2)),
+
+  payableDayFraction: Number((result.payableDayFraction || 0).toFixed(2)),
+  lopFraction: Number((result.lopFraction || 0).toFixed(2)),
+  unpaidLeaveFraction: Number((result.unpaidLeaveFraction || 0).toFixed(2)),
+},
+    create: {
+  employeeId,
+  date,
+  status: result.dayStatus,
+  scheduledHours: Number((result.scheduledMinutes / 60).toFixed(2)),
+  actualHours: Number((result.workedMinutes / 60).toFixed(2)),
+  shortfallHours: Number((result.shortfallMinutes / 60).toFixed(2)),
+  overtimeHours: Number((result.approvedOvertimeMinutes || 0).toFixed(2)),
+
+  payableDayFraction: Number((result.payableDayFraction || 0).toFixed(2)),
+  lopFraction: Number((result.lopFraction || 0).toFixed(2)),
+  unpaidLeaveFraction: Number((result.unpaidLeaveFraction || 0).toFixed(2)),
+},
+  });
+}
+
 export async function checkIn(employeeCode: string, actorEmployeeId?: string, method = "Web") {
+  const allowedMethods = ["Web", "Biometric", "GPS"];
+  if (!allowedMethods.includes(method)) throw AppError.badRequest("Unsupported attendance capture method");
+  if (method === "Web" && process.env.ATTENDANCE_ALLOW_WEB_PUNCH === "false") {
+    throw AppError.forbidden("Web attendance is disabled. Use biometric or GPS attendance.");
+  }
   const empId = await resolveEmployeeId(employeeCode, actorEmployeeId);
-  const today = startOfDay(new Date());
+  const now = new Date();
+  const context = await resolvePunchBusinessDate(empId, now);
+  const punchDate = localDateToDbDate(context.date);
+  await assertPeriodOpen(context.date);
 
   const existing = await prisma.attendancePunch.findUnique({
-    where: { employeeId_punchDate: { employeeId: empId, punchDate: today } },
+    where: { employeeId_punchDate: { employeeId: empId, punchDate } },
   });
-  if (existing?.punchIn) {
-    throw AppError.conflict("Already checked in today");
+  if (existing?.punchIn) throw AppError.conflict("Already checked in for this attendance day");
+  if (existing?.punchOut) throw AppError.conflict("Attendance record is already closed");
+
+  const openPunch = await resolveOpenPunchContext(empId, now);
+  if (openPunch) {
+    throw AppError.conflict(`You already have an open attendance punch for ${openPunch.date}`);
   }
 
-  const now = new Date();
-
-  // Shift & Grace Period check: Default 09:00 AM with 15 min grace = 09:15 AM
-  const emp = await prisma.employee.findUnique({
-    where: { id: empId },
-    include: { shift: true },
-  });
-  const graceMinutes = emp?.shift?.gracePeriodMinutes ?? 15;
-  const shiftStartHour = 9;
-  const shiftStartMinute = 0;
-
-  const currentHours = now.getHours();
-  const currentMinutes = now.getMinutes();
-  const totalCurrentMinutes = currentHours * 60 + currentMinutes;
-  const totalShiftAllowedMinutes = shiftStartHour * 60 + shiftStartMinute + graceMinutes;
-
-  let computedStatus = "Present";
-  if (totalCurrentMinutes > totalShiftAllowedMinutes) {
-    computedStatus = "Late";
+  let created;
+  try {
+    created = await prisma.attendancePunch.create({
+      data: {
+        employeeId: empId,
+        punchDate,
+        punchIn: now,
+        method: method || "Web",
+        status: "Present",
+        scheduledHours: Number(((context.shift.requiredMinutes ?? Math.max(0, ((context.shift.endMinute - context.shift.startMinute + 1440) % 1440 || 1440) - context.shift.breakMinutes)) / 60).toFixed(2)),
+      },
+      include: PUNCH_INCLUDE,
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      throw AppError.conflict("Attendance was already checked in. Refresh and try again.");
+    }
+    throw error;
   }
 
-  const punch = await prisma.attendancePunch.upsert({
-    where: { employeeId_punchDate: { employeeId: empId, punchDate: today } },
-    update: { punchIn: now, punchOut: null, method, status: computedStatus },
-    create: {
-      employeeId: empId,
-      punchDate: today,
-      punchIn: now,
-      method,
-      status: computedStatus,
-      scheduledHours: 8.0,
+  const result = await refreshPunchFromEngine(empId, context.date, now);
+  const status = result?.isLate ? "Late" : method?.toUpperCase() === "WFH" ? "WFH" : "Present";
+  const updated = await prisma.attendancePunch.update({
+    where: { id: created.id },
+    data: {
+      status,
+      scheduledHours: result ? Number((result.scheduledMinutes / 60).toFixed(2)) : created.scheduledHours,
     },
     include: PUNCH_INCLUDE,
   });
 
-  writeAuditLog({
-    action: "CREATE",
-    entityType: "AttendancePunch",
-    entityId: punch.id,
-    newValue: { employeeId: empId, date: formatDate(today), action: "CHECK_IN", status: computedStatus },
+  await writeAuditLog({
+    action: "CREATE", entityType: "AttendancePunch", entityId: updated.id,
+    newValue: { employeeId: empId, date: context.date, action: "CHECK_IN", method, status },
   });
 
-  const serialized = serializeAttendanceList([punch])[0];
-  return { data: { employeeId: employeeCode, date: serialized.date, checkIn: serialized.checkIn, status: serialized.status } };
+  return {
+    data: {
+      employeeId: employeeCode,
+      date: context.date,
+      checkIn: formatLocalTime(updated.punchIn, DEFAULT_TIMEZONE),
+      status,
+      businessDate: context.date,
+      shift: context.shift.name,
+    },
+  };
 }
 
 export async function checkOut(employeeCode: string, actorEmployeeId?: string) {
   const empId = await resolveEmployeeId(employeeCode, actorEmployeeId);
-  const today = startOfDay(new Date());
-
-  const [punch, activeBreak] = await Promise.all([
-    prisma.attendancePunch.findUnique({
-      where: { employeeId_punchDate: { employeeId: empId, punchDate: today } },
-    }),
-    prisma.attendanceBreak.findFirst({
-      where: { employeeId: empId, endedAt: null },
-      select: { id: true },
-    }),
-  ]);
-  if (!punch?.punchIn) {
-    throw AppError.badRequest("Check in first before checking out");
-  }
-  if (punch.punchOut) {
-    throw AppError.conflict("Already checked out today");
-  }
-  if (activeBreak) {
-    throw AppError.conflict("End your active break before checking out");
-  }
-
   const now = new Date();
-  const punchInTime = punch.punchIn.getTime();
-  const punchOutTime = now.getTime();
-  const actualHours = Math.round(((punchOutTime - punchInTime) / (1000 * 60 * 60)) * 100) / 100;
+  const openPunch = await resolveOpenPunchContext(empId, now);
+  if (!openPunch) throw AppError.badRequest("Check in first before checking out");
+  const context = { date: openPunch.date, shift: openPunch.shift };
+  const punch = openPunch.punch;
+  await assertPeriodOpen(context.date);
 
-  // Overtime rule: if actual hours > 8.0 hours
-  let overtimeHours = 0;
-  if (actualHours > 8.0) {
-    overtimeHours = Math.round((actualHours - 8.0) * 100) / 100;
-  }
+  const activeBreak = await prisma.attendanceBreak.findFirst({
+    where: { employeeId: empId, endedAt: null },
+    select: { id: true },
+  });
+  if (punch.punchOut) throw AppError.conflict("Already checked out for this attendance day");
+  if (activeBreak) throw AppError.conflict("End your active break before checking out");
 
-  let finalStatus = punch.status;
-  if (actualHours < 4.0 && punch.status !== "Late") {
-    finalStatus = "Half-Day";
-  } else if (now.getHours() < 17 && punch.status === "Present") {
-    finalStatus = "Early-Checkout";
-  }
+  const updated = await prisma.attendancePunch.update({ where: { id: punch.id }, data: { punchOut: now } });
+  const result = await refreshPunchFromEngine(empId, context.date, now);
+  if (!result) throw AppError.conflict("Attendance calculation could not be completed");
 
-  const updated = await prisma.attendancePunch.update({
-    where: { id: punch.id },
+  await persistAttendanceDayResult(empId, context.date, result);
+  const finalStatus = result.isLate ? "Late" : result.dayStatus === "HALF_DAY" ? "Half-Day" : result.dayStatus === "INCOMPLETE" ? "Incomplete" : "Present";
+  const saved = await prisma.attendancePunch.update({
+    where: { id: updated.id },
     data: {
-      punchOut: now,
-      actualHours,
-      overtimeHours,
       status: finalStatus,
+      actualHours: Number((result.workedMinutes / 60).toFixed(2)),
+      overtimeHours: Number((result.rawOvertimeMinutes / 60).toFixed(2)),
+      scheduledHours: Number((result.scheduledMinutes / 60).toFixed(2)),
+      isOvertimeApproved: result.approvedOvertimeMinutes > 0,
     },
     include: PUNCH_INCLUDE,
   });
 
-  writeAuditLog({
-    action: "UPDATE",
-    entityType: "AttendancePunch",
-    entityId: updated.id,
-    newValue: { employeeId: empId, date: formatDate(today), action: "CHECK_OUT", actualHours, overtimeHours },
+  await writeAuditLog({
+    action: "UPDATE", entityType: "AttendancePunch", entityId: saved.id,
+    newValue: { employeeId: empId, date: context.date, action: "CHECK_OUT", actualHours: result.workedMinutes / 60, rawOvertimeHours: result.rawOvertimeMinutes / 60 },
   });
 
-  const serialized = serializeAttendanceList([updated])[0];
-  return { data: { employeeId: employeeCode, checkOut: serialized.checkOut, status: serialized.status, hoursWorked: actualHours, overtimeHours } };
+  return {
+    data: {
+      employeeId: employeeCode,
+      date: context.date,
+      checkOut: formatLocalTime(saved.punchOut, DEFAULT_TIMEZONE),
+      status: finalStatus,
+      hoursWorked: Number((result.workedMinutes / 60).toFixed(2)),
+      overtimeHours: Number((result.rawOvertimeMinutes / 60).toFixed(2)),
+    },
+  };
 }
 
 export async function startBreak(employeeId: string, actorUserId: string, breakType = "Short Break") {
-  const today = startOfDay(new Date());
+  const actor = await prisma.employee.findFirst({ where: { id: employeeId, userId: actorUserId }, select: { id: true } });
+  if (!actor) throw AppError.forbidden("You can only manage your own breaks");
+  const now = new Date();
+  const context = await resolvePunchBusinessDate(employeeId, now);
+  await assertPeriodOpen(context.date);
   const punch = await prisma.attendancePunch.findUnique({
-    where: { employeeId_punchDate: { employeeId, punchDate: today } },
+    where: { employeeId_punchDate: { employeeId, punchDate: localDateToDbDate(context.date) } },
     select: { punchIn: true, punchOut: true },
   });
 
@@ -265,6 +397,8 @@ export async function startBreak(employeeId: string, actorUserId: string, breakT
 }
 
 export async function endBreak(employeeId: string, actorUserId: string) {
+  const actor = await prisma.employee.findFirst({ where: { id: employeeId, userId: actorUserId }, select: { id: true } });
+  if (!actor) throw AppError.forbidden("You can only manage your own breaks");
   const activeBreak = await prisma.attendanceBreak.findFirst({
     where: { employeeId, endedAt: null },
     orderBy: { startedAt: "desc" },
@@ -325,9 +459,10 @@ type RegularizationInput = {
 };
 
 function validateRegularizationInput(input: RegularizationInput) {
-  const targetDate = startOfDay(new Date(`${input.date}T00:00:00Z`));
-  if (Number.isNaN(targetDate.getTime())) throw AppError.badRequest("A valid attendance date is required");
-  if (targetDate.getTime() >= startOfDay(new Date()).getTime()) {
+  if (!isValidLocalDate(input.date)) throw AppError.badRequest("A valid attendance date is required");
+  const targetDate = localDateToDbDate(input.date);
+  const todayLocal = localDateOf(new Date(), DEFAULT_TIMEZONE);
+  if (input.date >= todayLocal) {
     throw AppError.badRequest("Regularization is allowed only for past attendance dates");
   }
 
@@ -373,6 +508,7 @@ export async function requestRegularization(
 ) {
   const empId = await resolveEmployeeId(employeeCode, actor.employeeId);
   const { targetDate, punchIn, punchOut } = validateRegularizationInput(input);
+  await assertPeriodOpen(targetDate.toISOString().slice(0, 10));
 
   const duplicate = await prisma.attendanceRegularization.findFirst({
     where: { employeeId: empId, date: targetDate, status: { in: REGULARIZATION_ACTIVE_STATUSES } },
@@ -425,16 +561,16 @@ export async function requestRegularization(
 }
 
 export async function listRegularizations(filters: { employeeId?: string; status?: string }, actorRole?: string, actorEmployeeId?: string) {
+  const role = requireAttendanceReader(actorRole ? { role: actorRole, employeeId: actorEmployeeId } : undefined);
   const where: Prisma.AttendanceRegularizationWhereInput = {};
 
-  if (actorRole === "EMPLOYEE" && actorEmployeeId) {
+  if (role === "EMPLOYEE") {
     where.employeeId = actorEmployeeId;
-  } else if (actorRole === "MANAGER" && actorEmployeeId) {
-    where.OR = [
-      { employeeId: actorEmployeeId },
-      { employee: { reportingManagerId: actorEmployeeId } },
-    ];
-  } else if (filters.employeeId) {
+  } else if (role === "MANAGER") {
+    const visibleIds = await attendanceEmployeeIds({ role: "MANAGER", employeeId: actorEmployeeId });
+where.employeeId = { in: visibleIds ?? [] };
+  }
+  if (filters.employeeId) {
     where.employee = { employeeCode: filters.employeeId };
   }
 
@@ -500,6 +636,10 @@ export async function actOnRegularization(
     include: { employee: { select: { employeeCode: true, firstName: true, lastName: true, reportingManagerId: true } } },
   });
   if (!reg) throw AppError.notFound("Regularization request not found");
+
+  // ðŸ›¡ï¸ SECURITY GUARD: Block any adjustments if the target payroll period is locked (with ISO date string format)
+  await assertPeriodOpen(reg.date.toISOString().split("T")[0]);
+
   if (["Approved", "Rejected"].includes(reg.status)) throw AppError.conflict(`Request is already ${reg.status.toLowerCase()}`);
   if (reg.employeeId === actor.employeeId) throw AppError.forbidden("You cannot approve your own attendance correction");
   if (!reg.workflowInstanceId) throw AppError.conflict("This request is not linked to a workflow instance");
@@ -507,9 +647,9 @@ export async function actOnRegularization(
   const isManager = actor.role === "MANAGER";
   const isHr = actor.role === "HR" || actor.role === "ADMIN";
   if (isManager && reg.employee.reportingManagerId !== actor.employeeId) {
-    throw AppError.forbidden("Managers can act only on requests from their direct reports");
+    throw AppError.forbidden("Managers can approve only requests from their direct reports");
   }
-  if (!isManager && !isHr) throw AppError.forbidden("Only the reporting manager or HR can act on this request");
+  if (!isManager && !isHr) throw AppError.forbidden("Only a reporting manager or HR can act on this request");
 
   if (decision.action !== "APPROVE" && !decision.comment?.trim()) {
     throw AppError.badRequest("A comment is required when rejecting or requesting more details");
@@ -564,36 +704,31 @@ export async function actOnRegularization(
 
   const punchIn = reg.requestedPunchIn!;
   const punchOut = reg.requestedPunchOut!;
-  const actualHours = Math.round(((punchOut.getTime() - punchIn.getTime()) / 3600000) * 100) / 100;
-  const overtimeHours = Math.max(0, Math.round((actualHours - 8) * 100) / 100);
-
   const updated = await prisma.$transaction(async (tx) => {
     await tx.attendancePunch.upsert({
-      where: {
-        employeeId_punchDate: { employeeId: reg.employeeId, punchDate: reg.date },
-      },
-      update: {
-        status: reg.requestedStatus,
-        punchIn,
-        punchOut,
-        actualHours,
-        overtimeHours,
-      },
-      create: {
-        employeeId: reg.employeeId,
-        punchDate: reg.date,
-        status: reg.requestedStatus,
-        punchIn,
-        punchOut,
-        actualHours,
-        overtimeHours,
-        scheduledHours: 8.0,
-      },
+      where: { employeeId_punchDate: { employeeId: reg.employeeId, punchDate: reg.date } },
+      update: { punchIn, punchOut },
+      create: { employeeId: reg.employeeId, punchDate: reg.date, punchIn, punchOut, status: "Present" },
     });
     const row = await tx.attendanceRegularization.update({ where: { id }, data: { status: "Approved", decisionNotes: decision.comment || "Verified by HR", approverId: actor.employeeId, decidedAt: new Date() } });
     await tx.attendanceRegularizationHistory.create({ data: { regularizationId: id, actorEmployeeId: actor.employeeId, action: "HR_APPROVE", fromStatus: reg.status, toStatus: "Approved", comment: decision.comment } });
     return row;
   });
+
+  const result = await refreshPunchFromEngine(reg.employeeId, reg.date.toISOString().slice(0, 10), new Date());
+  if (result) {
+    await persistAttendanceDayResult(reg.employeeId, reg.date.toISOString().slice(0, 10), result);
+    await prisma.attendancePunch.update({
+      where: { employeeId_punchDate: { employeeId: reg.employeeId, punchDate: reg.date } },
+      data: {
+        status: result.isLate ? "Late" : result.dayStatus === "HALF_DAY" ? "Half-Day" : result.dayStatus === "INCOMPLETE" ? "Incomplete" : "Present",
+        scheduledHours: Number((result.scheduledMinutes / 60).toFixed(2)),
+        actualHours: Number((result.workedMinutes / 60).toFixed(2)),
+        overtimeHours: Number((result.rawOvertimeMinutes / 60).toFixed(2)),
+        isOvertimeApproved: result.approvedOvertimeMinutes > 0,
+      },
+    });
+  }
   await notifyEmployee(reg.employeeId, "Attendance correction approved", `Your attendance for ${formatDate(reg.date)} has been updated after HR verification.`);
   await writeAuditLog({
     actorUserId: actor.userId,
@@ -601,7 +736,7 @@ export async function actOnRegularization(
     entityType: "AttendanceRegularization",
     entityId: id,
     oldValue: { status: reg.status },
-    newValue: { status: "Approved", attendanceStatus: reg.requestedStatus, actualHours },
+    newValue: { status: "Approved", attendanceStatus: result?.dayStatus ?? "PRESENT", actualHours: result ? result.workedMinutes / 60 : null },
   });
   return { data: updated };
 }
@@ -612,6 +747,7 @@ export async function resubmitRegularization(id: string, input: RegularizationIn
   if (reg.employeeId !== actor.employeeId) throw AppError.forbidden("You can resubmit only your own request");
   if (reg.status !== "More Details Required") throw AppError.conflict("Only a request awaiting more details can be resubmitted");
   const { targetDate, punchIn, punchOut } = validateRegularizationInput(input);
+  await assertPeriodOpen(targetDate.toISOString().slice(0, 10));
   if (targetDate.getTime() !== reg.date.getTime()) throw AppError.badRequest("The attendance date cannot be changed during resubmission");
 
   const updated = await prisma.$transaction(async (tx) => {
@@ -628,10 +764,6 @@ export async function resubmitRegularization(id: string, input: RegularizationIn
   return { data: updated };
 }
 
-/* -------------------------------------------------------------------------- */
-/*                               Shifts Master                                */
-/* -------------------------------------------------------------------------- */
-
 export async function listShifts() {
   const shifts = await prisma.attendanceShift.findMany({
     orderBy: { name: "asc" },
@@ -645,25 +777,33 @@ export async function listShifts() {
       gracePeriodMinutes: s.gracePeriodMinutes,
       breakDurationMinutes: s.breakDurationMinutes,
       overtimeThresholdHours: toNumber(s.overtimeThresholdHours),
+      shiftType: s.type,
+      weeklyOffDays: Array.isArray(s.weeklyOffDays) ? s.weeklyOffDays : [0, 6],
+      requiredMinutes: s.requiredMinutes ?? null,
     })),
   };
 }
 
-export async function createShift(input: {
-  name: string;
-  startTime: string;
-  endTime: string;
-  gracePeriodMinutes?: number;
-  breakDurationMinutes?: number;
-}) {
+export async function createShift(rawInput: unknown, actor?: AttendanceActor) {
+  if (!actor) throw AppError.unauthorized();
+  if (!["HR", "ADMIN"].includes(actor.role?.toUpperCase())) {
+    throw AppError.forbidden("Only HR or Admin can create shifts");
+  }
+  const parsed = createShiftSchema.safeParse(rawInput);
+  if (!parsed.success) throw AppError.validation(parsed.error.issues);
+  const input = parsed.data;
   const dummyDate = "1970-01-01";
   const shift = await prisma.attendanceShift.create({
     data: {
       name: input.name,
+      type: input.shiftType,
       startTime: new Date(`${dummyDate}T${input.startTime}:00Z`),
       endTime: new Date(`${dummyDate}T${input.endTime}:00Z`),
       gracePeriodMinutes: input.gracePeriodMinutes ?? 15,
       breakDurationMinutes: input.breakDurationMinutes ?? 60,
+      requiredMinutes: input.requiredMinutes ?? null,
+      weeklyOffDays: input.weeklyOffDays,
+      overtimeThresholdHours: input.overtimeThresholdHours ?? 8,
     },
   });
   return { data: shift };

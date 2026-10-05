@@ -1,5 +1,5 @@
-/**
- * Employees Page — Module 2: Employee Lifecycle & Master Management
+﻿/**
+ * Employees Page â€” Module 2: Employee Lifecycle & Master Management
  * Indian IT Corporate standard with View Drawer/Modal, Active/Inactive Toggle,
  * Detailed Payroll History inspection, Leaver Offboarding/Removal, and Expanded Edit.
  */
@@ -54,9 +54,11 @@ import {
   getEmployeeDocuments,
   uploadEmployeeDocument,
   deleteEmployeeDocument,
+  getAttendanceShifts,
 } from "../../services/employeeService";
+import { getTeams, getLocations } from "../../services/orgManagementService";
 import { useAuth } from "../../context/AuthContext";
-import { departments, locations, designations, documentTypes, employmentTypes, statuses } from "../../mock/employees";
+import { departments, designations, documentTypes, employmentTypes, statuses } from "../../mock/employees";
 
 
 const EMPLOYEE_STATUS_META = {
@@ -66,9 +68,9 @@ const EMPLOYEE_STATUS_META = {
   Terminated: { label: "Terminated", color: "#dc2626", bg: "#fef2f2" },
 };
 
-const inr = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
+const inr = (n) => `â‚¹${Number(n || 0).toLocaleString("en-IN")}`;
 
-/* ── Shared Salary Structure Form ──────────────────────────────────────────── */
+/* â”€â”€ Shared Salary Structure Form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const EMPTY_SALARY = {
   effectiveFrom: new Date().toISOString().slice(0, 10),
   basicSalary: "",
@@ -141,20 +143,20 @@ function SalaryStructureForm({ salary, onChange, errors = {} }) {
         />
       </div>
 
-      <p style={{ margin: 0, fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Earnings (Monthly ₹)</p>
+      <p style={{ margin: 0, fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Earnings (Monthly â‚¹)</p>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
         {sel("Basic Salary *", "basicSalary")}
-        {sel("HRA *", "hra", "(≈ 40% of basic)")}
+        {sel("HRA *", "hra", "(â‰ˆ 40% of basic)")}
         {sel("Conveyance Allowance", "conveyanceAllowance")}
         {sel("Medical Allowance", "medicalAllowance")}
         {sel("Performance Bonus", "performanceBonus")}
         {sel("Other Allowances", "otherAllowances")}
       </div>
 
-      <p style={{ margin: 0, fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Statutory Deductions (Monthly ₹)</p>
+      <p style={{ margin: 0, fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Statutory Deductions (Monthly â‚¹)</p>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
         {sel("Provident Fund (EPF)", "providentFund", "(12% of basic)")}
-        {sel("Professional Tax", "professionalTax", "(₹200/mo)")}
+        {sel("Professional Tax", "professionalTax", "(â‚¹200/mo)")}
         {sel("Income Tax (TDS)", "incomeTax")}
         {sel("Health Insurance", "healthInsurance")}
       </div>
@@ -163,7 +165,7 @@ function SalaryStructureForm({ salary, onChange, errors = {} }) {
 }
 
 
-// ─── Quick View Modal (Full Details + Documents + Current Payroll History) ───────────────
+// â”€â”€â”€ Quick View Modal (Full Details + Documents + Current Payroll History) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function EmployeeDetailModal({ employee, isOpen, onClose, onEdit, onToggleStatus, onOffboard, onEditPayroll, canManage, canRemove, onAvatarUpdated }) {
   const [activeTab, setActiveTab] = useState("overview");
   const [empDocs, setEmpDocs] = useState([]);
@@ -281,7 +283,7 @@ function EmployeeDetailModal({ employee, isOpen, onClose, onEdit, onToggleStatus
   };
 
   return (
-    <Modal isOpen={isOpen} title={`Employee Profile — ${employee.employeeCode || employee.id}`} onClose={onClose} maxWidth="840px">
+    <Modal isOpen={isOpen} title={`Employee Profile â€” ${employee.employeeCode || employee.id}`} onClose={onClose} maxWidth="840px">
       <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
         {/* Header Hero Card */}
         <div
@@ -351,7 +353,7 @@ function EmployeeDetailModal({ employee, isOpen, onClose, onEdit, onToggleStatus
                 <StatusBadge {...(EMPLOYEE_STATUS_META[employee.status] || EMPLOYEE_STATUS_META.Active)} />
               </div>
               <p style={{ margin: "4px 0 0", fontSize: "13px", color: "var(--subtext)" }}>
-                {employee.designation} • {employee.department} • {employee.location}
+                {employee.designation} â€¢ {employee.department} â€¢ {employee.location}
               </p>
             </div>
           </div>
@@ -455,14 +457,14 @@ function EmployeeDetailModal({ employee, isOpen, onClose, onEdit, onToggleStatus
               <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--primary)", marginBottom: "4px" }}>
                 <Mail size={15} /> <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: "var(--subtext)" }}>Work Email</span>
               </div>
-              <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>{employee.email || employee.personalEmail || "—"}</p>
+              <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>{employee.email || employee.personalEmail || "â€”"}</p>
             </div>
 
             <div style={{ padding: "12px 14px", background: "var(--background)", borderRadius: "var(--radius-sm)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--primary)", marginBottom: "4px" }}>
                 <Phone size={15} /> <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: "var(--subtext)" }}>Mobile Number</span>
               </div>
-              <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>{employee.phone || employee.personalMobile || "—"}</p>
+              <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>{employee.phone || employee.personalMobile || "â€”"}</p>
             </div>
 
             <div style={{ padding: "12px 14px", background: "var(--background)", borderRadius: "var(--radius-sm)" }}>
@@ -476,7 +478,7 @@ function EmployeeDetailModal({ employee, isOpen, onClose, onEdit, onToggleStatus
               <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--primary)", marginBottom: "4px" }}>
                 <Building2 size={15} /> <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: "var(--subtext)" }}>Department</span>
               </div>
-              <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>{employee.department || "—"}</p>
+              <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>{employee.department || "â€”"}</p>
             </div>
 
             <div style={{ padding: "12px 14px", background: "var(--background)", borderRadius: "var(--radius-sm)" }}>
@@ -491,7 +493,7 @@ function EmployeeDetailModal({ employee, isOpen, onClose, onEdit, onToggleStatus
                 <Calendar size={15} /> <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: "var(--subtext)" }}>Date of Joining</span>
               </div>
               <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>
-                {employee.joinDate || employee.dateOfJoining ? new Date(employee.joinDate || employee.dateOfJoining).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                {employee.joinDate || employee.dateOfJoining ? new Date(employee.joinDate || employee.dateOfJoining).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "â€”"}
               </p>
             </div>
 
@@ -529,17 +531,17 @@ function EmployeeDetailModal({ employee, isOpen, onClose, onEdit, onToggleStatus
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
               <div style={{ background: "var(--background)", padding: "16px", borderRadius: "var(--radius)", border: "1px solid var(--border)" }}>
                 <p style={{ fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", margin: "0 0 4px" }}>Annual CTC</p>
-                <p style={{ fontSize: "22px", fontWeight: 800, color: "var(--primary)", margin: 0 }}>₹{annualCtc.toLocaleString("en-IN")}</p>
+                <p style={{ fontSize: "22px", fontWeight: 800, color: "var(--primary)", margin: 0 }}>â‚¹{annualCtc.toLocaleString("en-IN")}</p>
                 <span style={{ fontSize: "11px", color: "var(--subtext)" }}>Cost to Company (INR)</span>
               </div>
               <div style={{ background: "var(--background)", padding: "16px", borderRadius: "var(--radius)", border: "1px solid var(--border)" }}>
                 <p style={{ fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", margin: "0 0 4px" }}>Monthly Gross</p>
-                <p style={{ fontSize: "22px", fontWeight: 800, color: "var(--text)", margin: 0 }}>₹{monthlyGross.toLocaleString("en-IN")}</p>
+                <p style={{ fontSize: "22px", fontWeight: 800, color: "var(--text)", margin: 0 }}>â‚¹{monthlyGross.toLocaleString("en-IN")}</p>
                 <span style={{ fontSize: "11px", color: "var(--subtext)" }}>Before statutory deductions</span>
               </div>
               <div style={{ background: "var(--green-light)", padding: "16px", borderRadius: "var(--radius)", border: "1px solid rgba(22, 163, 74, 0.2)" }}>
                 <p style={{ fontSize: "11px", fontWeight: 700, color: "var(--green)", textTransform: "uppercase", margin: "0 0 4px" }}>Monthly Net Pay</p>
-                <p style={{ fontSize: "22px", fontWeight: 800, color: "var(--green)", margin: 0 }}>₹{netTakeHome.toLocaleString("en-IN")}</p>
+                <p style={{ fontSize: "22px", fontWeight: 800, color: "var(--green)", margin: 0 }}>â‚¹{netTakeHome.toLocaleString("en-IN")}</p>
                 <span style={{ fontSize: "11px", color: "var(--green)" }}>Estimated take-home credit</span>
               </div>
             </div>
@@ -572,21 +574,21 @@ function EmployeeDetailModal({ employee, isOpen, onClose, onEdit, onToggleStatus
                 <tbody>
                   <tr style={{ borderBottom: "1px solid var(--border)" }}>
                     <td style={{ padding: "8px 14px", color: "var(--text)" }}>Basic Salary (50% of Gross)</td>
-                    <td style={{ padding: "8px 14px", fontWeight: 600, textAlign: "right" }}>₹{basicPay.toLocaleString("en-IN")}</td>
+                    <td style={{ padding: "8px 14px", fontWeight: 600, textAlign: "right" }}>â‚¹{basicPay.toLocaleString("en-IN")}</td>
                     <td style={{ padding: "8px 14px", color: "var(--red)" }}>Provident Fund (EPF - 12%)</td>
-                    <td style={{ padding: "8px 14px", fontWeight: 600, textAlign: "right", color: "var(--red)" }}>-₹{epfDeduction.toLocaleString("en-IN")}</td>
+                    <td style={{ padding: "8px 14px", fontWeight: 600, textAlign: "right", color: "var(--red)" }}>-â‚¹{epfDeduction.toLocaleString("en-IN")}</td>
                   </tr>
                   <tr style={{ borderBottom: "1px solid var(--border)" }}>
                     <td style={{ padding: "8px 14px", color: "var(--text)" }}>House Rent Allowance (HRA)</td>
-                    <td style={{ padding: "8px 14px", fontWeight: 600, textAlign: "right" }}>₹{hra.toLocaleString("en-IN")}</td>
+                    <td style={{ padding: "8px 14px", fontWeight: 600, textAlign: "right" }}>â‚¹{hra.toLocaleString("en-IN")}</td>
                     <td style={{ padding: "8px 14px", color: "var(--red)" }}>Professional Tax (PT)</td>
-                    <td style={{ padding: "8px 14px", fontWeight: 600, textAlign: "right", color: "var(--red)" }}>-₹{profTax.toLocaleString("en-IN")}</td>
+                    <td style={{ padding: "8px 14px", fontWeight: 600, textAlign: "right", color: "var(--red)" }}>-â‚¹{profTax.toLocaleString("en-IN")}</td>
                   </tr>
                   <tr>
                     <td style={{ padding: "8px 14px", color: "var(--text)" }}>Special / Flexi Allowance</td>
-                    <td style={{ padding: "8px 14px", fontWeight: 600, textAlign: "right" }}>₹{specialAllowance.toLocaleString("en-IN")}</td>
+                    <td style={{ padding: "8px 14px", fontWeight: 600, textAlign: "right" }}>â‚¹{specialAllowance.toLocaleString("en-IN")}</td>
                     <td style={{ padding: "8px 14px", color: "var(--red)" }}>TDS (Income Tax Provision)</td>
-                    <td style={{ padding: "8px 14px", fontWeight: 600, textAlign: "right", color: "var(--red)" }}>-₹{tdsEstimate.toLocaleString("en-IN")}</td>
+                    <td style={{ padding: "8px 14px", fontWeight: 600, textAlign: "right", color: "var(--red)" }}>-â‚¹{tdsEstimate.toLocaleString("en-IN")}</td>
                   </tr>
                 </tbody>
               </table>
@@ -616,14 +618,14 @@ function EmployeeDetailModal({ employee, isOpen, onClose, onEdit, onToggleStatus
                           {p.month}
                           <p style={{ margin: "2px 0 0", fontSize: "11px", color: "var(--subtext)", fontWeight: 400 }}>{p.period}</p>
                         </td>
-                        <td style={{ padding: "10px 14px", color: "var(--text)" }}>₹{p.gross.toLocaleString("en-IN")}</td>
-                        <td style={{ padding: "10px 14px", color: "var(--red)" }}>-₹{p.deductions.toLocaleString("en-IN")}</td>
-                        <td style={{ padding: "10px 14px", fontWeight: 700, color: "var(--green)" }}>₹{p.net.toLocaleString("en-IN")}</td>
+                        <td style={{ padding: "10px 14px", color: "var(--text)" }}>â‚¹{p.gross.toLocaleString("en-IN")}</td>
+                        <td style={{ padding: "10px 14px", color: "var(--red)" }}>-â‚¹{p.deductions.toLocaleString("en-IN")}</td>
+                        <td style={{ padding: "10px 14px", fontWeight: 700, color: "var(--green)" }}>â‚¹{p.net.toLocaleString("en-IN")}</td>
                         <td style={{ padding: "10px 14px", color: "var(--subtext)" }}>{p.paidOn}</td>
                         <td style={{ padding: "10px 14px", textAlign: "right" }}>
                           <button
                             type="button"
-                            onClick={() => alert(`Downloading Payslip PDF for ${employee.firstName} ${employee.lastName} — ${p.month}`)}
+                            onClick={() => alert(`Downloading Payslip PDF for ${employee.firstName} ${employee.lastName} â€” ${p.month}`)}
                             style={{
                               display: "inline-flex",
                               alignItems: "center",
@@ -814,7 +816,7 @@ function EmployeeDetailModal({ employee, isOpen, onClose, onEdit, onToggleStatus
 
       {/* Sub-modal: Photo View */}
       {showPhotoModal && (
-        <Modal isOpen={showPhotoModal} title={`Profile Photo — ${employee.firstName} ${employee.lastName}`} onClose={() => setShowPhotoModal(false)} maxWidth="420px">
+        <Modal isOpen={showPhotoModal} title={`Profile Photo â€” ${employee.firstName} ${employee.lastName}`} onClose={() => setShowPhotoModal(false)} maxWidth="420px">
           <div style={{ textAlign: "center", padding: "10px 0" }}>
             <img
               src={employee.avatar}
@@ -902,7 +904,7 @@ function EmployeeDetailModal({ employee, isOpen, onClose, onEdit, onToggleStatus
                 disabled={uploadingDoc || !docFile}
                 style={{ padding: "7px 18px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "#fff", fontSize: "12.5px", fontWeight: 600, cursor: "pointer" }}
               >
-                {uploadingDoc ? "Uploading…" : "Upload"}
+                {uploadingDoc ? "Uploadingâ€¦" : "Upload"}
               </button>
             </div>
           </form>
@@ -913,7 +915,7 @@ function EmployeeDetailModal({ employee, isOpen, onClose, onEdit, onToggleStatus
 }
 
 
-// ─── Edit Payroll / Salary Structure Modal ───────────────────────────────────
+// â”€â”€â”€ Edit Payroll / Salary Structure Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function EditPayrollModal({ employee, isOpen, onClose, onSaved }) {
   const [salary, setSalary] = useState({ ...EMPTY_SALARY });
   const [errors, setErrors] = useState({});
@@ -987,7 +989,7 @@ function EditPayrollModal({ employee, isOpen, onClose, onSaved }) {
   if (!employee) return null;
 
   return (
-    <Modal isOpen={isOpen} title={`Edit Salary Structure — ${employee.id}`} onClose={onClose} maxWidth="560px">
+    <Modal isOpen={isOpen} title={`Edit Salary Structure â€” ${employee.id}`} onClose={onClose} maxWidth="560px">
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
         {loadError && (
           <div style={{ background: "var(--red-light)", color: "var(--red)", borderRadius: "var(--radius-sm)", padding: "10px 14px", fontSize: "12.5px", fontWeight: 600 }}>
@@ -1007,7 +1009,7 @@ function EditPayrollModal({ employee, isOpen, onClose, onSaved }) {
           </button>
           <button type="submit" disabled={saving}
             style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "#fff", fontWeight: 600, fontSize: "13px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
-            {saving ? "Saving…" : "Save Salary Structure"}
+            {saving ? "Savingâ€¦" : "Save Salary Structure"}
           </button>
         </div>
       </form>
@@ -1015,7 +1017,7 @@ function EditPayrollModal({ employee, isOpen, onClose, onSaved }) {
   );
 }
 
-// ─── Offboard / Remove Employee Confirmation Modal ────────────────────────────
+// â”€â”€â”€ Offboard / Remove Employee Confirmation Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function OffboardEmployeeModal({ employee, isOpen, onClose, onConfirmed }) {
   const [reason, setReason] = useState("Resignation");
   const [lastWorkingDay, setLastWorkingDay] = useState(() => new Date().toISOString().split("T")[0]);
@@ -1116,7 +1118,7 @@ function OffboardEmployeeModal({ employee, isOpen, onClose, onConfirmed }) {
           </button>
           <button type="submit" disabled={processing}
             style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--red)", color: "#fff", fontWeight: 600, fontSize: "13px", cursor: processing ? "not-allowed" : "pointer", opacity: processing ? 0.7 : 1 }}>
-            {processing ? "Removing…" : "Confirm Removal"}
+            {processing ? "Removingâ€¦" : "Confirm Removal"}
           </button>
         </div>
       </form>
@@ -1124,7 +1126,7 @@ function OffboardEmployeeModal({ employee, isOpen, onClose, onConfirmed }) {
   );
 }
 
-// ─── Bulk Import Modal ───────────────────────────────────────────────────────
+// â”€â”€â”€ Bulk Import Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function BulkImportModal({ isOpen, onClose, onImported }) {
   const [file, setFile] = useState(null);
   const [parsedRows, setParsedRows] = useState([]);
@@ -1446,7 +1448,7 @@ Aarav,Sharma,aarav.sharma@example.com,+91 98765 43210,Senior Software Engineer,E
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
               <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--text)" }}>
-                {validating ? "Validating against HRMS…" : validation?.valid ? `Validated (${parsedRows.length} employees)` : `Validation required (${parsedRows.length} rows)`}
+                {validating ? "Validating against HRMSâ€¦" : validation?.valid ? `Validated (${parsedRows.length} employees)` : `Validation required (${parsedRows.length} rows)`}
               </span>
               <button
                 type="button"
@@ -1484,8 +1486,8 @@ Aarav,Sharma,aarav.sharma@example.com,+91 98765 43210,Senior Software Engineer,E
                       <td style={{ padding: "8px 10px", color: "var(--label)" }}>{row.email}</td>
                       <td style={{ padding: "8px 10px", color: "var(--text)" }}>{row.designation}</td>
                       <td style={{ padding: "8px 10px", color: "var(--subtext)" }}>{row.location}</td>
-                      <td style={{ padding: "8px 10px", color: "var(--label)" }}>{row.guardianName || "—"}</td>
-                      <td style={{ padding: "8px 10px", color: "var(--label)" }}>{row.managerId || "—"}</td>
+                      <td style={{ padding: "8px 10px", color: "var(--label)" }}>{row.guardianName || "â€”"}</td>
+                      <td style={{ padding: "8px 10px", color: "var(--label)" }}>{row.managerId || "â€”"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1500,7 +1502,7 @@ Aarav,Sharma,aarav.sharma@example.com,+91 98765 43210,Senior Software Engineer,E
             <div style={{ maxHeight: "140px", overflowY: "auto", marginTop: "8px" }}>
               {validation.errors.map((err, index) => (
                 <div key={`${err.row}-${err.field}-${index}`} style={{ fontSize: "12px", padding: "3px 0", color: "var(--text)" }}>
-                  Row {err.row} · {err.field}: {err.error}
+                  Row {err.row} Â· {err.field}: {err.error}
                 </div>
               ))}
             </div>
@@ -1580,7 +1582,7 @@ Aarav,Sharma,aarav.sharma@example.com,+91 98765 43210,Senior Software Engineer,E
               }}
             >
               <FileUp size={15} />
-              {validating ? "Validating…" : importing ? "Importing atomically…" : `Import ${parsedRows.length} Employee${parsedRows.length !== 1 ? "s" : ""}`}
+              {validating ? "Validatingâ€¦" : importing ? "Importing atomicallyâ€¦" : `Import ${parsedRows.length} Employee${parsedRows.length !== 1 ? "s" : ""}`}
             </button>
           ) : (
             <button
@@ -1606,8 +1608,11 @@ Aarav,Sharma,aarav.sharma@example.com,+91 98765 43210,Senior Software Engineer,E
   );
 }
 
-// ─── Add Employee Form ───────────────────────────────────────────────────────
+// â”€â”€â”€ Add Employee Form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function AddEmployeeModal({ isOpen, onClose, onCreated, employees = [] }) {
+  const [teamOptions, setTeamOptions] = useState([]);
+  const [shiftOptions, setShiftOptions] = useState([]);
+  const [locationOptions, setLocationOptions] = useState([]);
   const [step, setStep] = useState("details"); // "details" | "payroll"
   const [avatarFile, setAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
@@ -1620,9 +1625,11 @@ function AddEmployeeModal({ isOpen, onClose, onCreated, employees = [] }) {
     phone: "+91-",
     designation: designations[0] || "Software Engineer",
     department: departments[0] || "Engineering",
-    location: locations[0] || "Bengaluru, Karnataka, India",
+    locationId: "",
     employmentType: "Full-Time",
     managerId: "",
+    teamId: "",
+    shiftId: "",
     guardianName: "",
     guardianPhone: "",
   });
@@ -1644,7 +1651,7 @@ function AddEmployeeModal({ isOpen, onClose, onCreated, employees = [] }) {
       phone: "+91-",
       designation: designations[0] || "Software Engineer",
       department: departments[0] || "Engineering",
-      location: locations[0] || "Bengaluru, Karnataka, India",
+      locationId: "",
       employmentType: "Full-Time",
       managerId: "",
       guardianName: "",
@@ -1655,6 +1662,26 @@ function AddEmployeeModal({ isOpen, onClose, onCreated, employees = [] }) {
     setSalaryErrors({});
     setError("");
   };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    Promise.all([getTeams(), getAttendanceShifts(), getLocations()])
+      .then(([teamRes, shiftRes, locationRes]) => {
+        setTeamOptions(teamRes?.data || []);
+        setShiftOptions(shiftRes?.data || []);
+
+        const activeLocations = (locationRes?.data || []).filter(
+          (loc) => loc.status === "Active" || loc.isActive === true
+        );
+
+        setLocationOptions(activeLocations);
+      })
+      .catch(() => {
+        setTeamOptions([]);
+        setShiftOptions([]);
+        setLocationOptions([]);
+      });
+  }, [isOpen]);
 
   const handleAvatarSelect = (e) => {
     const file = e.target.files?.[0];
@@ -1677,6 +1704,7 @@ function AddEmployeeModal({ isOpen, onClose, onCreated, employees = [] }) {
     if (!form.email.includes("@")) e.email = "Valid email required";
     if (!form.designation.trim()) e.designation = "Required";
     if (!form.department) e.department = "Required";
+    if (!form.locationId) e.locationId = "Required";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -1685,7 +1713,7 @@ function AddEmployeeModal({ isOpen, onClose, onCreated, employees = [] }) {
     if (!salary.basicSalary && !salary.hra) return true; // optional on add
     const e = {};
     if (salary.basicSalary && Number(salary.basicSalary) <= 0) e.basicSalary = "Must be > 0";
-    if (salary.hra && Number(salary.hra) < 0) e.hra = "Must be ≥ 0";
+    if (salary.hra && Number(salary.hra) < 0) e.hra = "Must be â‰¥ 0";
     if (!salary.effectiveFrom) e.effectiveFrom = "Required";
     setSalaryErrors(e);
     return Object.keys(e).length === 0;
@@ -1709,9 +1737,11 @@ function AddEmployeeModal({ isOpen, onClose, onCreated, employees = [] }) {
         phone: form.phone.trim(),
         designation: form.designation.trim(),
         department: form.department,
-        location: form.location,
+        locationId: form.locationId || null,
         employmentType: form.employmentType,
         managerId: form.managerId || null,
+        teamId: form.teamId || null,
+        shiftId: form.shiftId || null,
         guardianName: form.guardianName.trim() || null,
         guardianPhone: form.guardianPhone.trim() || null,
         status: "Active",
@@ -1894,7 +1924,7 @@ function AddEmployeeModal({ isOpen, onClose, onCreated, employees = [] }) {
               <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Department *</label>
               <select
                 value={form.department}
-                onChange={(e) => setForm((p) => ({ ...p, department: e.target.value }))}
+                onChange={(e) => setForm((p) => ({ ...p, department: e.target.value, teamId: "" }))}
                 style={{
                   height: "38px", padding: "0 10px",
                   border: `1px solid ${errors.department ? "var(--red)" : "var(--border)"}`,
@@ -1912,16 +1942,30 @@ function AddEmployeeModal({ isOpen, onClose, onCreated, employees = [] }) {
             <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
               <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Hub Location (City, State, Country) *</label>
               <select
-                value={form.location}
-                onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))}
+                value={form.locationId}
+                onChange={(e) => setForm((p) => ({ ...p, locationId: e.target.value }))}
                 style={{
                   height: "38px", padding: "0 10px",
-                  border: "1px solid var(--border)", borderRadius: "var(--radius-sm)",
+                  border: `1px solid ${errors.locationId ? "var(--red)" : "var(--border)"}`,
+                  borderRadius: "var(--radius-sm)",
                   fontSize: "13px", color: "var(--text)", background: "var(--card)", outline: "none",
                 }}
               >
-                {locations.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
+                <option value="">Select location</option>
+                {locationOptions.map((loc) => (
+                  <option key={loc.id} value={loc.id}>
+                    {[loc.name, loc.city, loc.state, loc.country]
+                      .filter(Boolean)
+                      .filter((v, i, a) => a.indexOf(v) === i)
+                      .join(", ")}
+                  </option>
+                ))}
               </select>
+              {errors.locationId && (
+                <span style={{ fontSize: "11px", color: "var(--red)" }}>
+                  {errors.locationId}
+                </span>
+              )}
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
@@ -1936,6 +1980,23 @@ function AddEmployeeModal({ isOpen, onClose, onCreated, employees = [] }) {
                 }}
               >
                 {employmentTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+              <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Team</label>
+              <select value={form.teamId} onChange={(e) => setForm((p) => ({ ...p, teamId: e.target.value }))} style={{ height: "38px", padding: "0 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontSize: "13px", color: "var(--text)", background: "var(--card)" }}>
+                <option value="">No team</option>
+                {teamOptions.filter((t) => t.isActive !== false && t.departmentName === form.department).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+              <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Shift Assignment</label>
+              <select value={form.shiftId} onChange={(e) => setForm((p) => ({ ...p, shiftId: e.target.value }))} style={{ height: "38px", padding: "0 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontSize: "13px", color: "var(--text)", background: "var(--card)" }}>
+                <option value="">No shift</option>
+                {shiftOptions.map((sh) => <option key={sh.id} value={sh.id}>{sh.name} ({sh.startTime} - {sh.endTime})</option>)}
               </select>
             </div>
           </div>
@@ -1955,7 +2016,7 @@ function AddEmployeeModal({ isOpen, onClose, onCreated, employees = [] }) {
               <option value="">None / Executive Leader</option>
               {employees.map((e) => (
                 <option key={e.id} value={e.id}>
-                  {e.employeeCode || e.id} — {e.firstName} {e.lastName} ({e.designation})
+                  {e.employeeCode || e.id} â€” {e.firstName} {e.lastName} ({e.designation})
                 </option>
               ))}
             </select>
@@ -2007,7 +2068,7 @@ function AddEmployeeModal({ isOpen, onClose, onCreated, employees = [] }) {
             </button>
             <button type="submit"
               style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "#fff", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>
-              Next: Payroll →
+              Next: Payroll â†’
             </button>
           </div>
         </form>
@@ -2027,7 +2088,7 @@ function AddEmployeeModal({ isOpen, onClose, onCreated, employees = [] }) {
           <div style={{ display: "flex", gap: "10px", justifyContent: "space-between", marginTop: "8px" }}>
             <button type="button" onClick={() => setStep("details")}
               style={{ padding: "9px 20px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "none", color: "var(--label)", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>
-              ← Back
+              â† Back
             </button>
             <div style={{ display: "flex", gap: "8px" }}>
               <button type="button" disabled={saving} onClick={async () => handleSubmit()}
@@ -2036,7 +2097,7 @@ function AddEmployeeModal({ isOpen, onClose, onCreated, employees = [] }) {
               </button>
               <button type="submit" disabled={saving}
                 style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "#fff", fontWeight: 600, fontSize: "13px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
-                {saving ? "Saving…" : "Save Employee + Payroll"}
+                {saving ? "Savingâ€¦" : "Save Employee + Payroll"}
               </button>
             </div>
           </div>
@@ -2047,8 +2108,11 @@ function AddEmployeeModal({ isOpen, onClose, onCreated, employees = [] }) {
 }
 
 
-// ─── Expanded Edit Employee Form (Comprehensive Fields) ──────────────────────
+// â”€â”€â”€ Expanded Edit Employee Form (Comprehensive Fields) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function EditEmployeeModal({ employee, isOpen, onClose, onUpdated, employees = [] }) {
+  const [teamOptions, setTeamOptions] = useState([]);
+  const [shiftOptions, setShiftOptions] = useState([]);
+  const [locationOptions, setLocationOptions] = useState([]);
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -2056,11 +2120,13 @@ function EditEmployeeModal({ employee, isOpen, onClose, onUpdated, employees = [
     phone: "",
     designation: "",
     department: "",
-    location: "Bengaluru, Karnataka, India",
+    locationId: "",
     employmentType: "Full-Time",
     status: "Active",
     dateOfJoining: "",
     managerId: "",
+    teamId: "",
+    shiftId: "",
     guardianName: "",
     guardianPhone: "",
   });
@@ -2082,11 +2148,13 @@ function EditEmployeeModal({ employee, isOpen, onClose, onUpdated, employees = [
         phone: employee.phone || employee.personalMobile || "",
         designation: employee.designation || designations[0] || "",
         department: employee.department || "",
-        location: employee.location || "Bengaluru, Karnataka, India",
+        locationId: employee.locationId || employee.location?.id || "",
         employmentType: employee.employmentType || "Full-Time",
         status: employee.status || "Active",
         dateOfJoining: employee.joinDate ? employee.joinDate.split("T")[0] : (employee.dateOfJoining ? employee.dateOfJoining.split("T")[0] : ""),
         managerId: employee.reportingManagerId || employee.managerId || "",
+        teamId: employee.teamId || employee.team?.id || "",
+        shiftId: employee.shiftId || employee.shift?.id || "",
         guardianName: employee.guardianName || employee.emergencyContact || "",
         guardianPhone: employee.guardianPhone || "",
       });
@@ -2095,6 +2163,26 @@ function EditEmployeeModal({ employee, isOpen, onClose, onUpdated, employees = [
       setErrors({});
     }
   }, [employee]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    Promise.all([getTeams(), getAttendanceShifts(), getLocations()])
+      .then(([teamRes, shiftRes, locationRes]) => {
+        setTeamOptions(teamRes?.data || []);
+        setShiftOptions(shiftRes?.data || []);
+
+        const activeLocations = (locationRes?.data || []).filter(
+          (loc) => loc.status === "Active" || loc.isActive === true
+        );
+
+        setLocationOptions(activeLocations);
+      })
+      .catch(() => {
+        setTeamOptions([]);
+        setShiftOptions([]);
+        setLocationOptions([]);
+      });
+  }, [isOpen]);
 
   const handleAvatarChange = async (e) => {
     const file = e.target.files?.[0];
@@ -2133,6 +2221,7 @@ function EditEmployeeModal({ employee, isOpen, onClose, onUpdated, employees = [
     if (!form.email.includes("@")) e.email = "Valid email required";
     if (!form.designation.trim()) e.designation = "Required";
     if (!form.department) e.department = "Required";
+    if (!form.locationId) e.locationId = "Required";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -2150,11 +2239,13 @@ function EditEmployeeModal({ employee, isOpen, onClose, onUpdated, employees = [
         phone: form.phone.trim(),
         designation: form.designation.trim(),
         department: form.department,
-        location: form.location,
+        locationId: form.locationId || null,
         employmentType: form.employmentType,
         status: form.status,
         dateOfJoining: form.dateOfJoining || undefined,
         managerId: form.managerId || null,
+        teamId: form.teamId || null,
+        shiftId: form.shiftId || null,
         guardianName: form.guardianName.trim() || null,
         guardianPhone: form.guardianPhone.trim() || null,
       });
@@ -2218,7 +2309,7 @@ function EditEmployeeModal({ employee, isOpen, onClose, onUpdated, employees = [
               onClick={() => editAvatarInputRef.current?.click()}
               style={{ padding: "5px 12px", background: "var(--card)", border: "1px solid var(--border)", borderRadius: "4px", fontSize: "12px", fontWeight: 600, color: "var(--primary)", cursor: "pointer" }}
             >
-              {uploadingAvatar ? "Uploading…" : "Change Photo"}
+              {uploadingAvatar ? "Uploadingâ€¦" : "Change Photo"}
             </button>
             <input
               ref={editAvatarInputRef}
@@ -2270,7 +2361,7 @@ function EditEmployeeModal({ employee, isOpen, onClose, onUpdated, employees = [
             <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Department *</label>
             <select
               value={form.department}
-              onChange={(e) => setForm((p) => ({ ...p, department: e.target.value }))}
+              onChange={(e) => setForm((p) => ({ ...p, department: e.target.value, teamId: "" }))}
               style={{
                 height: "38px", padding: "0 12px",
                 border: `1px solid ${errors.department ? "var(--red)" : "var(--border)"}`,
@@ -2288,16 +2379,31 @@ function EditEmployeeModal({ employee, isOpen, onClose, onUpdated, employees = [
           <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
             <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Hub Location (City, State, Country) *</label>
             <select
-              value={form.location}
-              onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))}
+              value={form.locationId}
+              onChange={(e) => setForm((p) => ({ ...p, locationId: e.target.value }))}
               style={{
                 height: "38px", padding: "0 12px",
-                border: "1px solid var(--border)", borderRadius: "var(--radius-sm)",
+                border: `1px solid ${errors.locationId ? "var(--red)" : "var(--border)"}`,
+                borderRadius: "var(--radius-sm)",
                 fontSize: "13px", color: "var(--text)", background: "var(--card)", outline: "none",
               }}
             >
-              {locations.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
+              <option value="">Select location</option>
+
+              {locationOptions.map((loc) => (
+                <option key={loc.id} value={loc.id}>
+                  {[loc.name, loc.city, loc.state, loc.country]
+                    .filter(Boolean)
+                    .filter((v, i, a) => a.indexOf(v) === i)
+                    .join(", ")}
+                </option>
+              ))}
             </select>
+            {errors.locationId && (
+              <span style={{ fontSize: "11px", color: "var(--red)" }}>
+                {errors.locationId}
+              </span>
+            )}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
             <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Employment Type *</label>
@@ -2311,6 +2417,23 @@ function EditEmployeeModal({ employee, isOpen, onClose, onUpdated, employees = [
               }}
             >
               {employmentTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+            <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Team</label>
+            <select value={form.teamId} onChange={(e) => setForm((p) => ({ ...p, teamId: e.target.value }))} style={{ height: "38px", padding: "0 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontSize: "13px", color: "var(--text)", background: "var(--card)" }}>
+              <option value="">No team</option>
+              {teamOptions.filter((t) => t.isActive !== false && t.departmentName === form.department).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+            <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Shift Assignment</label>
+            <select value={form.shiftId} onChange={(e) => setForm((p) => ({ ...p, shiftId: e.target.value }))} style={{ height: "38px", padding: "0 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontSize: "13px", color: "var(--text)", background: "var(--card)" }}>
+              <option value="">No shift</option>
+              {shiftOptions.map((sh) => <option key={sh.id} value={sh.id}>{sh.name} ({sh.startTime} - {sh.endTime})</option>)}
             </select>
           </div>
         </div>
@@ -2332,7 +2455,7 @@ function EditEmployeeModal({ employee, isOpen, onClose, onUpdated, employees = [
               .filter((e) => e.id !== employee?.id)
               .map((e) => (
                 <option key={e.id} value={e.id}>
-                  {e.employeeCode || e.id} — {e.firstName} {e.lastName} ({e.designation})
+                  {e.employeeCode || e.id} â€” {e.firstName} {e.lastName} ({e.designation})
                 </option>
               ))}
           </select>
@@ -2408,7 +2531,7 @@ function EditEmployeeModal({ employee, isOpen, onClose, onUpdated, employees = [
           </button>
           <button type="submit" disabled={saving}
             style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "#fff", fontWeight: 600, fontSize: "13px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
-            {saving ? "Saving…" : "Save Changes"}
+            {saving ? "Savingâ€¦" : "Save Changes"}
           </button>
         </div>
       </form>
@@ -2416,7 +2539,7 @@ function EditEmployeeModal({ employee, isOpen, onClose, onUpdated, employees = [
   );
 }
 
-// ─── Main Page ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ Main Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function Employees() {
   const navigate = useNavigate();
   const { role } = useAuth();
@@ -2475,7 +2598,7 @@ export default function Employees() {
       <div style={{ maxWidth: "1480px", margin: "0 auto" }}>
         <PageHeader
           title="Employees"
-          subtitle={`${employees.length} employee${employees.length !== 1 ? "s" : ""} found • Indian IT Corporate Workspace`}
+          subtitle={`${employees.length} employee${employees.length !== 1 ? "s" : ""} found â€¢ Indian IT Corporate Workspace`}
         >
           {canManage && (
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -2540,7 +2663,7 @@ export default function Employees() {
             <input
               id="employee-search"
               type="text"
-              placeholder="Search by name, ID, email, role…"
+              placeholder="Search by name, ID, email, roleâ€¦"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               style={{ border: "none", outline: "none", background: "none", fontSize: "13.5px", color: "var(--text)", width: "100%", height: "38px" }}
@@ -2684,7 +2807,7 @@ export default function Employees() {
                         ) : emp.managerName ? (
                           <span style={{ color: "var(--text)", fontWeight: 500 }}>{emp.managerName}</span>
                         ) : (
-                          <span style={{ color: "var(--subtext)", fontSize: "12px" }}>—</span>
+                          <span style={{ color: "var(--subtext)", fontSize: "12px" }}>â€”</span>
                         )}
                       </td>
 
@@ -2802,7 +2925,7 @@ export default function Employees() {
               }}
             >
               <span style={{ fontSize: "12.5px", color: "var(--subtext)" }}>
-                Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, employees.length)} of {employees.length}
+                Showing {(page - 1) * PAGE_SIZE + 1}â€“{Math.min(page * PAGE_SIZE, employees.length)} of {employees.length}
               </span>
               <div style={{ display: "flex", gap: "6px" }}>
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
@@ -2877,3 +3000,4 @@ export default function Employees() {
     </MainLayout>
   );
 }
+
