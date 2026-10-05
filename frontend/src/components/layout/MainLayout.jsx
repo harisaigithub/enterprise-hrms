@@ -14,12 +14,21 @@ import { useState, useEffect } from "react";
 import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
 
+const SIDEBAR_STORAGE_KEY = "proteccio_sidebar_open";
+
 export default function MainLayout({ children }) {
-  // Open by default on desktop, closed on mobile
-  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 768);
+  // Load sidebar open state from localStorage, default to true on desktop
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    if (typeof window === "undefined") return true;
+    try {
+      const stored = localStorage.getItem(SIDEBAR_STORAGE_KEY);
+      if (stored !== null) return JSON.parse(stored);
+    } catch {}
+    return window.innerWidth > 768;
+  });
 
   // Track whether we're on a mobile-sized screen
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth <= 768);
 
   useEffect(() => {
     const handleResize = () => {
@@ -32,6 +41,15 @@ export default function MainLayout({ children }) {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  // Persist sidebar open state
+  useEffect(() => {
+    if (!isMobile) {
+      try {
+        localStorage.setItem(SIDEBAR_STORAGE_KEY, JSON.stringify(sidebarOpen));
+      } catch {}
+    }
+  }, [sidebarOpen, isMobile]);
 
   const toggleSidebar = () => setSidebarOpen((prev) => !prev);
   const closeSidebar  = () => setSidebarOpen(false);

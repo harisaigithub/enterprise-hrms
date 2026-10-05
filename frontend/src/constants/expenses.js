@@ -1,16 +1,37 @@
 export const EXPENSE_CATEGORIES = [
-  "Travel Claims",
-  "Food Claims",
-  "Cab Claims",
-  "Hotel Claims",
+  "Travel",
+  "Food & Meals",
+  "Accommodation",
+  "Local Transport",
+  "Office Supplies",
+  "Communication",
+  "Training",
+  "Client Entertainment",
+  "Other",
 ];
 
+export const PAYMENT_METHODS = [
+  "Cash",
+  "Personal Card",
+  "Corporate Card",
+  "Bank Transfer",
+  "Other",
+];
+
+// 14.3 Preconditions — per-category limits, required receipt thresholds
 export const EXPENSE_POLICY = {
-  "Travel Claims": { limit: 15000, receiptThreshold: 500 },
-  "Food Claims": { limit: 2000, receiptThreshold: 500 },
-  "Cab Claims": { limit: 3000, receiptThreshold: 300 },
-  "Hotel Claims": { limit: 12000, receiptThreshold: 1000 },
+  Travel: { limit: 15000, receiptThreshold: 500 },
+  "Food & Meals": { limit: 2000, receiptThreshold: 500 },
+  Accommodation: { limit: 12000, receiptThreshold: 1000 },
+  "Local Transport": { limit: 3000, receiptThreshold: 300 },
+  "Office Supplies": { limit: 5000, receiptThreshold: 500 },
+  Communication: { limit: 3000, receiptThreshold: 500 },
+  Training: { limit: 20000, receiptThreshold: 1000 },
+  "Client Entertainment": { limit: 10000, receiptThreshold: 1000 },
+  Other: { limit: 5000, receiptThreshold: 500 },
 };
+
+export const SUBMISSION_WINDOW_DAYS = 60;
 
 export const expenseStatusMeta = {
   Draft: { label: "Draft", color: "#64748b", bg: "#f8fafc" },
@@ -25,6 +46,7 @@ export const expenseStatusMeta = {
   Paid: { label: "Paid", color: "#15803d", bg: "#dcfce7" },
   Rejected: { label: "Rejected", color: "#dc2626", bg: "#fef2f2" },
   Cancelled: { label: "Cancelled", color: "#64748b", bg: "#f1f5f9" },
+  "Sent Back": { label: "Sent Back for Revision", color: "#f97316", bg: "#fff7ed" },
 };
 
 export const LOCKED_STATUSES = [
@@ -34,3 +56,11 @@ export const LOCKED_STATUSES = [
   "Paid",
   "Cancelled",
 ];
+
+export const DRAFT_STATUSES = ["Draft"];
+
+export const EDITABLE_STATUSES = ["Draft", "Sent Back"];
+
+export const SUBMITTABLE_STATUSES = ["Draft"];
+
+export const SEND_BACKABLE_STATUSES = ["Submitted", "Manager Pending", "Finance Pending"];

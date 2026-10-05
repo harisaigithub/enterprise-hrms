@@ -175,6 +175,7 @@ export async function checkDuplicates(
     category: ExpenseCategory;
     amount: number;
     expenseDate: Date;
+    merchantName?: string;
     fileHash?: string;
     perceptualHash?: string;
   }

@@ -646,6 +646,29 @@ function ExpenseDetailModal({
               <div style={{ display: "flex", gap: "8px" }}>
                 <button
                   type="button"
+                  onClick={() => onEditDraft?.(claim)}
+                  disabled={actionClaimId === claim.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "8px 18px",
+                    background: "var(--blue)",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "var(--radius-sm)",
+                    fontWeight: 600,
+                    fontSize: "13px",
+                    cursor: actionClaimId === claim.id ? "not-allowed" : "pointer",
+                    opacity: actionClaimId === claim.id ? 0.7 : 1,
+                  }}
+                >
+                  <Edit size={14} />
+                  {actionClaimId === claim.id ? "Editing…" : "Edit Draft"}
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => onSubmitDraft?.(claim)}
                   disabled={actionClaimId === claim.id}
                   style={{
@@ -1724,6 +1747,37 @@ function SubmitClaimModal({
             Attach Tax Invoice / Receipt (PDF, JPG, PNG)
           </label>
 
+          {/* Show existing receipt when editing a draft */}
+          {isEditing && initialDraft?.receipts?.length > 0 && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "10px 12px",
+                background: "var(--background)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-sm)",
+                marginBottom: "8px",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <FileText size={20} style={{ color: "var(--primary)" }} />
+                <div>
+                  <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>
+                    {initialDraft.receipts[0].fileName}
+                  </p>
+                  <span style={{ fontSize: "11.5px", color: "var(--subtext)" }}>
+                    Existing receipt — will be kept if you don't upload a new one
+                  </span>
+                </div>
+              </div>
+              <span style={{ fontSize: "11px", color: "var(--primary)", fontWeight: 600 }}>
+                Receipt preserved
+              </span>
+            </div>
+          )}
+
           <input
             type="file"
             accept=".pdf,.jpg,.jpeg,.png"
@@ -1733,7 +1787,7 @@ function SubmitClaimModal({
               setForm((p) => ({
                 ...p,
                 receiptFile: file,
-                receiptFileName: file?.name || "",
+                receiptFileName: file?.name || (isEditing && initialDraft?.receipts?.length > 0 ? initialDraft.receipts[0].fileName : ""),
               }));
             }}
             style={{
@@ -1750,7 +1804,9 @@ function SubmitClaimModal({
                 fontWeight: 600,
               }}
             >
-              Attached: {form.receiptFileName}
+              {isEditing && !form.receiptFile && initialDraft?.receipts?.length > 0
+                ? `Keeping existing: ${form.receiptFileName}`
+                : `Attached: ${form.receiptFileName}`}
             </span>
           )}
 
@@ -3267,7 +3323,7 @@ await loadAll();
                                 >
                                   <button
                                     type="button"
-                                    onClick={() => onEditDraft?.(claim)}
+                                    onClick={() => handleEditDraft(claim)}
                                     disabled={actionClaimId === claim.id}
                                     title="Edit draft"
                                     style={{
