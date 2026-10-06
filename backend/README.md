@@ -46,10 +46,12 @@ All seeded users share the password `Password@123`:
 
 | Role     | Email                    | Name          |
 | -------- | ------------------------ | ------------- |
-| ADMIN    | robert.king@company.com  | Robert King   |
-| HR       | lewis.hamilton@company.com | lewis hamilton |
-| MANAGER  | alice.quinn@company.com  | Alice Quinn   |
+| ADMIN    | rajesh.menon@company.com | Rajesh Menon  |
+| HR       | sunita.reddy@company.com | Sunita Reddy  |
+| MANAGER  | anjali.desai@company.com | Anjali Desai  |
 | EMPLOYEE | matsya.singh@company.com | Matsya Singh  |
+
+Legacy Admin alias: `robert.king@company.com`.
 
 ## Project structure
 

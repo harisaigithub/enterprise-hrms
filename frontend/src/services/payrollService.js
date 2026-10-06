@@ -153,3 +153,17 @@ export const printForm16 = async () => {
 
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 };
+export const getPayrollConfiguration = async () => {
+  const res = await api.get("/payroll/configuration");
+  return res.data;
+};
+
+export const createPayrollPolicy = async (payload) => {
+  const res = await api.post("/payroll/configuration/policies", payload);
+  return res.data;
+};
+
+export const createStatutoryRule = async (payload) => {
+  const res = await api.post("/payroll/configuration/statutory-rules", payload);
+  return res.data;
+};

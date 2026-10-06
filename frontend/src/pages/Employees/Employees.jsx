@@ -59,6 +59,7 @@ import {
 import { getTeams, getLocations } from "../../services/orgManagementService";
 import { useAuth } from "../../context/AuthContext";
 import { departments, designations, documentTypes, employmentTypes, statuses } from "../../mock/employees";
+import { getFileUrl } from "../../utils/uploadFileUrl";
 
 
 const EMPLOYEE_STATUS_META = {
@@ -722,7 +723,7 @@ function EmployeeDetailModal({ employee, isOpen, onClose, onEdit, onToggleStatus
                         <button
                           type="button"
                           onClick={() => {
-                            const url = doc.fileUrl.startsWith("http") ? doc.fileUrl : `http://localhost:4000${doc.fileUrl}`;
+                            const url = getFileUrl(doc.fileUrl);
                             window.open(url, "_blank");
                           }}
                           style={{ padding: "3px 7px", fontSize: "11px", fontWeight: 600, background: "var(--card)", border: "1px solid var(--border)", borderRadius: "3px", color: "var(--primary)", cursor: "pointer" }}
@@ -2758,9 +2759,7 @@ export default function Employees() {
                          <img
   src={
     emp.avatar
-      ? emp.avatar.startsWith("http")
-        ? emp.avatar
-        : `http://localhost:4000${emp.avatar.startsWith("/") ? "" : "/"}${emp.avatar}`
+      ? getFileUrl(emp.avatar)
       : `https://ui-avatars.com/api/?name=${emp.firstName}+${emp.lastName}&background=0f766e&color=fff`
   }
   alt={`${emp.firstName} ${emp.lastName}`}

@@ -1,12 +1,19 @@
 import { Router, Request, Response } from "express";
 import path from "path";
 import fs from "fs";
+import { pipeline } from "stream/promises";
 import minioClient, {
     MINIO_BUCKET,
 } from "../config/minio";
 
 const router = Router();
 const UPLOADS_ROOT = path.resolve(__dirname, "../../uploads");
+
+// Ensure upload directories exist
+const DOCUMENTS_DIR = path.join(UPLOADS_ROOT, "documents");
+if (!fs.existsSync(DOCUMENTS_DIR)) {
+    fs.mkdirSync(DOCUMENTS_DIR, { recursive: true });
+}
 
 router.get(
     "/avatars/*",
@@ -60,6 +67,37 @@ router.get(
             stream.pipe(res);
         } catch {
             return res.status(404).json({ success: false, message: "Document not found" });
+        }
+    }
+);
+
+// PUT /uploads/documents/* - Local file upload (fallback when MinIO unavailable)
+router.put(
+    "/documents/*",
+    async (req: Request, res: Response) => {
+        try {
+            const fileName = req.params[0];
+            const localPath = path.join(UPLOADS_ROOT, "documents", fileName);
+
+            // Ensure directory exists
+            const dir = path.dirname(localPath);
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+            }
+
+            // Pipe request body to file
+            const writeStream = fs.createWriteStream(localPath);
+            await pipeline(req, writeStream);
+
+            res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+            return res.status(200).json({
+                success: true,
+                message: "File uploaded to local storage",
+                path: localPath,
+            });
+        } catch (error) {
+            console.error("Local document upload error:", error);
+            return res.status(500).json({ success: false, message: "Upload failed" });
         }
     }
 );
@@ -302,6 +340,16 @@ router.get(
 router.get("/expense/*", async (req: Request, res: Response) => {
     try {
         const fileName = req.params[0];
+
+        // First try local storage (for development without MinIO)
+        const localPath = path.join(UPLOADS_ROOT, "documents", "expense-receipts", fileName);
+
+        res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+
+        if (fs.existsSync(localPath)) {
+            res.setHeader("Content-Disposition", "inline");
+            return res.sendFile(localPath);
+        }
 
         // MinIO object:
         // expense-receipts/{employeeId}/{fileName}

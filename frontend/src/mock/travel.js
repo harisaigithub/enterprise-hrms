@@ -15,6 +15,7 @@ export const requestStatusMeta = {
   Booked: { color: "#7c3aed", bg: "#f5f3ff" },
   "Settlement Submitted": { color: "#0284c7", bg: "#f0f9ff" },
   Closed: { color: "#16a34a", bg: "#f0fdf4" },
+  Expired: { color: "#64748b", bg: "#f1f5f9" },
 };
 
 // 15.3: Travel Policy — class of travel by grade, per-diem, advance limits,
@@ -264,7 +265,7 @@ export function _disburseAdvance(id, amount, disbursedBy) {
   if (!["Approved", "Booking In Progress", "Booked"].includes(req.status)) {
     return { error: "Request must be Approved (or further along) before an advance can be disbursed." };
   }
-  const maxAdvance = Math.round(req.estimatedCost * (travelPolicy.advanceMaxPercent / 100));
+  const maxAdvance = Math.floor(req.estimatedCost * (travelPolicy.advanceMaxPercent / 100));
   if (Number(amount) > maxAdvance) {
     return { error: `Advance cannot exceed ${travelPolicy.advanceMaxPercent}% of estimated cost (₹${maxAdvance.toLocaleString("en-IN")}).` };
   }

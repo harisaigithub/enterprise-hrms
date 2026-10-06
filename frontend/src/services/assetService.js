@@ -17,6 +17,22 @@ export function addInventoryItem(item) {
   return api.post("/assets/inventory", item);
 }
 
+export function updateInventoryItem(assetId, changes) {
+  return api.patch(`/assets/inventory/${assetId}`, changes);
+}
+
+export function assignInventoryItem(assetId, employeeId) {
+  return api.post(`/assets/inventory/${assetId}/assign`, { employeeId });
+}
+
+export function retireInventoryItem(assetId, reason) {
+  return api.patch(`/assets/inventory/${assetId}/retire`, { reason });
+}
+
+export function sendInventoryItemForRepair(assetId, reason) {
+  return api.patch(`/assets/inventory/${assetId}/maintenance`, { reason });
+}
+
 /* =========================================================
    ASSET HISTORY
 ========================================================= */
@@ -71,8 +87,8 @@ export function approveRequest(id, approverName) {
    REJECT REQUEST
 ========================================================= */
 
-export function rejectRequest(id) {
-  return api.patch(`/assets/requests/${id}/reject`);
+export function rejectRequest(id, reason) {
+  return api.patch(`/assets/requests/${id}/reject`, { reason });
 }
 
 /* =========================================================

@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   Send,
   Trash2,
+  Edit,
 } from "lucide-react";
 
 import MainLayout from "../../components/layout/MainLayout";
@@ -35,16 +36,21 @@ import {
   approveClaim,
   rejectClaim,
   createDraft,
+  updateDraft,
   uploadExpenseReceipt,
   getReceiptSignedUrl,
   deleteDraft,
+  sendBackClaim,
+  checkDuplicates,
 } from "../../services/expenseService";
 
 import {
   EXPENSE_CATEGORIES,
+  PAYMENT_METHODS,
   EXPENSE_POLICY,
   expenseStatusMeta,
   LOCKED_STATUSES,
+  SEND_BACKABLE_STATUSES,
 } from "../../constants/expenses";
 
 import { useAuth } from "../../context/AuthContext";
@@ -135,6 +141,7 @@ function ExpenseDetailModal({
   isApprover,
   onSubmitDraft,
   onDeleteDraft,
+  onEditDraft,
   actionClaimId,
   canManageDraft,
 }) {
@@ -639,6 +646,29 @@ function ExpenseDetailModal({
               <div style={{ display: "flex", gap: "8px" }}>
                 <button
                   type="button"
+                  onClick={() => onEditDraft?.(claim)}
+                  disabled={actionClaimId === claim.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "8px 18px",
+                    background: "var(--blue)",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "var(--radius-sm)",
+                    fontWeight: 600,
+                    fontSize: "13px",
+                    cursor: actionClaimId === claim.id ? "not-allowed" : "pointer",
+                    opacity: actionClaimId === claim.id ? 0.7 : 1,
+                  }}
+                >
+                  <Edit size={14} />
+                  {actionClaimId === claim.id ? "Editing…" : "Edit Draft"}
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => onSubmitDraft?.(claim)}
                   disabled={actionClaimId === claim.id}
                   style={{
@@ -766,18 +796,30 @@ function SubmitClaimModal({
   isOpen,
   onClose,
   onSubmitted,
+  initialDraft = null,
 }) {
+  const isEditing = Boolean(initialDraft);
   const [form, setForm] = useState({
-    category: "",
-    amount: "",
-    expenseDate: "",
-    businessPurpose: "",
-    receiptFileName: "",
+    category: initialDraft?.category || "",
+    amount: initialDraft?.amount ? String(initialDraft.amount) : "",
+    currency: initialDraft?.currency || "INR",
+    expenseDate: initialDraft?.expenseDate || "",
+    businessPurpose: initialDraft?.businessPurpose || "",
+    merchantName: initialDraft?.merchantName || "",
+    paymentMethod: initialDraft?.paymentMethod || "",
+    gstApplicable: initialDraft?.gstApplicable || false,
+    gstRate: initialDraft?.gstRate ? String(initialDraft.gstRate) : "",
+    gstAmount: initialDraft?.gstAmount ? String(initialDraft.gstAmount) : "",
+    costCenterId: initialDraft?.costCenterId || "",
+    projectId: initialDraft?.projectId || "",
+    notes: initialDraft?.notes || "",
+    receiptFileName: initialDraft?.receipts?.[0]?.fileName || "",
     receiptFile: null,
   });
 
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+  const [duplicateWarning, setDuplicateWarning] = useState(null);
 
   const policy = form.category
     ? EXPENSE_POLICY[form.category]
@@ -808,9 +850,147 @@ function SubmitClaimModal({
         "Business purpose must be at least 10 characters";
     }
 
+    if (!form.merchantName.trim()) {
+      e.merchantName = "Merchant name is required";
+    }
+
+    if (!form.paymentMethod) {
+      e.paymentMethod = "Select a payment method";
+    }
+
+    if (form.gstApplicable && (!form.gstRate || Number(form.gstRate) <= 0)) {
+      e.gstRate = "GST rate is required when GST is applicable";
+    }
+
     setErrors(e);
 
     return Object.keys(e).length === 0;
+  };
+
+  const checkDuplicatesAsync = async () => {
+    if (!form.category || !form.amount || !form.expenseDate || !form.merchantName) return;
+    try {
+      const result = await checkDuplicates({
+        category: form.category,
+        amount: amountNum,
+        expenseDate: form.expenseDate,
+        merchantName: form.merchantName,
+      });
+      if (result.exactDuplicate || result.nearDuplicate) {
+        setDuplicateWarning({
+          type: result.exactDuplicate ? "exact" : "near",
+          claimId: result.exactDuplicate?.claimId || result.nearDuplicate?.claimId,
+          claimNumber: result.exactDuplicate?.claimNumber || result.nearDuplicate?.claimNumber,
+          similarity: result.nearDuplicate?.similarity,
+        });
+      } else {
+        setDuplicateWarning(null);
+      }
+    } catch (err) {
+      console.error("Duplicate check failed:", err);
+    }
+  };
+
+  const handleSaveDraft = async (e) => {
+    e.preventDefault();
+
+    if (!validate()) return;
+
+    setSaving(true);
+
+    try {
+      let draft;
+      if (isEditing && initialDraft?.id) {
+        // Update existing draft
+        draft = await updateDraft(initialDraft.id, {
+          category: form.category,
+          amount: amountNum,
+          currency: form.currency,
+          expenseDate: form.expenseDate,
+          businessPurpose: form.businessPurpose.trim(),
+          merchantName: form.merchantName.trim(),
+          paymentMethod: form.paymentMethod,
+          gstApplicable: form.gstApplicable,
+          gstRate: form.gstRate ? Number(form.gstRate) : undefined,
+          gstAmount: form.gstAmount ? Number(form.gstAmount) : undefined,
+          costCenterId: form.costCenterId || undefined,
+          projectId: form.projectId || undefined,
+          notes: form.notes || undefined,
+        });
+      } else {
+        // Create new draft
+        draft = await createDraft({
+          category: form.category,
+          amount: amountNum,
+          currency: form.currency,
+          expenseDate: form.expenseDate,
+          businessPurpose: form.businessPurpose.trim(),
+          merchantName: form.merchantName.trim(),
+          paymentMethod: form.paymentMethod,
+          gstApplicable: form.gstApplicable,
+          gstRate: form.gstRate ? Number(form.gstRate) : undefined,
+          gstAmount: form.gstAmount ? Number(form.gstAmount) : undefined,
+          costCenterId: form.costCenterId || undefined,
+          projectId: form.projectId || undefined,
+          notes: form.notes || undefined,
+        });
+      }
+
+      if (!draft?.id) {
+        throw new Error("Expense draft was not created");
+      }
+
+      if (form.receiptFile) {
+        try {
+          const fileHash = await calculateFileHash(form.receiptFile);
+
+          await uploadExpenseReceipt(
+            draft.id,
+            form.receiptFile,
+            fileHash
+          );
+        } catch (receiptErr) {
+          console.warn("Receipt upload failed (MinIO may not be available), continuing without receipt:", receiptErr);
+          alert("Receipt upload failed (storage service unavailable). Claim will be submitted without receipt. You can add it later.");
+        }
+      }
+
+      onSubmitted();
+      onClose();
+
+      setForm({
+        category: "",
+        amount: "",
+        currency: "INR",
+        expenseDate: "",
+        businessPurpose: "",
+        merchantName: "",
+        paymentMethod: "",
+        gstApplicable: false,
+        gstRate: "",
+        gstAmount: "",
+        costCenterId: "",
+        projectId: "",
+        notes: "",
+        receiptFileName: "",
+        receiptFile: null,
+      });
+
+      setErrors({});
+      setDuplicateWarning(null);
+    } catch (err) {
+      console.error(
+        "Failed to save expense draft:",
+        err
+      );
+
+      alert(
+        err?.response?.data?.message ||
+          "Failed to save draft. Please try again."
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -821,25 +1001,60 @@ function SubmitClaimModal({
     setSaving(true);
 
     try {
-      const draft = await createDraft({
-        category: form.category,
-        amount: amountNum,
-        expenseDate: form.expenseDate,
-        businessPurpose: form.businessPurpose.trim(),
-      });
+      let draft;
+      if (isEditing && initialDraft?.id) {
+        // Update existing draft first, then submit
+        draft = await updateDraft(initialDraft.id, {
+          category: form.category,
+          amount: amountNum,
+          currency: form.currency,
+          expenseDate: form.expenseDate,
+          businessPurpose: form.businessPurpose.trim(),
+          merchantName: form.merchantName.trim(),
+          paymentMethod: form.paymentMethod,
+          gstApplicable: form.gstApplicable,
+          gstRate: form.gstRate ? Number(form.gstRate) : undefined,
+          gstAmount: form.gstAmount ? Number(form.gstAmount) : undefined,
+          costCenterId: form.costCenterId || undefined,
+          projectId: form.projectId || undefined,
+          notes: form.notes || undefined,
+        });
+      } else {
+        // Create new draft
+        draft = await createDraft({
+          category: form.category,
+          amount: amountNum,
+          currency: form.currency,
+          expenseDate: form.expenseDate,
+          businessPurpose: form.businessPurpose.trim(),
+          merchantName: form.merchantName.trim(),
+          paymentMethod: form.paymentMethod,
+          gstApplicable: form.gstApplicable,
+          gstRate: form.gstRate ? Number(form.gstRate) : undefined,
+          gstAmount: form.gstAmount ? Number(form.gstAmount) : undefined,
+          costCenterId: form.costCenterId || undefined,
+          projectId: form.projectId || undefined,
+          notes: form.notes || undefined,
+        });
+      }
 
       if (!draft?.id) {
         throw new Error("Expense draft was not created");
       }
 
       if (form.receiptFile) {
-        const fileHash = await calculateFileHash(form.receiptFile);
+        try {
+          const fileHash = await calculateFileHash(form.receiptFile);
 
-        await uploadExpenseReceipt(
-          draft.id,
-          form.receiptFile,
-          fileHash
-        );
+          await uploadExpenseReceipt(
+            draft.id,
+            form.receiptFile,
+            fileHash
+          );
+        } catch (receiptErr) {
+          console.warn("Receipt upload failed (MinIO may not be available), continuing without receipt:", receiptErr);
+          alert("Receipt upload failed (storage service unavailable). Claim will be submitted without receipt. You can add it later.");
+        }
       }
 
       await submitExpenseClaim(draft.id);
@@ -850,13 +1065,23 @@ function SubmitClaimModal({
       setForm({
         category: "",
         amount: "",
+        currency: "INR",
         expenseDate: "",
         businessPurpose: "",
+        merchantName: "",
+        paymentMethod: "",
+        gstApplicable: false,
+        gstRate: "",
+        gstAmount: "",
+        costCenterId: "",
+        projectId: "",
+        notes: "",
         receiptFileName: "",
         receiptFile: null,
       });
 
       setErrors({});
+      setDuplicateWarning(null);
     } catch (err) {
       console.error(
         "Failed to submit expense claim:",
@@ -888,10 +1113,14 @@ function SubmitClaimModal({
     background: "var(--card)",
   });
 
+  const modalTitle = isEditing
+      ? `Edit Draft — ${initialDraft?.claimNumber || initialDraft?.id?.slice(0, 8)}`
+      : "Submit Expense Claim (Indian IT Corporate)";
+
   return (
     <Modal
       isOpen={isOpen}
-      title="Submit Expense Claim (Indian IT Corporate)"
+      title={modalTitle}
       onClose={onClose}
     >
       <form
@@ -1060,6 +1289,389 @@ function SubmitClaimModal({
           </div>
         </div>
 
+        {/* Currency + Merchant */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "12px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "5px",
+            }}
+          >
+            <label
+              style={{
+                fontSize: "12px",
+                fontWeight: 600,
+                color: "var(--label)",
+              }}
+            >
+              Currency *
+            </label>
+            <input
+              type="text"
+              value={form.currency}
+              onChange={(e) =>
+                setForm((p) => ({
+                  ...p,
+                  currency: e.target.value,
+                }))
+              }
+              style={inputStyle("currency")}
+            />
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "5px",
+            }}
+          >
+            <label
+              style={{
+                fontSize: "12px",
+                fontWeight: 600,
+                color: "var(--label)",
+              }}
+            >
+              Merchant / Vendor Name *
+            </label>
+            <input
+              type="text"
+              value={form.merchantName}
+              onChange={(e) =>
+                setForm((p) => ({
+                  ...p,
+                  merchantName: e.target.value,
+                }))
+              }
+              style={inputStyle("merchantName")}
+              onBlur={checkDuplicatesAsync}
+            />
+
+            {errors.merchantName && (
+              <span
+                style={{
+                  fontSize: "11px",
+                  color: "var(--red)",
+                }}
+              >
+                {errors.merchantName}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Payment Method + GST */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "12px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "5px",
+            }}
+          >
+            <label
+              style={{
+                fontSize: "12px",
+                fontWeight: 600,
+                color: "var(--label)",
+              }}
+            >
+              Payment Method *
+            </label>
+            <select
+              value={form.paymentMethod}
+              onChange={(e) =>
+                setForm((p) => ({
+                  ...p,
+                  paymentMethod: e.target.value,
+                }))
+              }
+              style={inputStyle("paymentMethod")}
+            >
+              <option value="">Select payment method</option>
+              {PAYMENT_METHODS.map((method) => (
+                <option key={method} value={method}>
+                  {method}
+                </option>
+              ))}
+            </select>
+
+            {errors.paymentMethod && (
+              <span
+                style={{
+                  fontSize: "11px",
+                  color: "var(--red)",
+                }}
+              >
+                {errors.paymentMethod}
+              </span>
+            )}
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "5px",
+            }}
+          >
+            <label
+              style={{
+                fontSize: "12px",
+                fontWeight: 600,
+                color: "var(--label)",
+              }}
+            >
+              GST Applicable
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={form.gstApplicable}
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    gstApplicable: e.target.checked,
+                    gstRate: e.target.checked ? "18" : "",
+                    gstAmount: e.target.checked ? "" : "",
+                  }))
+                }
+              />
+              <span style={{ fontSize: "13px", color: "var(--text)" }}>Yes, this expense includes GST</span>
+            </label>
+          </div>
+        </div>
+
+        {form.gstApplicable && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "12px",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "5px",
+              }}
+            >
+              <label
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: "var(--label)",
+                }}
+              >
+                GST Rate (%)
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.5"
+                value={form.gstRate}
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    gstRate: e.target.value,
+                  }))
+                }
+                style={inputStyle("gstRate")}
+              />
+              {errors.gstRate && (
+                <span
+                  style={{
+                    fontSize: "11px",
+                    color: "var(--red)",
+                  }}
+                >
+                  {errors.gstRate}
+                </span>
+              )}
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "5px",
+              }}
+            >
+              <label
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: "var(--label)",
+                }}
+              >
+                GST Amount (₹)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.gstAmount}
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    gstAmount: e.target.value,
+                  }))
+                }
+                style={inputStyle("gstAmount")}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Cost Center / Project */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "12px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "5px",
+            }}
+          >
+            <label
+              style={{
+                fontSize: "12px",
+                fontWeight: 600,
+                color: "var(--label)",
+              }}
+            >
+              Cost Center
+            </label>
+            <input
+              type="text"
+              value={form.costCenterId}
+              onChange={(e) =>
+                setForm((p) => ({
+                  ...p,
+                  costCenterId: e.target.value,
+                }))
+              }
+              style={inputStyle("costCenterId")}
+              placeholder="Cost center code (optional)"
+            />
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "5px",
+            }}
+          >
+            <label
+              style={{
+                fontSize: "12px",
+                fontWeight: 600,
+                color: "var(--label)",
+              }}
+            >
+              Project / Client
+            </label>
+            <input
+              type="text"
+              value={form.projectId}
+              onChange={(e) =>
+                setForm((p) => ({
+                  ...p,
+                  projectId: e.target.value,
+                }))
+              }
+              style={inputStyle("projectId")}
+              placeholder="Project or client code (optional)"
+            />
+          </div>
+        </div>
+
+        {/* Notes */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "5px",
+          }}
+        >
+          <label
+            style={{
+              fontSize: "12px",
+              fontWeight: 600,
+              color: "var(--label)",
+            }}
+          >
+            Notes (Optional)
+          </label>
+          <textarea
+            value={form.notes}
+            onChange={(e) =>
+              setForm((p) => ({
+                ...p,
+                notes: e.target.value,
+              }))
+            }
+            rows={2}
+            placeholder="Any additional notes..."
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              border: `1px solid ${"var(--border)"}`,
+              borderRadius: "var(--radius-sm)",
+              fontSize: "13.5px",
+              color: "var(--text)",
+              outline: "none",
+              resize: "vertical",
+              fontFamily: "inherit",
+            }}
+          />
+        </div>
+
+        {/* Duplicate Warning */}
+        {duplicateWarning && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "12px",
+              background: "#fff7ed",
+              border: "1px solid #fed7aa",
+              borderRadius: "var(--radius)",
+              color: "#c2410c",
+            }}
+          >
+            <AlertTriangle size={16} />
+            <span style={{ fontSize: "13px" }}>
+              <strong>Possible duplicate detected:</strong> Claim {duplicateWarning.claimNumber} 
+              {duplicateWarning.type === "exact" ? "matches exactly" : `has ${duplicateWarning.similarity}% similarity`}. 
+              Please review before submitting.
+            </span>
+          </div>
+        )}
+
         {/* Business Purpose */}
         <div
           style={{
@@ -1135,6 +1747,37 @@ function SubmitClaimModal({
             Attach Tax Invoice / Receipt (PDF, JPG, PNG)
           </label>
 
+          {/* Show existing receipt when editing a draft */}
+          {isEditing && initialDraft?.receipts?.length > 0 && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "10px 12px",
+                background: "var(--background)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-sm)",
+                marginBottom: "8px",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <FileText size={20} style={{ color: "var(--primary)" }} />
+                <div>
+                  <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>
+                    {initialDraft.receipts[0].fileName}
+                  </p>
+                  <span style={{ fontSize: "11.5px", color: "var(--subtext)" }}>
+                    Existing receipt — will be kept if you don't upload a new one
+                  </span>
+                </div>
+              </div>
+              <span style={{ fontSize: "11px", color: "var(--primary)", fontWeight: 600 }}>
+                Receipt preserved
+              </span>
+            </div>
+          )}
+
           <input
             type="file"
             accept=".pdf,.jpg,.jpeg,.png"
@@ -1144,7 +1787,7 @@ function SubmitClaimModal({
               setForm((p) => ({
                 ...p,
                 receiptFile: file,
-                receiptFileName: file?.name || "",
+                receiptFileName: file?.name || (isEditing && initialDraft?.receipts?.length > 0 ? initialDraft.receipts[0].fileName : ""),
               }));
             }}
             style={{
@@ -1161,7 +1804,9 @@ function SubmitClaimModal({
                 fontWeight: 600,
               }}
             >
-              Attached: {form.receiptFileName}
+              {isEditing && !form.receiptFile && initialDraft?.receipts?.length > 0
+                ? `Keeping existing: ${form.receiptFileName}`
+                : `Attached: ${form.receiptFileName}`}
             </span>
           )}
 
@@ -1200,6 +1845,31 @@ function SubmitClaimModal({
             }}
           >
             Cancel
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSaveDraft}
+            disabled={saving}
+            style={{
+              padding: "9px 20px",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-sm)",
+              background: "none",
+              color: "var(--primary)",
+              fontWeight: 600,
+              fontSize: "13px",
+              cursor: saving
+                ? "not-allowed"
+                : "pointer",
+              opacity: saving ? 0.7 : 1,
+            }}
+          >
+            {saving
+              ? "Saving…"
+              : isEditing
+              ? "Update Draft"
+              : "Save as Draft"}
           </button>
 
           <button
@@ -1450,6 +2120,152 @@ function RejectModal({
 }
 
 /* -------------------------------------------------------------------------- */
+/* Send Back Modal                                                            */
+/* -------------------------------------------------------------------------- */
+
+function SendBackModal({
+  claim,
+  onClose,
+  onSentBack,
+}) {
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleSendBack = async () => {
+    if (!reason.trim() || !claim) return;
+
+    setSaving(true);
+
+    try {
+      await sendBackClaim(claim.id, reason.trim());
+
+      onSentBack();
+      onClose();
+      setReason("");
+    } catch (err) {
+      console.error(
+        "Failed to send back claim:",
+        err
+      );
+
+      alert(
+        err?.response?.data?.message ||
+          "Failed to send back claim."
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      isOpen={!!claim}
+      title={`Send Back Claim: ${getClaimDisplayId(claim)}`}
+      onClose={onClose}
+    >
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "14px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "5px",
+          }}
+        >
+          <label
+            style={{
+              fontSize: "12px",
+              fontWeight: 600,
+              color: "var(--label)",
+            }}
+          >
+            Send Back Reason *
+          </label>
+
+          <textarea
+            value={reason}
+            onChange={(e) =>
+              setReason(e.target.value)
+            }
+            rows={3}
+            placeholder="Explain what needs to be corrected or clarified…"
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-sm)",
+              fontSize: "13.5px",
+              color: "var(--text)",
+              outline: "none",
+              resize: "vertical",
+              fontFamily: "inherit",
+            }}
+          />
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            gap: "10px",
+            justifyContent: "flex-end",
+          }}
+        >
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: "9px 20px",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-sm)",
+              background: "none",
+              color: "var(--label)",
+              fontWeight: 600,
+              fontSize: "13px",
+              cursor: "pointer",
+            }}
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSendBack}
+            disabled={
+              saving || !reason.trim()
+            }
+            style={{
+              padding: "9px 20px",
+              border: "none",
+              borderRadius: "var(--radius-sm)",
+              background: "#f97316",
+              color: "#fff",
+              fontWeight: 600,
+              fontSize: "13px",
+              cursor: saving
+                ? "not-allowed"
+                : "pointer",
+              opacity:
+                saving || !reason.trim()
+                  ? 0.6
+                  : 1,
+            }}
+          >
+            {saving
+              ? "Sending Back…"
+              : "Send Back"}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
 /* Main Expense Page                                                          */
 /* -------------------------------------------------------------------------- */
 
@@ -1472,6 +2288,9 @@ export default function Expenses() {
         "expenses:approve"
       )
     );
+
+  const canManageTeam = canApprove && (role === "MANAGER" || role === "ADMIN" || role === "HR" || user?.isDepartmentHead || user?.isManager);
+  const canFinanceReview = role === "FINANCE" || role === "ADMIN" || role === "HR" || permissions?.includes("expenses:approve");
 
   /*
    * IMPORTANT:
@@ -1506,16 +2325,24 @@ export default function Expenses() {
 
   const [myClaims, setMyClaims] = useState([]);
   const [approvals, setApprovals] = useState([]);
+  const [teamClaims, setTeamClaims] = useState([]);
+  const [financeClaims, setFinanceClaims] = useState([]);
 
   const [loading, setLoading] = useState(true);
 
   const [showSubmit, setShowSubmit] =
     useState(false);
 
+  const [editingDraft, setEditingDraft] =
+    useState(null);
+
   const [selectedClaim, setSelectedClaim] =
     useState(null);
 
   const [rejectTarget, setRejectTarget] =
+    useState(null);
+
+  const [sendBackTarget, setSendBackTarget] =
     useState(null);
 
   const [actionClaimId, setActionClaimId] =
@@ -1548,6 +2375,8 @@ export default function Expenses() {
         );
 
         setApprovals([]);
+        setTeamClaims([]);
+        setFinanceClaims([]);
         return;
       }
 
@@ -1559,9 +2388,21 @@ export default function Expenses() {
         approvalPromises.push(getPendingApprovals("Finance"));
       }
 
+      // Load team claims for managers
+      const teamPromise = canManageTeam
+        ? getMyExpenseClaims() // This will be filtered by backend based on role
+        : Promise.resolve([]);
+
+      // Load finance review claims for finance/HR
+      const financePromise = canFinanceReview
+        ? getPendingApprovals("Finance")
+        : Promise.resolve([]);
+
       const [mineRes, ...approvalResults] = await Promise.all([
         minePromise,
         ...approvalPromises,
+        teamPromise,
+        financePromise,
       ]);
 
       setMyClaims(
@@ -1577,6 +2418,14 @@ export default function Expenses() {
         new Map(rawApprovals.map((item) => [item.id, item])).values()
       );
       setApprovals(uniqueApprovals);
+
+      // Team claims are in the second to last result
+      const teamRes = approvalResults[approvalResults.length - 2];
+      setTeamClaims(Array.isArray(teamRes) ? teamRes : []);
+
+      // Finance claims are in the last result
+      const financeRes = approvalResults[approvalResults.length - 1];
+      setFinanceClaims(Array.isArray(financeRes) ? financeRes : []);
     } catch (err) {
       console.error(
         "Failed to load expense claims:",
@@ -1585,10 +2434,12 @@ export default function Expenses() {
 
       setMyClaims([]);
       setApprovals([]);
+      setTeamClaims([]);
+      setFinanceClaims([]);
     } finally {
       setLoading(false);
     }
-  }, [canApprove, role]);
+  }, [canApprove, canManageTeam, canFinanceReview, role]);
 
   useEffect(() => {
     /*
@@ -1605,37 +2456,19 @@ export default function Expenses() {
   }, [user, loadAll]);
 
   useEffect(() => {
-    if (!canApprove && tab === "approvals") {
+    if (!canApprove && (tab === "approvals" || tab === "team" || tab === "finance")) {
       const timeoutId = window.setTimeout(() => setTab("mine"), 0);
       return () => window.clearTimeout(timeoutId);
     }
 
     return undefined;
-  }, [canApprove, tab]);
+  }, [canApprove, canManageTeam, canFinanceReview, tab]);
+
+  /* handleSendBack removed - not used (SendBackModal handles it) */
 
   /* ---------------------------------------------------------------------- */
-  /* Approval                                                                */
+  /* Submit Draft                                                              */
   /* ---------------------------------------------------------------------- */
-
-  const handleApprove = async (claim) => {
-    if (!canApprove || !claim) return;
-
-    try {
-      await approveClaim(
-        claim.id,
-        claim.approvalStage
-      );
-
-      await loadAll();
-    } catch (err) {
-      console.error(
-        "Failed to approve claim:",
-        err
-      );
-
-      alert(getApiErrorMessage(err, "Failed to approve claim."));
-    }
-  };
 
   const handleSubmitDraft = async (claim) => {
     if (!claim?.id || !claim.isDraft) return;
@@ -1652,6 +2485,10 @@ export default function Expenses() {
       setActionClaimId(null);
     }
   };
+
+  /* ---------------------------------------------------------------------- */
+  /* Delete Draft                                                              */
+  /* ---------------------------------------------------------------------- */
 
   const handleDeleteDraft = async (claim) => {
     if (!claim?.id || !claim.isDraft) return;
@@ -1675,7 +2512,18 @@ export default function Expenses() {
   };
 
   /* ---------------------------------------------------------------------- */
-  /* Receipt viewer                                                          */
+  /* Edit Draft                                                                */
+  /* ---------------------------------------------------------------------- */
+
+  const handleEditDraft = (claim) => {
+    if (!claim?.id || !claim.isDraft) return;
+    setEditingDraft(claim);
+    setSelectedClaim(null);
+    setShowSubmit(true);
+  };
+
+  /* ---------------------------------------------------------------------- */
+  /* Receipt viewer                                                            */
   /* ---------------------------------------------------------------------- */
 
   const handleViewReceipt = async (claim) => {
@@ -1705,6 +2553,38 @@ export default function Expenses() {
   };
 
   /* ---------------------------------------------------------------------- */
+  /* Approval                                                                */
+  /* ---------------------------------------------------------------------- */
+
+  const handleApprove = async (claim) => {
+    if (!canApprove || !claim) return;
+
+    try {
+      await approveClaim(
+        claim.id,
+        claim.approvalStage
+      );
+
+await loadAll();
+    } catch (err) {
+      console.error(
+        "Failed to approve claim:",
+        err
+      );
+
+      alert(getApiErrorMessage(err, "Failed to approve claim."));
+    }
+  };
+
+  /* handleReject removed - not used (setRejectTarget called directly in JSX) */
+
+  /* ---------------------------------------------------------------------- */
+  /* Send Back                                                                */
+  /* ---------------------------------------------------------------------- */
+
+  /* handleSendBackClick removed - not used */
+
+  /* ---------------------------------------------------------------------- */
   /* Tabs                                                                    */
   /* ---------------------------------------------------------------------- */
 
@@ -1714,15 +2594,29 @@ export default function Expenses() {
       label: ["ADMIN", "HR"].includes(role) ? "All Claims" : "My Claims",
     },
 
+    ...(canManageTeam
+      ? [
+          {
+            id: "team",
+            label: `Team Claims${teamClaims.length ? ` (${teamClaims.length})` : ""}`,
+          },
+        ]
+      : []),
+
     ...(canApprove
       ? [
           {
             id: "approvals",
-            label: `Approvals${
-              approvals.length
-                ? ` (${approvals.length})`
-                : ""
-            }`,
+            label: `My Approvals${approvals.length ? ` (${approvals.length})` : ""}`,
+          },
+        ]
+      : []),
+
+    ...(canFinanceReview
+      ? [
+          {
+            id: "finance",
+            label: `Finance Review${financeClaims.length ? ` (${financeClaims.length})` : ""}`,
           },
         ]
       : []),
@@ -1731,7 +2625,11 @@ export default function Expenses() {
   const rows =
     tab === "mine"
       ? myClaims
-      : approvals;
+      : tab === "team"
+      ? teamClaims
+      : tab === "approvals"
+      ? approvals
+      : financeClaims;
 
   /* ---------------------------------------------------------------------- */
   /* Render                                                                  */
@@ -1879,7 +2777,7 @@ export default function Expenses() {
                   >
                     {[
                       "Claim ID",
-                      tab === "approvals"
+                      ["team", "finance", "approvals"].includes(tab)
                         ? "Employee & ID"
                         : null,
                       "Category",
@@ -1887,7 +2785,7 @@ export default function Expenses() {
                       "Expense Date",
                       "Purpose",
                       "Status",
-                      tab === "approvals"
+                      ["team", "finance", "approvals"].includes(tab)
                         ? "Actions"
                         : "Receipt / Actions",
                     ]
@@ -2014,8 +2912,7 @@ export default function Expenses() {
                           </td>
 
                           {/* Employee */}
-                          {tab ===
-                            "approvals" && (
+                          {["team", "finance", "approvals"].includes(tab) && (
                             <td
                               style={{
                                 padding:
@@ -2182,8 +3079,7 @@ export default function Expenses() {
                           </td>
 
                           {/* Actions / Receipt */}
-                          {tab ===
-                          "approvals" ? (
+                          {["team", "finance", "approvals"].includes(tab) ? (
                             <td
                               style={{
                                 padding:
@@ -2239,89 +3135,137 @@ export default function Expenses() {
                                   Review
                                 </button>
 
-                                <button
-                                  type="button"
-                                  id={`approve-${claim.id}-btn`}
-                                  onClick={() =>
-                                    handleApprove(
-                                      claim
-                                    )
-                                  }
-                                  disabled={
-                                    locked
-                                  }
-                                  style={{
-                                    display:
-                                      "flex",
-                                    alignItems:
-                                      "center",
-                                    gap: "4px",
-                                    padding:
-                                      "6px 12px",
-                                    background:
-                                      "var(--green-light)",
-                                    color:
-                                      "var(--green)",
-                                    border:
-                                      "none",
-                                    borderRadius:
-                                      "var(--radius-sm)",
-                                    fontWeight: 600,
-                                    fontSize:
-                                      "12px",
-                                    cursor:
+                                {canApprove && SEND_BACKABLE_STATUSES.includes(claim.status) && (
+                                  <button
+                                    type="button"
+                                    id={`sendback-${claim.id}-btn`}
+                                    onClick={() =>
+                                      setSendBackTarget(
+                                        claim
+                                      )
+                                    }
+                                    disabled={
                                       locked
-                                        ? "not-allowed"
-                                        : "pointer",
-                                  }}
-                                >
-                                  <Check
-                                    size={13}
-                                  />
-                                  Approve
-                                </button>
+                                    }
+                                    style={{
+                                      display:
+                                        "flex",
+                                      alignItems:
+                                        "center",
+                                      gap: "4px",
+                                      padding:
+                                        "6px 12px",
+                                      background:
+                                        "#fff7ed",
+                                      color:
+                                        "#f97316",
+                                      border:
+                                        "1px solid #fed7aa",
+                                      borderRadius:
+                                        "var(--radius-sm)",
+                                      fontWeight: 600,
+                                      fontSize:
+                                        "12px",
+                                      cursor:
+                                        locked
+                                          ? "not-allowed"
+                                          : "pointer",
+                                    }}
+                                  >
+                                    <Send
+                                      size={13}
+                                    />
+                                    Send Back
+                                  </button>
+                                )}
 
-                                <button
-                                  type="button"
-                                  id={`reject-${claim.id}-btn`}
-                                  onClick={() =>
-                                    setRejectTarget(
-                                      claim
-                                    )
-                                  }
-                                  disabled={
-                                    locked
-                                  }
-                                  style={{
-                                    display:
-                                      "flex",
-                                    alignItems:
-                                      "center",
-                                    gap: "4px",
-                                    padding:
-                                      "6px 12px",
-                                    background:
-                                      "var(--red-light)",
-                                    color:
-                                      "var(--red)",
-                                    border:
-                                      "none",
-                                    borderRadius:
-                                      "var(--radius-sm)",
-                                    fontWeight: 600,
-                                    fontSize:
-                                      "12px",
-                                    cursor:
-                                      locked
-                                        ? "not-allowed"
-                                        : "pointer",
-                                  }}
-                                >
-                                  <X
-                                    size={13}
-                                  />
-                                  Reject
-                                </button>
+                                {canApprove && (tab === "approvals" || tab === "finance") && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      id={`approve-${claim.id}-btn`}
+                                      onClick={() =>
+                                        handleApprove(
+                                          claim
+                                        )
+                                      }
+                                      disabled={
+                                        locked
+                                      }
+                                      style={{
+                                        display:
+                                          "flex",
+                                        alignItems:
+                                          "center",
+                                        gap: "4px",
+                                        padding:
+                                          "6px 12px",
+                                        background:
+                                          "var(--green-light)",
+                                        color:
+                                          "var(--green)",
+                                        border:
+                                          "none",
+                                        borderRadius:
+                                          "var(--radius-sm)",
+                                        fontWeight: 600,
+                                        fontSize:
+                                          "12px",
+                                        cursor:
+                                          locked
+                                            ? "not-allowed"
+                                            : "pointer",
+                                      }}
+                                    >
+                                      <Check
+                                        size={13}
+                                      />
+                                      Approve
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      id={`reject-${claim.id}-btn`}
+                                      onClick={() =>
+                                        setRejectTarget(
+                                          claim
+                                        )
+                                      }
+                                      disabled={
+                                        locked
+                                      }
+                                      style={{
+                                        display:
+                                          "flex",
+                                        alignItems:
+                                          "center",
+                                        gap: "4px",
+                                        padding:
+                                          "6px 12px",
+                                        background:
+                                          "var(--red-light)",
+                                        color:
+                                          "var(--red)",
+                                        border:
+                                          "none",
+                                        borderRadius:
+                                          "var(--radius-sm)",
+                                        fontWeight: 600,
+                                        fontSize:
+                                          "12px",
+                                        cursor:
+                                          locked
+                                            ? "not-allowed"
+                                            : "pointer",
+                                      }}
+                                    >
+                                      <X
+                                        size={13}
+                                      />
+                                      Reject
+                                    </button>
+                                  </>
+                                )}
                               </div>
                             </td>
                           ) : (
@@ -2379,6 +3323,28 @@ export default function Expenses() {
                                 >
                                   <button
                                     type="button"
+                                    onClick={() => handleEditDraft(claim)}
+                                    disabled={actionClaimId === claim.id}
+                                    title="Edit draft"
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: "4px",
+                                      padding: "6px 10px",
+                                      background: "var(--blue-light)",
+                                      color: "var(--blue)",
+                                      border: "none",
+                                      borderRadius: "var(--radius-sm)",
+                                      fontWeight: 600,
+                                      fontSize: "12px",
+                                      cursor: actionClaimId === claim.id ? "not-allowed" : "pointer",
+                                    }}
+                                  >
+                                    <Edit size={12} /> Edit
+                                  </button>
+
+                                  <button
+                                    type="button"
                                     onClick={() => handleSubmitDraft(claim)}
                                     disabled={actionClaimId === claim.id}
                                     style={{
@@ -2434,10 +3400,15 @@ export default function Expenses() {
       {/* Submit Modal */}
       <SubmitClaimModal
         isOpen={showSubmit}
-        onClose={() =>
-          setShowSubmit(false)
-        }
-        onSubmitted={loadAll}
+        onClose={() => {
+          setShowSubmit(false);
+          setEditingDraft(null);
+        }}
+        onSubmitted={() => {
+          loadAll();
+          setEditingDraft(null);
+        }}
+        initialDraft={editingDraft}
         currentEmployee={{
           id: currentEmpId,
           name: currentEmpName,
@@ -2451,6 +3422,15 @@ export default function Expenses() {
           setRejectTarget(null)
         }
         onRejected={loadAll}
+      />
+
+      {/* Send Back Modal */}
+      <SendBackModal
+        claim={sendBackTarget}
+        onClose={() =>
+          setSendBackTarget(null)
+        }
+        onSentBack={loadAll}
       />
 
       {/* Detail Modal */}
@@ -2467,6 +3447,7 @@ export default function Expenses() {
         onViewReceipt={handleViewReceipt}
         onSubmitDraft={handleSubmitDraft}
         onDeleteDraft={handleDeleteDraft}
+        onEditDraft={handleEditDraft}
         actionClaimId={actionClaimId}
         canManageDraft={isOwnClaim(selectedClaim)}
         isApprover={

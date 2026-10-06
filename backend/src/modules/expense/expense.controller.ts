@@ -75,13 +75,19 @@ export const deleteDraftClaim = asyncHandler(async (req: Request, res: Response)
   sendSuccess(res, result.data);
 });
 
+export const updateDraftClaim = asyncHandler(async (req: Request, res: Response) => {
+  const employeeId = await resolveEmployeeId(req);
+  const result = await expenseService.updateDraftClaim(req.params.id, { ...req.auth!, employeeId }, req.body);
+  sendSuccess(res, result.data);
+});
+
 export const cancelClaim = asyncHandler(async (req: Request, res: Response) => {
   const employeeId = await resolveEmployeeId(req);
   const result = await expenseService.cancelClaim(req.params.id, { ...req.auth!, employeeId });
   sendSuccess(res, result.data);
 });
 
-/** Approve/Reject actions */
+/** Approve/Reject/Send-back actions */
 export const approveClaim = asyncHandler(async (req: Request, res: Response) => {
   const employeeId = await resolveEmployeeId(req);
   const result = await expenseService.actOnClaim(req.params.id, { ...req.auth!, employeeId }, "approve", req.body.comments);
@@ -93,6 +99,20 @@ export const rejectClaim = asyncHandler(async (req: Request, res: Response) => {
   const rejectionReason = req.body.rejectionReason?.trim();
   if (!rejectionReason) throw AppError.badRequest("Rejection reason is required");
   const result = await expenseService.actOnClaim(req.params.id, { ...req.auth!, employeeId }, "reject", rejectionReason);
+  sendSuccess(res, result.data);
+});
+
+export const sendBackClaim = asyncHandler(async (req: Request, res: Response) => {
+  const employeeId = await resolveEmployeeId(req);
+  const reason = req.body.reason?.trim();
+  if (!reason) throw AppError.badRequest("Send-back reason is required");
+  const result = await expenseService.sendBackClaim(req.params.id, { ...req.auth!, employeeId }, reason);
+  sendSuccess(res, result.data);
+});
+
+export const resubmitClaim = asyncHandler(async (req: Request, res: Response) => {
+  const employeeId = await resolveEmployeeId(req);
+  const result = await expenseService.resubmitClaim(req.params.id, { ...req.auth!, employeeId });
   sendSuccess(res, result.data);
 });
 

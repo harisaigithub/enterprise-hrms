@@ -1,4 +1,6 @@
 import { Request, Response } from "express";
+import { prisma } from "../../lib/prisma";
+import { AppError } from "../../lib/errors";
 import * as assetService from "./asset.service";
 
 /* =========================================================
@@ -37,6 +39,54 @@ export async function addInventoryItem(
 
         res.status(500).json({
             message: "Failed to add inventory item",
+        });
+    }
+}
+
+export async function updateInventoryItem(req: Request, res: Response) {
+    try {
+        const data = await assetService.updateInventoryItem(req.params.assetId, req.body);
+        res.json(data);
+    } catch (error) {
+        console.error(error);
+        res.status(error instanceof AppError ? error.statusCode : 400).json({
+            message: error instanceof Error ? error.message : "Failed to update inventory item",
+        });
+    }
+}
+
+export async function assignInventoryItem(req: Request, res: Response) {
+    try {
+        const data = await assetService.assignInventoryItem(req.params.assetId, req.body.employeeId);
+        res.json(data);
+    } catch (error) {
+        console.error(error);
+        res.status(error instanceof AppError ? error.statusCode : 400).json({
+            message: error instanceof Error ? error.message : "Failed to assign inventory item",
+        });
+    }
+}
+
+export async function retireInventoryItem(req: Request, res: Response) {
+    try {
+        const data = await assetService.retireInventoryItem(req.params.assetId, req.body.reason);
+        res.json(data);
+    } catch (error) {
+        console.error(error);
+        res.status(error instanceof AppError ? error.statusCode : 400).json({
+            message: error instanceof Error ? error.message : "Failed to retire inventory item",
+        });
+    }
+}
+
+export async function setAssetMaintenance(req: Request, res: Response) {
+    try {
+        const data = await assetService.setAssetMaintenance(req.params.assetId, req.body.reason);
+        res.json(data);
+    } catch (error) {
+        console.error(error);
+        res.status(error instanceof AppError ? error.statusCode : 400).json({
+            message: error instanceof Error ? error.message : "Failed to send asset for repair",
         });
     }
 }
@@ -147,7 +197,7 @@ export async function raiseRequest(
     } catch (error) {
         console.error(error);
 
-        res.status(400).json({
+        res.status(error instanceof AppError ? error.statusCode : 400).json({
             message:
                 error instanceof Error
                     ? error.message
@@ -166,21 +216,17 @@ export async function approveRequest(
 ) {
     try {
         if (!req.auth) throw new Error("Authentication required");
-        const approverName = req.auth.employeeCode
-            ? `${req.auth.role}:${req.auth.employeeCode}`
-            : req.auth.role;
-
         const data =
             await assetService.approveRequest(
                 req.params.id,
-                approverName
+                req.auth
             );
 
         res.json(data);
     } catch (error) {
         console.error(error);
 
-        res.status(400).json({
+        res.status(error instanceof AppError ? error.statusCode : 400).json({
             message:
                 error instanceof Error
                     ? error.message
@@ -198,16 +244,19 @@ export async function rejectRequest(
     res: Response
 ) {
     try {
+        if (!req.auth) throw new Error("Authentication required");
         const data =
             await assetService.rejectRequest(
-                req.params.id
+                req.params.id,
+                req.auth,
+                req.body.reason
             );
 
         res.json(data);
     } catch (error) {
         console.error(error);
 
-        res.status(400).json({
+        res.status(error instanceof AppError ? error.statusCode : 400).json({
             message:
                 error instanceof Error
                     ? error.message
@@ -239,7 +288,7 @@ export async function fulfillRequest(
     } catch (error) {
         console.error(error);
 
-        res.status(400).json({
+        res.status(error instanceof AppError ? error.statusCode : 400).json({
             message:
                 error instanceof Error
                     ? error.message
@@ -333,7 +382,7 @@ export async function returnAsset(
                 req.auth.sub,
                 req.auth.role,
                 condition,
-                Boolean(wipeCompleted)
+                wipeCompleted
             );
 
         if ("error" in data) {

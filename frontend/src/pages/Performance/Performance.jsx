@@ -2239,10 +2239,10 @@ function CalibrationPanel({ cycle, onReleased }) {
       });
       await loadCandidates();
       await onReleased();
-      alert(`Rating released for ${candidate.employeeName}`);
+      alert(`Compensation recommendation for ${candidate.employeeName} was submitted for HR and Finance approval. Employee rating history updates after both approvals.`);
     } catch (error) {
-      console.error("Failed to release rating:", error);
-      alert(error?.response?.data?.message || "Unable to release the rating");
+      console.error("Failed to submit compensation recommendation:", error);
+      alert(error?.response?.data?.message || "Unable to submit the recommendation");
     } finally {
       setReleasing(null);
     }
@@ -2252,9 +2252,9 @@ function CalibrationPanel({ cycle, onReleased }) {
 
   const phase = data.cycle?.phase || cycle?.phase;
   return <div style={{ ...cardStyle, padding: "20px", display: "flex", flexDirection: "column", gap: "14px" }}>
-    <div><h2 style={{ fontSize: "15px", fontWeight: 700 }}>Calibration & Release</h2><p style={{ fontSize: "12px", color: "var(--subtext)", marginTop: "4px" }}>Final ratings become visible in employee history immediately after release.</p></div>
+    <div><h2 style={{ fontSize: "15px", fontWeight: 700 }}>Calibration & Release</h2><p style={{ fontSize: "12px", color: "var(--subtext)", marginTop: "4px" }}>Calibrated ratings and compensation proposals require HR and Finance approval before they become visible in employee history.</p></div>
     {phase !== "Calibration" ? <div style={{ padding: "12px", borderRadius: "8px", background: "#fffbeb", color: "#92400e", fontSize: "13px" }}>Move the review cycle to <strong>Calibration</strong> before releasing ratings. Current phase: {phase || "Unknown"}.</div>
-    : data.candidates.length === 0 ? <EmptyState icon={Award} title="No ratings awaiting calibration" subtitle="Manager reviews must be submitted and each employee can be released only once per cycle." />
+    : data.candidates.length === 0 ? <EmptyState icon={Award} title="No ratings awaiting calibration" subtitle="Manager reviews must be submitted; only one pending or released recommendation is allowed per employee and cycle." />
     : data.candidates.map((candidate) => {
       const form = forms[candidate.employeeId] || {};
       return <div key={candidate.employeeId} style={{ border: "1px solid var(--border)", borderRadius: "10px", padding: "14px", display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -2264,7 +2264,7 @@ function CalibrationPanel({ cycle, onReleased }) {
           <label style={{ fontSize: "12px", fontWeight: 600 }}>Increment<input value={form.increment || ""} onChange={(event) => updateForm(candidate.employeeId, "increment", event.target.value)} placeholder="e.g. 8%" style={{ ...inputStyle(false), marginTop: "5px" }} /></label>
           <label style={{ fontSize: "12px", fontWeight: 600 }}>Appraisal letter URL<input value={form.appraisalLetterUrl || ""} onChange={(event) => updateForm(candidate.employeeId, "appraisalLetterUrl", event.target.value)} placeholder="Optional URL" style={{ ...inputStyle(false), marginTop: "5px" }} /></label>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}><label style={{ fontSize: "12.5px", display: "flex", alignItems: "center", gap: "7px" }}><input type="checkbox" checked={Boolean(form.promotion)} onChange={(event) => updateForm(candidate.employeeId, "promotion", event.target.checked)} /> Promotion approved</label><PrimaryButton disabled={releasing === candidate.employeeId} onClick={() => release(candidate)}>{releasing === candidate.employeeId ? "Releasing..." : "Release Rating"}</PrimaryButton></div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}><label style={{ fontSize: "12.5px", display: "flex", alignItems: "center", gap: "7px" }}><input type="checkbox" checked={Boolean(form.promotion)} onChange={(event) => updateForm(candidate.employeeId, "promotion", event.target.checked)} /> Promotion proposed</label><PrimaryButton disabled={releasing === candidate.employeeId} onClick={() => release(candidate)}>{releasing === candidate.employeeId ? "Submitting..." : "Submit for approval"}</PrimaryButton></div>
       </div>;
     })}
   </div>;

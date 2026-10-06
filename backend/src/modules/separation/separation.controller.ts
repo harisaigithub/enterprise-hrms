@@ -100,7 +100,8 @@ export async function updateClearanceItem(
       await separationService.updateClearanceItem(
         req.params.id,
         status,
-        notes
+        notes,
+        req.auth
       );
 
     res.json(data);

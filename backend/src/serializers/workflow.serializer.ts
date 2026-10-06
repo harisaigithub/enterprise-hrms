@@ -66,6 +66,7 @@ export function serializeInstance(inst: InstanceWithRelations) {
       startedAt: s.startedAt.toISOString(),
       actedBy: s.actedBy,
       actedByName: s.actedByName,
+      roleApproverOverride: s.roleApproverOverride,
       actedAt: s.actedAt ? s.actedAt.toISOString() : null,
       rejectionReason: s.rejectionReason,
     })),

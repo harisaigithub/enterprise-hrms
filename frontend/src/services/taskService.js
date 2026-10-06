@@ -40,6 +40,11 @@ export async function addTask(task) {
   return res.data;
 }
 
+export async function updateTask(taskId, payload) {
+  const res = await api.put(`/tasks/${taskId}`, payload);
+  return res.data;
+}
+
 export async function updateTaskStatus(
   taskId,
   newStatus,

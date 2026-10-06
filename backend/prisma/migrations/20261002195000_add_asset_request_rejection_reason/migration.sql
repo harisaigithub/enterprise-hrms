@@ -1,0 +1,1 @@
+ALTER TABLE "AssetRequest" ADD COLUMN "rejection_reason" TEXT;

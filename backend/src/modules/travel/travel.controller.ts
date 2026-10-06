@@ -18,9 +18,14 @@ function actor(req: Request): travelService.TravelActor {
 export const list = asyncHandler(async (req: Request, res: Response) => sendSuccess(res, (await travelService.list(actor(req))).data));
 export const create = asyncHandler(async (req: Request, res: Response) => sendSuccess(res, (await travelService.create(req.body, actor(req))).data, undefined, 201));
 export const resubmit = asyncHandler(async (req: Request, res: Response) => sendSuccess(res, (await travelService.resubmit(req.params.id, req.body, actor(req))).data));
+export const editPending = asyncHandler(async (req: Request, res: Response) => sendSuccess(res, (await travelService.editPendingRequest(req.params.id, req.body, actor(req))).data));
+export const cancel = asyncHandler(async (req: Request, res: Response) => sendSuccess(res, (await travelService.cancelRequest(req.params.id, req.body.reason, actor(req))).data));
 export const decide = asyncHandler(async (req: Request, res: Response) => sendSuccess(res, (await travelService.decide(req.params.id, req.body, actor(req))).data));
-export const book = asyncHandler(async (req: Request, res: Response) => sendSuccess(res, await travelService.book(req.params.id, req.body, actor(req))));
+export const book = asyncHandler(async (req: Request, res: Response) => {
+  const result = await travelService.book(req.params.id, req.body, actor(req));
+  sendSuccess(res, { request: result.data, apiFailed: result.apiFailed });
+});
 export const advance = asyncHandler(async (req: Request, res: Response) => sendSuccess(res, (await travelService.disburseAdvance(req.params.id, Number(req.body.amount), actor(req))).data));
-export const settlement = asyncHandler(async (req: Request, res: Response) => sendSuccess(res, (await travelService.submitSettlement(req.params.id, Number(req.body.actualCost), req.body.notes, actor(req))).data));
+export const settlement = asyncHandler(async (req: Request, res: Response) => sendSuccess(res, (await travelService.submitSettlement(req.params.id, Number(req.body.actualCost), req.body.notes, actor(req), req.body.itemization)).data));
 export const closeSettlement = asyncHandler(async (req: Request, res: Response) => sendSuccess(res, (await travelService.resolveSettlement(req.params.id, req.body, actor(req))).data));
 export const passport = asyncHandler(async (req: Request, res: Response) => sendSuccess(res, (await travelService.maskedPassport(actor(req))).data));

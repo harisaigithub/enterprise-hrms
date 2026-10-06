@@ -2,13 +2,29 @@ import { z } from "zod";
 
 /** Valid expense categories per Module 12 spec */
 export const EXPENSE_CATEGORIES = [
-  "Travel Claims",
-  "Food Claims",
-  "Cab Claims",
-  "Hotel Claims",
+  "Travel",
+  "Food & Meals",
+  "Accommodation",
+  "Local Transport",
+  "Office Supplies",
+  "Communication",
+  "Training",
+  "Client Entertainment",
+  "Other",
 ] as const;
 
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
+
+/** Valid payment methods */
+export const PAYMENT_METHODS = [
+  "Cash",
+  "Personal Card",
+  "Corporate Card",
+  "Bank Transfer",
+  "Other",
+] as const;
+
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 /** Expense claim statuses */
 export const EXPENSE_CLAIM_STATUSES = [
@@ -20,6 +36,7 @@ export const EXPENSE_CLAIM_STATUSES = [
   "Rejected",
   "Queued for Payroll",
   "Cancelled",
+  "Sent Back",
 ] as const;
 
 export type ExpenseClaimStatus = (typeof EXPENSE_CLAIM_STATUSES)[number];
@@ -51,16 +68,28 @@ export const listClaimsQuerySchema = z.object({
 /** Body for creating a new expense claim (draft) */
 export const createClaimBodySchema = z.object({
   category: z.enum(EXPENSE_CATEGORIES, {
-    errorMap: () => ({ message: "Category must be one of: Travel Claims, Food Claims, Cab Claims, Hotel Claims" }),
+    message: "Category must be one of: Travel, Food & Meals, Accommodation, Local Transport, Office Supplies, Communication, Training, Client Entertainment, Other",
   }),
   amount: z.number().positive("Amount must be positive").max(99999999.99, "Amount too large"),
+  currency: z.string().length(3).default("INR"),
   expenseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expenseDate must be YYYY-MM-DD"),
   businessPurpose: z.string().min(10, "Business purpose must be at least 10 characters").max(2000),
+  merchantName: z.string().max(200).optional(),
+  paymentMethod: z.enum(PAYMENT_METHODS).optional(),
+  gstApplicable: z.boolean().default(false),
+  gstRate: z.number().min(0).max(100).optional(),
+  gstAmount: z.number().min(0).optional(),
+  costCenterId: z.string().uuid().optional(),
+  projectId: z.string().uuid().optional(),
+  notes: z.string().max(2000).optional(),
   receiptFileId: z.string().uuid().optional(),
 });
 
 /** Body for submitting a claim (moves from Draft -> Submitted) */
 export const submitClaimBodySchema = z.object({});
+
+/** Body for updating a draft claim (all fields optional) */
+export const updateClaimBodySchema = createClaimBodySchema.partial();
 
 /** Body for policy validation check (dry-run) */
 export const validatePolicyBodySchema = z.object({
@@ -73,6 +102,11 @@ export const validatePolicyBodySchema = z.object({
 /** Body for manager/finance approval */
 export const approveClaimBodySchema = z.object({
   comments: z.string().max(1000).optional(),
+});
+
+/** Body for sending back a claim (requires comment) */
+export const sendBackClaimBodySchema = z.object({
+  reason: z.string().trim().min(1, "Send-back reason is required").max(1000),
 });
 
 /** Body for rejection (requires reason) */
@@ -133,6 +167,7 @@ export const duplicateCheckBodySchema = z.object({
   category: z.enum(EXPENSE_CATEGORIES),
   amount: z.number().positive(),
   expenseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  merchantName: z.string().max(200).optional(),
   fileHash: z.string().length(64).optional(),
   perceptualHash: z.string().length(64).optional(),
 });
@@ -160,6 +195,7 @@ export const policyIdParamSchema = z.object({
 /** Type inference helpers */
 export type ListClaimsQuery = z.infer<typeof listClaimsQuerySchema>;
 export type CreateClaimBody = z.infer<typeof createClaimBodySchema>;
+export type UpdateClaimBody = z.infer<typeof updateClaimBodySchema>;
 export type SubmitClaimBody = z.infer<typeof submitClaimBodySchema>;
 export type ValidatePolicyBody = z.infer<typeof validatePolicyBodySchema>;
 export type ApproveClaimBody = z.infer<typeof approveClaimBodySchema>;

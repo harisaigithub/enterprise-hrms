@@ -1,8 +1,8 @@
 import type { NextFunction, Request, Response } from "express";
-import type { AnyZodObject, ZodEffects, ZodError } from "zod";
+import type { ZodError, ZodType } from "zod";
 import { AppError } from "../lib/errors";
 
-type ZodSchema = AnyZodObject | ZodEffects<AnyZodObject>;
+type ZodSchema = ZodType;
 
 /**
  * Request validation middleware. Validates `req.body`, `req.params` and
@@ -24,7 +24,7 @@ export function validate(schema: {
       const zodError = err as ZodError;
       next(
         AppError.validation(
-          zodError.errors.map((e) => ({
+          zodError.issues.map((e) => ({
             path: e.path.join("."),
             message: e.message,
           }))

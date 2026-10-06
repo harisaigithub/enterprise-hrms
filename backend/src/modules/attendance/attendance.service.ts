@@ -1,4 +1,4 @@
-﻿import { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
 import { writeAuditLog } from "../../services/audit.service";
@@ -191,7 +191,7 @@ async function resolveOpenPunchContext(employeeId: string, now: Date) {
 }
 
 async function refreshPunchFromEngine(employeeId: string, businessDate: string, now = new Date()) {
-  const rows = await import("./attendance.roster").then((m) => m.computeDayRows(businessDate, [employeeId], now, DEFAULT_TIMEZONE));
+  const rows = await import("./attendance.roster.js").then((m) => m.computeDayRows(businessDate, [employeeId], now, DEFAULT_TIMEZONE));
   return rows[0]?.result ?? null;
 }
 
@@ -637,7 +637,7 @@ export async function actOnRegularization(
   });
   if (!reg) throw AppError.notFound("Regularization request not found");
 
-  // ðŸ›¡ï¸ SECURITY GUARD: Block any adjustments if the target payroll period is locked (with ISO date string format)
+  // 🛡️ SECURITY GUARD: Block any adjustments if the target payroll period is locked (with ISO date string format)
   await assertPeriodOpen(reg.date.toISOString().split("T")[0]);
 
   if (["Approved", "Rejected"].includes(reg.status)) throw AppError.conflict(`Request is already ${reg.status.toLowerCase()}`);
@@ -678,7 +678,10 @@ export async function actOnRegularization(
   if (isHr && reg.status !== "Manager Approved") throw AppError.badRequest("HR can act only after manager approval");
 
   const workflowAction = decision.action === "APPROVE" ? "approve" : "reject";
-  await workflowService.actOnStep(reg.workflowInstanceId, actor.employeeCode, actor.name, workflowAction, decision.comment, { bypassRoleApprover: isHr });
+  await workflowService.actOnStep(reg.workflowInstanceId, actor.employeeCode, actor.name, workflowAction, decision.comment, {
+    bypassRoleApprover: actor.role === "ADMIN" && isHr,
+    actorRole: actor.role,
+  });
 
   if (decision.action === "REJECT") {
     const updated = await prisma.$transaction(async (tx) => {

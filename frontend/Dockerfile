@@ -1,10 +1,8 @@
 # ── Stage 1: Install dependencies ────────────────────────────────────────────
 FROM node:22-alpine AS deps
 WORKDIR /app
-# Copy only package.json (ignore host Windows package-lock.json)
-# so npm resolves the correct platform-specific Linux musl native bindings.
-COPY package.json ./
-RUN npm install
+COPY package*.json ./
+RUN npm ci
 
 
 
@@ -20,7 +18,7 @@ ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build
 
 # ── Stage 3: Serve with Nginx ─────────────────────────────────────────────────
-FROM nginx:1.27-alpine AS runtime
+FROM nginx:stable-alpine AS runtime
 # Remove default nginx content
 RUN rm -rf /usr/share/nginx/html/*
 COPY --from=build /app/dist /usr/share/nginx/html

@@ -47,6 +47,8 @@ export const me = asyncHandler(async (req: Request, res: Response) => {
   sendSuccess(res, {
     user: {
       id: user.employee?.employeeCode ?? user.id,
+      employeeId: user.employee?.id ?? null,
+      employeeCode: user.employee?.employeeCode ?? null,
       firstName: user.employee?.firstName ?? "",
       lastName: user.employee?.lastName ?? "",
       email: user.email,

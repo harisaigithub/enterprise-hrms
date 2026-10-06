@@ -17,6 +17,42 @@ const createPayrollRunSchema = z.object({
   year: z.number().int().min(2000).max(2100),
 }).strict();
 
+
+const payrollPolicySchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  effectiveFrom: z.string().min(10),
+  effectiveTo: z.string().min(10).nullable().optional(),
+  standardHoursPerDay: z.number().positive().max(24).default(8),
+  overtimeMultiplier: z.number().positive().max(5).default(1.5),
+  holidayWorkMultiplier: z.number().positive().max(5).default(2),
+  gratuityServiceYears: z.number().int().min(0).max(50).default(5),
+  gratuityDays: z.number().positive().max(31).default(15),
+  gratuityDivisor: z.number().positive().max(31).default(26),
+  taxRegime: z.enum(["OLD", "NEW"]).default("NEW"),
+  financialYear: z.string().trim().min(4).max(20),
+  isActive: z.boolean().optional(),
+}).strict();
+
+const statutoryRuleSchema = z.object({
+  ruleType: z.enum(["PROFESSIONAL_TAX", "LABOUR_WELFARE_FUND"]),
+  country: z.string().trim().min(2).max(100).default("India"),
+  state: z.string().trim().min(2).max(100).nullable().optional(),
+  effectiveFrom: z.string().min(10),
+  effectiveTo: z.string().min(10).nullable().optional(),
+  config: z.object({
+    amount: z.number().min(0),
+    minMonthlyGross: z.number().min(0).optional(),
+    maxMonthlyGross: z.number().min(0).optional(),
+  }).strict(),
+  isActive: z.boolean().optional(),
+}).strict();
+
+
+// Payroll policy/statutory configuration (effective-dated, Admin controlled)
+router.get("/configuration", authenticate, requirePermission("payroll:read"), requireRole("HR", "ADMIN"), payrollController.configuration);
+router.post("/configuration/policies", authenticate, requirePermission("payroll:write"), requireRole("ADMIN"), validate({ body: payrollPolicySchema }), payrollController.createPolicy);
+router.post("/configuration/statutory-rules", authenticate, requirePermission("payroll:write"), requireRole("ADMIN"), validate({ body: statutoryRuleSchema }), payrollController.createStatutoryRule);
+
 // GET /api/payroll/runs — payroll:read
 router.get("/runs", authenticate, requirePermission("payroll:read"), payrollController.runs);
 

@@ -1,10 +1,11 @@
 import crypto from "crypto";
 import path from "path";
+import fs from "fs";
 import { v4 as uuidv4 } from "uuid";
 
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
-import minioClient, { MINIO_BUCKET, ensureMinioBucket } from "../../config/minio";
+import minioClient, { MINIO_BUCKET, ensureMinioBucket, publicMinioClient } from "../../config/minio";
 
 
 const RECEIPT_FOLDER = "expense-receipts";
@@ -333,55 +334,32 @@ export async function generateUploadUrl(
     input.mimeType
   );
 
-  // MinIO presigned URL with Graceful Local Fallback
-  let uploadUrl = "";
+  // Prefer a presigned MinIO URL, but keep receipt uploads available when MinIO is offline.
+  let uploadUrl: string;
+  let useLocalFallback = false;
   try {
     await ensureMinioBucket();
-    uploadUrl = await minioClient.presignedPutObject(
+    uploadUrl = await publicMinioClient.presignedPutObject(
       MINIO_BUCKET,
       objectName,
       SIGNED_URL_EXPIRY_SECONDS
     );
-  } catch (minioErr) {
+  } catch {
     console.warn(
-      "[ExpenseReceipt] MinIO offline or unreachable. Using local mock upload URL fallback."
+      "[ExpenseReceipt] MinIO offline or unreachable. Using local upload fallback."
     );
-    // Local fallback endpoint (port 4000 par static handler)
+    useLocalFallback = true;
     uploadUrl = `http://localhost:4000/uploads/documents/${objectName}`;
   }
 
-  /*
-   * Keep existing placeholder behaviour for the
-   * current frontend/controller until it is migrated
-   * to uploadReceipt().
-   */
-  if (claim) {
-    await prisma.expenseReceipt.create({
-      data: {
-        claimId: claim.id,
-        minioObjectName: objectName,
-        fileName: input.fileName,
-        fileSize: input.fileSize,
-        mimeType: input.mimeType,
-        fileHash: "local-dev-fallback",
-        uploadedBy: employeeId,
-      },
-    });
-
-    await prisma.expenseClaim.update({
-      where: {
-        id: claim.id,
-      },
-      data: {
-        receiptPending: false, // fallback me pending na chhorein
-      },
-    });
-  }
+  // Don't create receipt record yet for local fallback - wait for actual upload completion
+  // For MinIO, the frontend uploads directly and then calls completeReceiptUpload
 
   return {
     uploadUrl,
     objectName,
     expiresIn: SIGNED_URL_EXPIRY_SECONDS,
+    useLocalFallback,
   };
 }
 
@@ -393,58 +371,90 @@ export async function completeReceiptUpload(
   input: CompleteUploadInput,
   actor?: ReceiptActor
 ) {
-  const claim = await getClaim(input.claimId);
+  try {
+    const claim = await getClaim(input.claimId);
 
-  ensureClaimAllowsReceipt(claim);
+    ensureClaimAllowsReceipt(claim);
 
-  await ensureEmployeeOwnsClaim(
-    claim.employeeId,
-    actor
-  );
-
-  await ensureMinioBucket();
+    await ensureEmployeeOwnsClaim(
+      claim.employeeId,
+      actor
+    );
 
   let stat;
+  let buffer: Buffer;
+  let useLocalFallback = false;
 
+  // Try MinIO first (statObject will fail if MinIO is down)
   try {
     stat = await minioClient.statObject(
       MINIO_BUCKET,
       input.objectName
     );
-  } catch {
-    throw AppError.badRequest(
-      "Receipt was not uploaded to MinIO."
+
+    if (!stat.size || stat.size <= 0) {
+      throw AppError.badRequest(
+        "Uploaded receipt is empty."
+      );
+    }
+
+    if (stat.size > MAX_FILE_SIZE) {
+      throw AppError.badRequest(
+        "Receipt file must not exceed 10 MB."
+      );
+    }
+
+    const stream = await minioClient.getObject(
+      MINIO_BUCKET,
+      input.objectName
     );
-  }
 
-  if (!stat.size || stat.size <= 0) {
-    throw AppError.badRequest(
-      "Uploaded receipt is empty."
+    const chunks: Buffer[] = [];
+
+    for await (const chunk of stream) {
+      chunks.push(
+        Buffer.isBuffer(chunk)
+          ? chunk
+          : Buffer.from(chunk)
+      );
+    }
+
+    buffer = Buffer.concat(chunks);
+  } catch (minioErr) {
+    // MinIO failed - check local fallback
+    console.warn(
+      "[ExpenseReceipt] MinIO statObject failed, checking local storage fallback."
     );
-  }
+    useLocalFallback = true;
 
-  if (stat.size > MAX_FILE_SIZE) {
-    throw AppError.badRequest(
-      "Receipt file must not exceed 10 MB."
+    const localPath = path.join(
+      process.cwd(),
+      "uploads",
+      "documents",
+      input.objectName
     );
+
+    if (!fs.existsSync(localPath)) {
+      throw AppError.badRequest(
+        "Receipt was not uploaded to MinIO or local storage."
+      );
+    }
+
+    const fileStat = fs.statSync(localPath);
+    if (!fileStat.size || fileStat.size <= 0) {
+      throw AppError.badRequest(
+        "Uploaded receipt is empty."
+      );
+    }
+
+    if (fileStat.size > MAX_FILE_SIZE) {
+      throw AppError.badRequest(
+        "Receipt file must not exceed 10 MB."
+      );
+    }
+
+    buffer = fs.readFileSync(localPath);
   }
-
-  const stream = await minioClient.getObject(
-    MINIO_BUCKET,
-    input.objectName
-  );
-
-  const chunks: Buffer[] = [];
-
-  for await (const chunk of stream) {
-    chunks.push(
-      Buffer.isBuffer(chunk)
-        ? chunk
-        : Buffer.from(chunk)
-    );
-  }
-
-  const buffer = Buffer.concat(chunks);
 
   const fileHash = calculateHash(buffer);
 
@@ -482,21 +492,33 @@ export async function completeReceiptUpload(
       },
     });
   } else {
-    const mimeType =
-      stat.metaData?.["content-type"] ||
-      stat.metaData?.["Content-Type"] ||
-      "application/octet-stream";
+    let mimeType: string;
+    let fileName: string;
+    let fileSize: number;
 
-    const fileName =
-      stat.metaData?.["x-amz-meta-filename"] ||
-      path.basename(input.objectName);
+    if (useLocalFallback) {
+      mimeType = "application/octet-stream";
+      fileName = path.basename(input.objectName);
+      fileSize = buffer.length;
+    } else {
+      mimeType =
+        stat.metaData?.["content-type"] ||
+        stat.metaData?.["Content-Type"] ||
+        "application/octet-stream";
+
+      fileName =
+        stat.metaData?.["x-amz-meta-filename"] ||
+        path.basename(input.objectName);
+
+      fileSize = stat.size;
+    }
 
     receipt = await prisma.expenseReceipt.create({
       data: {
         claimId: input.claimId,
         minioObjectName: input.objectName,
         fileName,
-        fileSize: stat.size,
+        fileSize,
         mimeType,
         fileHash,
         uploadedBy:
@@ -520,6 +542,10 @@ export async function completeReceiptUpload(
     duplicateReceiptId:
       duplicateReceipt?.id ?? null,
   };
+  } catch (err) {
+    console.error("[ExpenseReceipt] completeReceiptUpload error:", err);
+    throw err;
+  }
 }
 
 /* =========================================================

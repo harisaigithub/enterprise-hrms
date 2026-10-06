@@ -1,9 +1,10 @@
-﻿import fs from "node:fs";
+import fs from "node:fs";
 import path from "node:path";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
 
 import { writeAuditLog } from "../../services/audit.service";
+import * as workflowService from "../workflow/workflow.service";
 import PDFDocument from "pdfkit";
 import minioClient, { MINIO_BUCKET } from "../../config/minio";
 import {
@@ -18,6 +19,7 @@ import {
 } from "../../lib/masking";
 
 import { decryptPII } from "../../lib/encryption";
+import { salarySegments, prorateSalary, effectiveDatedLopDeduction, overtimeEarning, round2, fixedStatutoryAmount, gratuitySnapshot } from "./payroll.calculation";
 
 import {
   serializePayrollRunList,
@@ -31,6 +33,7 @@ const RUN_INCLUDE = {
   preparedByEmployee: { select: { employeeCode: true } },
   approvedByEmployee: { select: { employeeCode: true } },
   releasedByEmployee: { select: { employeeCode: true } },
+  workflowInstance: { select: { id: true, status: true, currentStepIndex: true, steps: { select: { id: true, name: true, approverId: true, status: true } } } },
 };
 const SLIP_INCLUDE = {
   employee: { select: { employeeCode: true, firstName: true, lastName: true } },
@@ -164,6 +167,7 @@ async function getEmployeeAttendancePayrollData(
       payableDayFraction: true,
       lopFraction: true,
       unpaidLeaveFraction: true,
+      overtimeHours: true,
     },
     orderBy: {
       date: "asc",
@@ -266,10 +270,14 @@ export async function processPayrollRun(id: string, actorEmployeeId: string, act
   }
 
   const [employees, structures, approvedExpenses] = await Promise.all([
-    prisma.employee.findMany({ where: { status: "Active" }, select: { id: true, employeeCode: true } }),
+    prisma.employee.findMany({
+      where: { status: "Active" },
+      select: { id: true, employeeCode: true, state: true, dateOfJoining: true, location: { select: { state: true, country: true } } },
+    }),
     prisma.salaryStructure.findMany({
-      where: { isActive: true },
+      where: { effectiveFrom: { lte: periodEnd } },
       include: { employee: { select: { id: true, status: true } } },
+      orderBy: [{ employeeId: "asc" }, { effectiveFrom: "asc" }],
     }),
     prisma.expenseClaim.findMany({
       where: {
@@ -285,10 +293,31 @@ export async function processPayrollRun(id: string, actorEmployeeId: string, act
   ]);
 
   const activeEmployeeIds = new Set(employees.map((e) => e.id));
-  const structureByEmployee = new Map<string, (typeof structures)[number]>();
+  const structuresByEmployee = new Map<string, Array<(typeof structures)[number]>>();
   for (const s of structures) {
-    if (activeEmployeeIds.has(s.employeeId)) structureByEmployee.set(s.employeeId, s);
+    if (!activeEmployeeIds.has(s.employeeId)) continue;
+    const list = structuresByEmployee.get(s.employeeId) ?? [];
+    list.push(s);
+    structuresByEmployee.set(s.employeeId, list);
   }
+
+  // Organization/payroll policy is configuration, not hard-coded payroll logic.
+  const payrollPolicy = await prisma.payrollPolicy.findFirst({
+    where: { isActive: true, effectiveFrom: { lte: periodEnd }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: periodStart } }] },
+    orderBy: { effectiveFrom: "desc" },
+  });
+  const standardHoursPerDay = Number(payrollPolicy?.standardHoursPerDay ?? 8);
+  const overtimeMultiplier = Number(payrollPolicy?.overtimeMultiplier ?? 1.5);
+  const holidayWorkMultiplier = Number(payrollPolicy?.holidayWorkMultiplier ?? 2);
+  const statutoryRules = await prisma.statutoryRule.findMany({
+    where: {
+      isActive: true,
+      effectiveFrom: { lte: periodEnd },
+      OR: [{ effectiveTo: null }, { effectiveTo: { gte: periodStart } }],
+      ruleType: { in: ["PROFESSIONAL_TAX", "LABOUR_WELFARE_FUND"] },
+    },
+    orderBy: { effectiveFrom: "desc" },
+  });
 
   // Group approved expenses by employee ID
   const expensesByEmployee = new Map<string, Array<{ id: string; amount: number; claimNumber: string }>>();
@@ -304,6 +333,7 @@ export async function processPayrollRun(id: string, actorEmployeeId: string, act
     payableDays: number;
     lopDays: number;
     unpaidLeaveDays: number;
+    rows: Array<{ date: Date; status: string; lopFraction: number; unpaidLeaveFraction: number; overtimeHours: number }>;
   }
 >();
 
@@ -318,6 +348,7 @@ for (const emp of employees) {
     payableDays: attendance.payableDays,
     lopDays: attendance.lopDays,
     unpaidLeaveDays: attendance.unpaidLeaveDays,
+    rows: attendance.rows,
   });
 }
 
@@ -326,44 +357,85 @@ let deductions = 0;
 let net = 0;
 
 const slipData = employees.map((emp) => {
-    const structure = structureByEmployee.get(emp.id);
-    if (!structure) return null;
-    const amounts = buildPayslipAmounts(structure);
-    
+    const employeeStructures = structuresByEmployee.get(emp.id) ?? [];
+    const daysInMonth = getDaysInMonth(parsed.month, parsed.year);
+    const segments = salarySegments(employeeStructures, periodStart, periodEnd);
+
+    if (!segments.length) {
+      throw AppError.conflict(
+        `Payroll cannot be processed: active employee ${emp.employeeCode} has no effective salary structure for ${run.period}.`
+      );
+    }
+
+    // Effective-dated salary is the source of truth. This handles a promotion/revision
+    // in the middle of a month without paying the whole month at the old/new rate.
+    const amounts = prorateSalary(segments, daysInMonth);
+    const structure = segments[segments.length - 1].structure;
     const attendance = attendanceByEmployee.get(emp.id) ?? {
-  payableDays: 0,
-  lopDays: 0,
-  unpaidLeaveDays: 0,
-};
+      payableDays: 0,
+      lopDays: 0,
+      unpaidLeaveDays: 0,
+      rows: [],
+    };
 
-const daysInMonth = getDaysInMonth(parsed.month, parsed.year);
+    const monthlyEarnings = amounts.earnings.total;
+    const lopDeduction = effectiveDatedLopDeduction(attendance.rows, segments, daysInMonth);
+    const otEarning = overtimeEarning(
+      attendance.rows,
+      segments,
+      daysInMonth,
+      standardHoursPerDay,
+      overtimeMultiplier,
+      holidayWorkMultiplier,
+    );
 
-const monthlyEarnings = amounts.earnings.total;
-
-// Both attendance-driven LOP and approved unpaid leave reduce pay.
-const unpaidDays = attendance.lopDays + attendance.unpaidLeaveDays;
-const lopDeduction =
-  monthlyEarnings > 0 && daysInMonth > 0
-    ? (monthlyEarnings / daysInMonth) * unpaidDays
-    : 0;
+    // State-sensitive statutory rules. Location state wins; employee state is fallback.
+    // If no effective-dated rule exists, legacy SalaryStructure PT remains unchanged.
+    const employeeState = emp.location?.state ?? emp.state ?? null;
+    const ruleFor = (type: string) => statutoryRules.find((r) =>
+      r.ruleType === type && (!r.state || (employeeState && r.state.toLowerCase() === employeeState.toLowerCase()))
+    );
+    const ptRule = ruleFor("PROFESSIONAL_TAX");
+    const lwfRule = ruleFor("LABOUR_WELFARE_FUND");
+    const professionalTax = ptRule ? fixedStatutoryAmount(ptRule.config, monthlyEarnings) : null;
+    const labourWelfareFund = lwfRule ? (fixedStatutoryAmount(lwfRule.config, monthlyEarnings) ?? 0) : 0;
+    if (professionalTax !== null) {
+      amounts.deductions.total = round2(amounts.deductions.total - amounts.deductions.professionalTax + professionalTax);
+      amounts.deductions.professionalTax = professionalTax;
+    }
 
     // Aggregate employee's pending expense reimbursements for this pay period
     const empExpenses = expensesByEmployee.get(emp.id) ?? [];
     const expenseReimbursementTotal = empExpenses.reduce((sum, item) => sum + item.amount, 0);
 
+    const gratuity = gratuitySnapshot(
+      emp.dateOfJoining,
+      periodEnd,
+      Number(structure.basicSalary),
+      Number(payrollPolicy?.gratuityServiceYears ?? 5),
+      Number(payrollPolicy?.gratuityDays ?? 15),
+      Number(payrollPolicy?.gratuityDivisor ?? 26),
+    );
+
     const adjustedEarnings = {
   ...amounts.earnings,
+  overtime: otEarning,
+  gratuity,
   expenseReimbursements: expenseReimbursementTotal,
-  total: Math.round((monthlyEarnings + expenseReimbursementTotal) * 100) / 100,
+  total: round2(monthlyEarnings + otEarning + expenseReimbursementTotal),
+  salarySegments: segments.map((seg) => ({
+    salaryStructureId: seg.structure.id,
+    effectiveFrom: seg.from.toISOString().slice(0, 10),
+    effectiveTo: seg.to.toISOString().slice(0, 10),
+    days: seg.days,
+  })),
 };
 
     const adjustedDeductions = {
   ...amounts.deductions,
-  lopDeduction: Math.round(lopDeduction * 100) / 100,
-  total:
-    Math.round(
-      (amounts.deductions.total + lopDeduction) * 100,
-    ) / 100,
+  labourWelfareFund,
+  lopDeduction: round2(lopDeduction),
+  total: round2(amounts.deductions.total + labourWelfareFund + lopDeduction),
 };
 
 const adjustedNetPay =
@@ -379,7 +451,7 @@ net += adjustedNetPay;
   salaryStructureId: structure.id,
   earnings: adjustedEarnings,
   deductions: adjustedDeductions,
-  netPay: Math.round(adjustedNetPay * 100) / 100,
+  netPay: round2(adjustedNetPay),
   expenseClaimIds: empExpenses.map((x) => x.id),
 
   attendance: {
@@ -391,6 +463,17 @@ net += adjustedNetPay;
   });
 
   const valid = slipData.filter((s): s is NonNullable<typeof s> => s !== null);
+
+  const [workflowDefinition, preparer] = await Promise.all([
+    prisma.workflowDefinition.findFirst({
+      where: { requestType: "Payroll Run", status: "Active" },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    }),
+    prisma.employee.findUnique({ where: { id: actorEmployeeId }, select: { employeeCode: true } }),
+  ]);
+  if (!workflowDefinition) throw AppError.conflict("Monthly Payroll Sign-off workflow is not installed. Install it from Workflow Library first.");
+  if (!preparer) throw AppError.notFound("Payroll preparer employee not found");
 
   const updated = await prisma.$transaction(async (tx: any) => {
     await tx.payslip.deleteMany({ where: { payrollRunId: run.id } });
@@ -437,10 +520,18 @@ status: "Processing",
       }
     }
 
+    const workflow = await workflowService.submitRequest(
+      workflowDefinition.id,
+      preparer.employeeCode,
+      { gross_payroll: Math.round(gross), employee_count: valid.length },
+      tx
+    );
+
     return tx.payrollRun.update({
       where: { id: run.id },
       data: {
         status: "Processing",
+        workflowInstanceId: workflow.data.id,
         preparedBy: actorEmployeeId,
         preparedAt: new Date(),
         approvedBy: null,
@@ -475,7 +566,7 @@ status: "Processing",
  * Approve a processed run (four-eyes / second-person approval). Requires
  * payroll:approve permission â€” enforced at route level.
  */
-export async function approvePayrollRun(id: string, approverEmployeeId: string, actorUserId: string) {
+export async function approvePayrollRun(id: string, approverEmployeeId: string, actorUserId: string, approverEmployeeCode?: string, approverName?: string, approverRole = "ADMIN") {
   const parsed = parseRunPublicId(id);
   const run = await prisma.payrollRun.findUnique({
     where: { month_year: { month: parsed.month, year: parsed.year } },
@@ -486,6 +577,30 @@ export async function approvePayrollRun(id: string, approverEmployeeId: string, 
   }
   if (run.preparedBy === approverEmployeeId) {
     throw AppError.forbidden("Four-eyes control: the payroll preparer cannot approve the same run");
+  }
+
+  if (run.workflowInstanceId) {
+    if (!approverEmployeeCode) throw AppError.forbidden("Payroll approver must be linked to an employee code");
+    const workflow = await workflowService.getInstance(run.workflowInstanceId);
+    const nextGroupSteps = workflow.data.steps.filter((step) =>
+      step.status === "Pending" && step.parallelGroup === workflow.data.steps[workflow.data.currentStepIndex]?.parallelGroup
+    );
+    const step = nextGroupSteps.find((candidate) => candidate.status === "Pending");
+    if (!step) throw AppError.conflict("No payroll workflow approval is pending");
+    const result = await workflowService.actOnStep(
+      run.workflowInstanceId,
+      approverEmployeeCode,
+      approverName || approverEmployeeCode,
+      "approve",
+      undefined,
+      { bypassRoleApprover: approverRole === "ADMIN", actorRole: approverRole },
+      step.stepId
+    );
+    if (result.data.status !== "Approved") {
+      const pending = await prisma.payrollRun.findUnique({ where: { id: run.id }, include: RUN_INCLUDE });
+      if (!pending) throw AppError.notFound("Payroll run not found after workflow action");
+      return { data: { ...serializePayrollRunList([pending])[0], workflowStatus: result.data.status } };
+    }
   }
 
   const updated = await prisma.payrollRun.update({
@@ -510,7 +625,7 @@ export async function approvePayrollRun(id: string, approverEmployeeId: string, 
   return { data: serializePayrollRunList([updated])[0] };
 }
 
-export async function rejectPayrollRun(id: string, reason: string, actorEmployeeId: string, actorUserId: string) {
+export async function rejectPayrollRun(id: string, reason: string, actorEmployeeId: string, actorUserId: string, actorEmployeeCode?: string, actorName?: string, actorRole = "ADMIN") {
   const parsed = parseRunPublicId(id);
   const run = await prisma.payrollRun.findUnique({ where: { month_year: { month: parsed.month, year: parsed.year } } });
   if (!run) throw AppError.notFound("Payroll run not found");
@@ -519,6 +634,22 @@ export async function rejectPayrollRun(id: string, reason: string, actorEmployee
   const monthStart = new Date(Date.UTC(parsed.year, parsed.month - 1, 1));
   const monthEnd = new Date(Date.UTC(parsed.year, parsed.month, 0));
 
+  if (run.workflowInstanceId) {
+    if (!actorEmployeeCode) throw AppError.forbidden("Payroll reviewer must be linked to an employee code");
+    const workflow = await workflowService.getInstance(run.workflowInstanceId);
+    const currentGroup = workflow.data.steps.filter((step) => step.status === "Pending");
+    const step = currentGroup[0];
+    if (!step) throw AppError.conflict("No payroll workflow approval is pending");
+    await workflowService.actOnStep(
+      run.workflowInstanceId,
+      actorEmployeeCode,
+      actorName || actorEmployeeCode,
+      "reject",
+      reason,
+      { bypassRoleApprover: actorRole === "ADMIN", actorRole },
+      step.stepId
+    );
+  }
   const updated = await prisma.$transaction(async (tx) => {
     const periods = await tx.payrollPeriod.findMany({
       where: {
@@ -4088,6 +4219,56 @@ export async function generateForm16Pdf(
     objectName,
   };
 }
+
+
+
+
+// ── Effective-dated payroll/statutory configuration ─────────────────────────
+export async function getPayrollConfiguration() {
+  const [policies, statutoryRules] = await Promise.all([
+    prisma.payrollPolicy.findMany({ orderBy: { effectiveFrom: "desc" } }),
+    prisma.statutoryRule.findMany({ orderBy: [{ ruleType: "asc" }, { state: "asc" }, { effectiveFrom: "desc" }] }),
+  ]);
+  return { data: { policies, statutoryRules } };
+}
+
+export async function createPayrollPolicy(input: any, actorUserId: string) {
+  const row = await prisma.payrollPolicy.create({
+    data: {
+      name: input.name,
+      effectiveFrom: new Date(input.effectiveFrom),
+      effectiveTo: input.effectiveTo ? new Date(input.effectiveTo) : null,
+      standardHoursPerDay: input.standardHoursPerDay,
+      overtimeMultiplier: input.overtimeMultiplier,
+      holidayWorkMultiplier: input.holidayWorkMultiplier,
+      gratuityServiceYears: input.gratuityServiceYears,
+      gratuityDays: input.gratuityDays,
+      gratuityDivisor: input.gratuityDivisor,
+      taxRegime: input.taxRegime,
+      financialYear: input.financialYear,
+      isActive: input.isActive ?? true,
+    },
+  });
+  await writeAuditLog({ action: "CREATE", entityType: "PayrollPolicy", entityId: row.id, actorUserId, oldValue: null, newValue: input });
+  return { data: row };
+}
+
+export async function createStatutoryRule(input: any, actorUserId: string) {
+  const row = await prisma.statutoryRule.create({
+    data: {
+      ruleType: input.ruleType,
+      country: input.country ?? "India",
+      state: input.state ?? null,
+      effectiveFrom: new Date(input.effectiveFrom),
+      effectiveTo: input.effectiveTo ? new Date(input.effectiveTo) : null,
+      config: input.config,
+      isActive: input.isActive ?? true,
+    },
+  });
+  await writeAuditLog({ action: "CREATE", entityType: "StatutoryRule", entityId: row.id, actorUserId, oldValue: null, newValue: input });
+  return { data: row };
+}
+
 
 
 

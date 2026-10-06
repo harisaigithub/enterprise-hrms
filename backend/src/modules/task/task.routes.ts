@@ -6,7 +6,8 @@ import {
     createMilestone,
     getTasks,
     createTask,
-    updateTask,       // Replaced updateTaskStatus with full updateTask
+    updateTask,
+    updateTaskStatus,
     deleteTask,       // Added deleteTask
     reassignTask,
     getOrphanedTasks,
@@ -26,13 +27,23 @@ const router = Router();
 // Apply authentication middleware globally to all sub-routes
 router.use(authenticate);
 
+function requireTaskPermission(permission: string) {
+    return (req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => {
+        if (req.auth?.role?.toUpperCase() === "ADMIN") {
+            next();
+            return;
+        }
+        return requirePermission(permission)(req, res, next);
+    };
+}
+
 /* =========================================================
    TASK META
    ADMIN / HR / MANAGER / EMPLOYEE → READ
 ========================================================= */
 router.get(
     "/meta",
-    requirePermission("tasks:read"),
+    requireTaskPermission("tasks:read"),
     getTaskMeta
 );
 
@@ -41,20 +52,20 @@ router.get(
 ========================================================= */
 router.get(
     "/projects",
-    requirePermission("tasks:read"),
+    requireTaskPermission("tasks:read"),
     getProjects
 );
 
 router.post(
     "/projects",
-    requirePermission("tasks:write"),
+    requireTaskPermission("tasks:write"),
     requireRole("ADMIN", "HR", "MANAGER"),
     createProject
 );
 
 router.post(
     "/projects/:projectId/milestones",
-    requirePermission("tasks:write"),
+    requireTaskPermission("tasks:write"),
     requireRole("ADMIN", "HR", "MANAGER"),
     createMilestone
 );
@@ -64,7 +75,7 @@ router.post(
 ========================================================= */
 router.get(
     "/orphaned",
-    requirePermission("tasks:read"),
+    requireTaskPermission("tasks:read"),
     requireRole("ADMIN", "HR", "MANAGER"),
     getOrphanedTasks
 );
@@ -74,13 +85,13 @@ router.get(
 ========================================================= */
 router.get(
     "/",
-    requirePermission("tasks:read"),
+    requireTaskPermission("tasks:read"),
     getTasks
 );
 
 router.post(
     "/",
-    requirePermission("tasks:write"),
+    requireTaskPermission("tasks:write"),
     requireRole("ADMIN", "HR", "MANAGER"),
     createTask
 );
@@ -93,7 +104,7 @@ router.put("/:id", updateTask);
 // RBAC: Restricted strictly to ADMIN, HR, MANAGER with tasks:write/delete permission
 router.delete(
     "/:id",
-    requirePermission("tasks:write"), // or tasks:delete if you use a separate permission string
+    requireTaskPermission("tasks:write"),
     requireRole("ADMIN", "HR", "MANAGER"),
     deleteTask
 );
@@ -105,7 +116,7 @@ router.delete(
 
 router.patch(
     "/:id/status",
-    requirePermission("tasks:write"),
+    requireTaskPermission("tasks:write"),
     (req, _res, next) => {
         const role = req.auth?.role?.toUpperCase();
         if (role === "EMPLOYEE" && req.body?.force === true) {
@@ -115,37 +126,37 @@ router.patch(
         }
         next();
     },
-    updateTask // Points to updated full/partial controller function if needed, or keep your status flow
+    updateTaskStatus
 );
 
 router.patch(
     "/:id/reassign",
-    requirePermission("tasks:write"),
+    requireTaskPermission("tasks:write"),
     requireRole("ADMIN", "HR", "MANAGER"),
     reassignTask
 );
 
 router.get(
     "/:id/history",
-    requirePermission("tasks:read"),
+    requireTaskPermission("tasks:read"),
     getTaskHistory
 );
 
 router.get(
     "/:id/time-entries",
-    requirePermission("tasks:read"),
+    requireTaskPermission("tasks:read"),
     getTimeEntries
 );
 
 router.post(
     "/:id/time-entries",
-    requirePermission("tasks:write"),
+    requireTaskPermission("tasks:write"),
     createTimeEntry
 );
 
 router.get(
     "/:id/total-hours",
-    requirePermission("tasks:read"),
+    requireTaskPermission("tasks:read"),
     getTaskTotalHours
 );
 

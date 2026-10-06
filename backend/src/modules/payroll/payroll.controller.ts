@@ -101,13 +101,28 @@ export const process = asyncHandler(async (req: Request, res: Response) => {
 
 export const approve = asyncHandler(async (req: Request, res: Response) => {
   if (!req.auth?.employeeId) throw AppError.forbidden("Approver must be linked to an employee record");
-  const result = await payrollService.approvePayrollRun(req.params.id, req.auth.employeeId, req.auth.sub);
+  const result = await payrollService.approvePayrollRun(
+    req.params.id,
+    req.auth.employeeId,
+    req.auth.sub,
+    req.auth.employeeCode,
+    `${req.auth.firstName ?? ""} ${req.auth.lastName ?? ""}`.trim(),
+    req.auth.role
+  );
   sendSuccess(res, result.data);
 });
 
 export const reject = asyncHandler(async (req: Request, res: Response) => {
   if (!req.auth?.employeeId) throw AppError.forbidden("Reviewer must be linked to an employee record");
-  const result = await payrollService.rejectPayrollRun(req.params.id, req.body.reason, req.auth.employeeId, req.auth.sub);
+  const result = await payrollService.rejectPayrollRun(
+    req.params.id,
+    req.body.reason,
+    req.auth.employeeId,
+    req.auth.sub,
+    req.auth.employeeCode,
+    `${req.auth.firstName ?? ""} ${req.auth.lastName ?? ""}`.trim(),
+    req.auth.role
+  );
   sendSuccess(res, result.data);
 });
 
@@ -120,5 +135,22 @@ export const release = asyncHandler(async (req: Request, res: Response) => {
 export const lock = asyncHandler(async (req: Request, res: Response) => {
   if (!req.auth?.sub) throw AppError.unauthorized();
   const result = await payrollService.lockPayrollRun(req.params.id, req.auth.sub);
+  sendSuccess(res, result.data);
+});
+
+export const configuration = asyncHandler(async (_req: Request, res: Response) => {
+  const result = await payrollService.getPayrollConfiguration();
+  sendSuccess(res, result.data);
+});
+
+export const createPolicy = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.auth?.sub) throw AppError.unauthorized();
+  const result = await payrollService.createPayrollPolicy(req.body, req.auth.sub);
+  sendSuccess(res, result.data);
+});
+
+export const createStatutoryRule = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.auth?.sub) throw AppError.unauthorized();
+  const result = await payrollService.createStatutoryRule(req.body, req.auth.sub);
   sendSuccess(res, result.data);
 });
