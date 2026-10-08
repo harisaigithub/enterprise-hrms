@@ -34,6 +34,7 @@ import Modal from "../../components/shared/Modal";
 import {
   getMyAttendance,
   getTeamSummary,
+  getSummaryRows,
   checkIn,
   checkOut,
   startBreak,
@@ -60,6 +61,15 @@ const BREAK_OPTIONS = [
   { type: "Personal Break", duration: "30 min", icon: "🚶", desc: "Short personal errand" },
 ];
 
+const indiaLocalToIso = (date, time) => {
+  const [year, month, day] = date.split("-").map(Number);
+  const [hour, minute] = time.split(":").map(Number);
+
+  // Asia/Kolkata = UTC+05:30
+  return new Date(
+    Date.UTC(year, month - 1, day, hour - 5, minute - 30)
+  ).toISOString();
+};
 const fmtTime = (isoOrTime) => {
   if (!isoOrTime) return "";
   if (typeof isoOrTime === "string" && isoOrTime.length === 5 && isoOrTime.includes(":")) {
@@ -80,10 +90,23 @@ const getTodayDateStr = () => {
   return `${year}-${month}-${day}`;
 };
 
+// Helper function to resolve employee real names from ID
+const getEmployeeDisplayName = (record) => {
+  if (record.employeeName) return record.employeeName;
+  if (record.name) return record.name;
+  if (record.employee?.name) return record.employee.name;
+  if (record.employee?.fullName) return record.employee.fullName;
+
+  return record.employeeId || record.employeeCode || "—";
+};
+
 /* ─── Stat Card ──────────────────────────────────────────────────────────── */
-function StatCard({ icon: Icon, label, value, color, bg }) {
+function StatCard({ icon: Icon, label, value, color, bg, onClick }) {
   return (
-    <div
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`${label}: ${value}. View details`}
       style={{
         background: "var(--card)",
         borderRadius: "var(--radius-lg)",
@@ -94,6 +117,10 @@ function StatCard({ icon: Icon, label, value, color, bg }) {
         alignItems: "center",
         gap: "14px",
         transition: "transform 0.15s ease, box-shadow 0.15s ease",
+        width: "100%",
+        textAlign: "left",
+        cursor: onClick ? "pointer" : "default",
+        font: "inherit",
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = "translateY(-2px)";
@@ -134,7 +161,7 @@ function StatCard({ icon: Icon, label, value, color, bg }) {
           {value}
         </p>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -357,11 +384,9 @@ function ActivityTimeline({ checkInTime, checkOutTime, breaks, onBreak, currentB
         )}
       </div>
 
-      {/* Timeline entries */}
       <div style={{ display: "flex", flexDirection: "column", gap: "0", position: "relative" }}>
         {events.map((ev, idx) => (
           <div key={ev.id} style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
-            {/* Timeline node + vertical line */}
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "24px", flexShrink: 0 }}>
               <div
                 style={{
@@ -388,7 +413,6 @@ function ActivityTimeline({ checkInTime, checkOutTime, breaks, onBreak, currentB
               )}
             </div>
 
-            {/* Event details */}
             <div style={{ paddingBottom: idx < events.length - 1 ? "18px" : "4px", flex: 1 }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                 <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--text)" }}>{ev.label}</p>
@@ -465,12 +489,6 @@ function BreakDropdown({ onSelect, disabled }) {
           opacity: disabled ? 0.6 : 1,
           transition: "all 0.15s ease",
         }}
-        onMouseEnter={(e) => {
-          if (!disabled) e.currentTarget.style.background = "#fef3c7";
-        }}
-        onMouseLeave={(e) => {
-          if (!disabled) e.currentTarget.style.background = "#fffbeb";
-        }}
       >
         <Coffee size={15} />
         Start Break
@@ -518,8 +536,6 @@ function BreakDropdown({ onSelect, disabled }) {
                 cursor: "pointer",
                 transition: "background 0.1s",
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--background)")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <span style={{ fontSize: "15px" }}>{b.icon}</span>
@@ -558,11 +574,16 @@ export default function Attendance() {
   const [year, setYear] = useState(now.getFullYear());
   const [records, setRecords] = useState([]);
   const [summary, setSummary] = useState(null);
+    
+
+  const [selectedSummary, setSelectedSummary] = useState(null);
+  const [selectedSummaryRows, setSelectedSummaryRows] = useState([]);
+
+  const [summaryRowsLoading, setSummaryRowsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState("");
 
-  // Storage key for session breaks & timestamps
   const storageKey = `hrms_attendance_${user?.id || "default"}_${todayStr}`;
 
   const loadSession = () => {
@@ -586,7 +607,6 @@ export default function Attendance() {
     }
   }, [storageKey]);
 
-  // Sync state from server records on load
   const syncWithServerRecords = useCallback((serverRecords) => {
     const todayRecord = serverRecords.find((r) => r.date === todayStr);
     if (todayRecord) {
@@ -609,32 +629,120 @@ export default function Attendance() {
   }, [todayStr, storageKey]);
 
   const authenticatedEmployeeCode = user?.id;
+  const normalizedRole = String(user?.role || "").toUpperCase();
+  const isScopedTeamReader = ["MANAGER", "HR", "ADMIN"].includes(normalizedRole);
+
   const fetchAttendance = useCallback(() => {
     if (!authenticatedEmployeeCode) return;
     setLoading(true);
-    Promise.all([
-      getMyAttendance({ employeeId: authenticatedEmployeeCode, month, year }),
-      getTeamSummary(),
-    ])
+
+    const promises = [
+      getMyAttendance({
+        employeeId: isScopedTeamReader ? undefined : authenticatedEmployeeCode,
+        month,
+        year,
+      }),
+    ];
+
+    if (isScopedTeamReader) {
+      promises.push(getTeamSummary());
+    }
+
+    Promise.all(promises)
       .then(([recRes, sumRes]) => {
         const list = recRes.data || [];
         setRecords(list);
-        setSummary(sumRes.data || null);
+        if (isScopedTeamReader && sumRes) {
+          setSummary(sumRes.data || null);
+        } else {
+          const todayRec = list.find((r) => r.date === todayStr);
+const status = todayRec?.status || null;
+
+setSummary({
+  present: status === "Present" ? 1 : 0,
+  wfh: status === "WFH" ? 1 : 0,
+  late: status === "Late" ? 1 : 0,
+  absent: status === "Absent" ? 1 : 0,
+  onLeave: status === "On Leave" ? 1 : 0,
+});
+        }
         syncWithServerRecords(list);
       })
       .catch((err) => {
         console.error("Attendance fetch error:", err);
       })
       .finally(() => setLoading(false));
-  }, [authenticatedEmployeeCode, month, year, syncWithServerRecords]);
+  }, [authenticatedEmployeeCode, isScopedTeamReader, month, year, syncWithServerRecords, todayStr]);
 
   useEffect(() => {
     const timer = window.setTimeout(fetchAttendance, 0);
     return () => window.clearTimeout(timer);
   }, [fetchAttendance]);
 
-  // Regularization States
-  const isManagerOrHR = ["MANAGER", "HR", "ADMIN"].includes(user?.role);
+  const isManagerOrHR = isScopedTeamReader;
+  const todayRecords = useMemo(
+    () => records.filter((record) => record.date === todayStr),
+    [records, todayStr],
+  );
+
+  const summaryCards = useMemo(() => ({
+    present: { label: "Present Today", status: "Present", icon: UserCheck, color: "#16a34a", bg: "#f0fdf4" },
+    wfh: { label: "Work From Home", status: "WFH", icon: Home, color: "#0284c7", bg: "#f0f9ff" },
+    late: { label: "Late Arrivals", status: "Late", icon: Clock, color: "#d97706", bg: "#fffbeb" },
+    absent: { label: "Absent", status: "Absent", icon: UserX, color: "#dc2626", bg: "#fef2f2" },
+    onLeave: { label: "On Leave", status: "On Leave", icon: Coffee, color: "#7c3aed", bg: "#f5f3ff" },
+  }), []);
+
+const openSummaryDetails = async (key) => {
+  const card = summaryCards[key];
+
+  setSelectedSummary({ key, ...card });
+  setSelectedSummaryRows([]);
+  setSummaryRowsLoading(true);
+
+  // Employee:
+  // Use the already-loaded personal attendance record.
+  // Do NOT call the team summary-rows API because that endpoint
+  // is intended for Manager / HR / Admin scoped data.
+  if (!isScopedTeamReader) {
+    const targetStatus = String(card.status || "").toLowerCase().trim();
+
+    const employeeRows = todayRecords.filter((record) => {
+      const recordStatus = String(record.status || "").toLowerCase().trim();
+      return recordStatus === targetStatus;
+    });
+
+    setSelectedSummaryRows(employeeRows);
+    setSummaryRowsLoading(false);
+    return;
+  }
+
+  // Manager / HR / Admin:
+  // Fetch rows from the backend using their authorized scope.
+  try {
+    const bucketMap = {
+      present: "present",
+      wfh: "wfh",
+      late: "late",
+      absent: "absent",
+      onLeave: "onLeave",
+    };
+
+    const result = await getSummaryRows({
+      date: todayStr,
+      bucket: bucketMap[key],
+      page: 1,
+      pageSize: 50,
+    });
+
+    setSelectedSummaryRows(result?.data?.rows || []);
+  } catch (err) {
+    console.error("Attendance summary rows error:", err);
+    setSelectedSummaryRows([]);
+  } finally {
+    setSummaryRowsLoading(false);
+  }
+};
   const [activeAttendanceView, setActiveAttendanceView] = useState("my");
   const [showRegularizeModal, setShowRegularizeModal] = useState(false);
   const [regDate, setRegDate] = useState(getTodayDateStr());
@@ -665,8 +773,8 @@ export default function Attendance() {
       await requestRegularization({
         date: regDate,
         requestedStatus: "Present",
-        requestedPunchIn: `${regDate}T${regCheckIn}:00.000Z`,
-        requestedPunchOut: `${regDate}T${regCheckOut}:00.000Z`,
+        requestedPunchIn: indiaLocalToIso(regDate, regCheckIn),
+        requestedPunchOut: indiaLocalToIso(regDate, regCheckOut),
         reason: regReason.trim(),
       });
       setShowRegularizeModal(false);
@@ -712,8 +820,8 @@ export default function Attendance() {
       await resubmitRegularization(editingRegularization.id, {
         date: regDate,
         requestedStatus: editingRegularization.requestedStatus || "Present",
-        requestedPunchIn: `${regDate}T${regCheckIn}:00.000Z`,
-        requestedPunchOut: `${regDate}T${regCheckOut}:00.000Z`,
+        requestedPunchIn: indiaLocalToIso(regDate, regCheckIn),
+        requestedPunchOut: indiaLocalToIso(regDate, regCheckOut),
         reason: regReason.trim(),
       });
       setShowRegularizeModal(false);
@@ -728,7 +836,6 @@ export default function Attendance() {
     }
   };
 
-  /* ── Check In Handler ── */
   const handleCheckIn = async () => {
     setActionLoading(true);
     setActionError("");
@@ -756,7 +863,6 @@ export default function Attendance() {
     }
   };
 
-  /* ── Check Out Handler ── */
   const handleCheckOut = async () => {
     if (session.onBreak) {
       setActionError("Please end your ongoing break before checking out.");
@@ -787,7 +893,6 @@ export default function Attendance() {
     }
   };
 
-  /* ── Start Break Handler ── */
   const handleStartBreak = async (breakType) => {
     setActionError("");
     const nowIso = new Date().toISOString();
@@ -806,7 +911,6 @@ export default function Attendance() {
     }
   };
 
-  /* ── End Break Handler ── */
   const handleEndBreak = async () => {
     setActionError("");
     const nowIso = new Date().toISOString();
@@ -833,7 +937,6 @@ export default function Attendance() {
     <MainLayout>
       <div style={{ maxWidth: "1480px", margin: "0 auto", paddingBottom: "40px" }}>
 
-        {/* ── Top Page Header + Action Bar ── */}
         <div
           style={{
             display: "flex",
@@ -849,7 +952,6 @@ export default function Attendance() {
             subtitle={`${MONTHS[month - 1]} ${year} — Log your daily attendance, breaks, and shifts`}
           />
 
-          {/* Action Button Group */}
           <div
             style={{
               display: "flex",
@@ -863,12 +965,10 @@ export default function Attendance() {
               boxShadow: "var(--shadow-sm)",
             }}
           >
-            {/* 1. Check In Button (Always Visible) */}
             <button
               id="check-in-btn"
               onClick={handleCheckIn}
               disabled={session.checkedIn || actionLoading}
-              title={session.checkedIn ? "You have already checked in for today" : "Record your shift start"}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -882,15 +982,12 @@ export default function Attendance() {
                 fontSize: "13px",
                 cursor: (session.checkedIn || actionLoading) ? "not-allowed" : "pointer",
                 opacity: session.checkedIn ? 0.7 : actionLoading ? 0.8 : 1,
-                boxShadow: !session.checkedIn ? "0 2px 8px rgba(15,118,110,0.3)" : "none",
-                transition: "all 0.15s ease",
               }}
             >
               <LogIn size={15} />
               {session.checkedIn ? "Checked In" : actionLoading ? "Processing…" : "Check In"}
             </button>
 
-            {/* 2. Break Controls (Visible only after Check In and before Check Out) */}
             {session.checkedIn && !session.checkedOut && (
               session.onBreak ? (
                 <button
@@ -908,11 +1005,7 @@ export default function Attendance() {
                     fontWeight: 700,
                     fontSize: "13px",
                     cursor: "pointer",
-                    boxShadow: "0 2px 8px rgba(217,119,6,0.35)",
-                    transition: "all 0.15s ease",
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "#b45309")}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "#d97706")}
                 >
                   <StopCircle size={15} />
                   End {session.currentBreak?.type || "Break"}
@@ -922,57 +1015,29 @@ export default function Attendance() {
               )
             )}
 
-            {/* 3. Check Out Button (Always Visible) */}
             <button
               id="check-out-btn"
               onClick={handleCheckOut}
               disabled={!session.checkedIn || session.checkedOut || session.onBreak || actionLoading}
-              title={
-                !session.checkedIn
-                  ? "You must check in first before checking out"
-                  : session.onBreak
-                  ? "End your active break before checking out"
-                  : session.checkedOut
-                  ? "You have already completed checkout for today"
-                  : "Record your shift end"
-              }
               style={{
                 display: "flex",
                 alignItems: "center",
                 gap: "7px",
                 padding: "10px 18px",
-                background:
-                  session.checkedIn && !session.checkedOut && !session.onBreak
-                    ? "#ef4444"
-                    : "var(--background)",
-                color:
-                  session.checkedIn && !session.checkedOut && !session.onBreak
-                    ? "#ffffff"
-                    : "var(--subtext)",
-                border:
-                  session.checkedIn && !session.checkedOut && !session.onBreak
-                    ? "none"
-                    : "1px solid var(--border)",
+                background: session.checkedIn && !session.checkedOut && !session.onBreak ? "#ef4444" : "var(--background)",
+                color: session.checkedIn && !session.checkedOut && !session.onBreak ? "#ffffff" : "var(--subtext)",
+                border: session.checkedIn && !session.checkedOut && !session.onBreak ? "none" : "1px solid var(--border)",
                 borderRadius: "var(--radius-sm)",
                 fontWeight: 700,
                 fontSize: "13px",
-                cursor:
-                  (!session.checkedIn || session.checkedOut || session.onBreak || actionLoading)
-                    ? "not-allowed"
-                    : "pointer",
+                cursor: (!session.checkedIn || session.checkedOut || session.onBreak || actionLoading) ? "not-allowed" : "pointer",
                 opacity: (!session.checkedIn || session.checkedOut || session.onBreak) ? 0.55 : 1,
-                boxShadow:
-                  session.checkedIn && !session.checkedOut && !session.onBreak
-                    ? "0 2px 8px rgba(239,68,68,0.3)"
-                    : "none",
-                transition: "all 0.15s ease",
               }}
             >
               <LogOut size={15} />
               {session.checkedOut ? "Checked Out" : "Check Out"}
             </button>
 
-            {/* 3. Regularize Punch Button */}
             <button
               onClick={() => setShowRegularizeModal(true)}
               style={{
@@ -994,7 +1059,6 @@ export default function Attendance() {
           </div>
         </div>
 
-        {/* ── Error Banner ── */}
         {actionError && (
           <div
             style={{
@@ -1007,31 +1071,18 @@ export default function Attendance() {
               alignItems: "center",
               justifyContent: "space-between",
               gap: "12px",
-              animation: "dialog-in 0.15s ease",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <AlertCircle size={18} style={{ color: "#dc2626", flexShrink: 0 }} />
               <p style={{ fontSize: "13px", color: "#991b1b", fontWeight: 600 }}>{actionError}</p>
             </div>
-            <button
-              onClick={() => setActionError("")}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: "#991b1b",
-                padding: "2px",
-                display: "flex",
-                alignItems: "center",
-              }}
-            >
+            <button onClick={() => setActionError("")} style={{ background: "none", border: "none", cursor: "pointer", color: "#991b1b" }}>
               <X size={16} />
             </button>
           </div>
         )}
 
-        {/* ── Today's Visual Activity Timeline ── */}
         <ActivityTimeline
           checkInTime={session.checkInTime}
           checkOutTime={session.checkOutTime}
@@ -1040,7 +1091,6 @@ export default function Attendance() {
           currentBreak={session.currentBreak}
         />
 
-        {/* ── Team Summary Stat Cards ── */}
         {summary && (
           <div
             style={{
@@ -1050,15 +1100,273 @@ export default function Attendance() {
               marginBottom: "24px",
             }}
           >
-            <StatCard icon={UserCheck} label="Present Today" value={summary.present} color="#16a34a" bg="#f0fdf4" />
-            <StatCard icon={Home} label="Work From Home" value={summary.wfh} color="#0284c7" bg="#f0f9ff" />
-            <StatCard icon={Clock} label="Late Arrivals" value={summary.late} color="#d97706" bg="#fffbeb" />
-            <StatCard icon={UserX} label="Absent" value={summary.absent} color="#dc2626" bg="#fef2f2" />
-            <StatCard icon={Coffee} label="On Leave" value={summary.onLeave} color="#7c3aed" bg="#f5f3ff" />
+            {Object.entries(summaryCards).map(([key, card]) => (
+              <StatCard
+                key={key}
+                icon={card.icon}
+                label={card.label}
+                value={summary[key]}
+                color={card.color}
+                bg={card.bg}
+                onClick={() => openSummaryDetails(key)}
+              />
+            ))}
           </div>
         )}
 
-        {/* ── Attendance and regularization workflow views ── */}
+        <Modal
+          isOpen={Boolean(selectedSummary)}
+          title={`${selectedSummary?.label || "Attendance"} — Today`}
+          onClose={() => setSelectedSummary(null)}
+          width="760px"
+        >
+                 {summaryRowsLoading ? (
+  <div style={{ padding: "30px", textAlign: "center" }}>
+    Loading attendance records...
+  </div>
+) : selectedSummary && selectedSummaryRows.length > 0 ? (
+            <div style={{ overflowX: "auto" }}>
+              <p style={{ margin: "0 0 14px", color: "var(--subtext)", fontSize: "12px" }}>
+                Showing only records inside your authorized scope.
+              </p>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                <thead>
+                  <tr style={{ textAlign: "left", borderBottom: "1px solid var(--border)" }}>
+                    <th style={{ padding: "10px 8px", color: "var(--subtext)" }}>Employee</th>
+                    <th style={{ padding: "10px 8px", color: "var(--subtext)" }}>Status</th>
+                    <th style={{ padding: "10px 8px", color: "var(--subtext)" }}>Check In</th>
+                    <th style={{ padding: "10px 8px", color: "var(--subtext)" }}>Check Out</th>
+                    <th style={{ padding: "10px 8px", color: "var(--subtext)" }}>Hours</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedSummaryRows.map((record) => (
+                    <tr key={record.id || record.employeeId} style={{ borderBottom: "1px solid var(--border)" }}>
+                      <td style={{ padding: "11px 8px", fontWeight: 700 }}>
+                        {getEmployeeDisplayName(record)}
+                      </td>
+                      <td style={{ padding: "11px 8px" }}>
+                        <StatusBadge {...(attendanceStatusMeta[record.status] || { label: record.status, color: "#64748b", bg: "#f8fafc" })} />
+                      </td>
+                      <td style={{ padding: "11px 8px" }}>{fmtTime(record.checkIn) || "—"}</td>
+                      <td style={{ padding: "11px 8px" }}>{fmtTime(record.checkOut) || "—"}</td>
+                      <td style={{ padding: "11px 8px" }}>{record.hoursWorked ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyState
+              icon={selectedSummary?.icon || Clock}
+              title={`No ${selectedSummary?.label?.toLowerCase() || "attendance"} records found`}
+              subtitle="There are no matching records in your authorized scope for today."
+            />
+          )}
+        </Modal>
+
+        <Modal
+  isOpen={showRegularizeModal}
+  title={editingRegularization ? "Resubmit Regularization Request" : "Regularize Punch"}
+  onClose={() => {
+    setShowRegularizeModal(false);
+    setEditingRegularization(null);
+  }}
+  width="600px"
+>
+  <form
+    onSubmit={
+      editingRegularization
+        ? handleResubmit
+        : handleRegularizeSubmit
+    }
+  >
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: "16px",
+      }}
+    >
+      <div>
+        <label
+          style={{
+            display: "block",
+            fontSize: "12px",
+            fontWeight: 700,
+            color: "var(--subtext)",
+            marginBottom: "6px",
+          }}
+        >
+          Date
+        </label>
+
+        <input
+          type="date"
+          value={regDate}
+          onChange={(e) => setRegDate(e.target.value)}
+          required
+          style={{
+            width: "100%",
+            height: "40px",
+            padding: "0 10px",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-sm)",
+            background: "var(--card)",
+            color: "var(--text)",
+          }}
+        />
+      </div>
+
+      <div />
+
+      <div>
+        <label
+          style={{
+            display: "block",
+            fontSize: "12px",
+            fontWeight: 700,
+            color: "var(--subtext)",
+            marginBottom: "6px",
+          }}
+        >
+          Check In
+        </label>
+
+        <input
+          type="time"
+          value={regCheckIn}
+          onChange={(e) => setRegCheckIn(e.target.value)}
+          required
+          style={{
+            width: "100%",
+            height: "40px",
+            padding: "0 10px",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-sm)",
+            background: "var(--card)",
+            color: "var(--text)",
+          }}
+        />
+      </div>
+
+      <div>
+        <label
+          style={{
+            display: "block",
+            fontSize: "12px",
+            fontWeight: 700,
+            color: "var(--subtext)",
+            marginBottom: "6px",
+          }}
+        >
+          Check Out
+        </label>
+
+        <input
+          type="time"
+          value={regCheckOut}
+          onChange={(e) => setRegCheckOut(e.target.value)}
+          required
+          style={{
+            width: "100%",
+            height: "40px",
+            padding: "0 10px",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-sm)",
+            background: "var(--card)",
+            color: "var(--text)",
+          }}
+        />
+      </div>
+
+      <div style={{ gridColumn: "1 / -1" }}>
+        <label
+          style={{
+            display: "block",
+            fontSize: "12px",
+            fontWeight: 700,
+            color: "var(--subtext)",
+            marginBottom: "6px",
+          }}
+        >
+          Reason
+        </label>
+
+        <textarea
+          value={regReason}
+          onChange={(e) => setRegReason(e.target.value)}
+          placeholder="Enter reason for punch regularization..."
+          rows={4}
+          required
+          style={{
+            width: "100%",
+            padding: "10px",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-sm)",
+            background: "var(--card)",
+            color: "var(--text)",
+            resize: "vertical",
+            fontFamily: "inherit",
+            fontSize: "13px",
+          }}
+        />
+      </div>
+    </div>
+
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "flex-end",
+        gap: "10px",
+        marginTop: "22px",
+        paddingTop: "16px",
+        borderTop: "1px solid var(--border)",
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => {
+          setShowRegularizeModal(false);
+          setEditingRegularization(null);
+        }}
+        style={{
+          padding: "10px 18px",
+          background: "var(--card)",
+          color: "var(--subtext)",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius-sm)",
+          fontWeight: 600,
+          cursor: "pointer",
+        }}
+      >
+        Cancel
+      </button>
+
+      <button
+        type="submit"
+        disabled={submittingReg}
+        style={{
+          padding: "10px 20px",
+          background: "var(--primary)",
+          color: "#fff",
+          border: "none",
+          borderRadius: "var(--radius-sm)",
+          fontWeight: 700,
+          cursor: submittingReg ? "not-allowed" : "pointer",
+          opacity: submittingReg ? 0.7 : 1,
+        }}
+      >
+        {submittingReg
+          ? "Submitting..."
+          : editingRegularization
+            ? "Resubmit Request"
+            : "Submit Request"}
+      </button>
+    </div>
+  </form>
+</Modal>
+
         {
           <div style={{ display: "flex", gap: "8px", marginBottom: "20px", borderBottom: "1px solid var(--border)", paddingBottom: "10px" }}>
             <button
@@ -1101,10 +1409,9 @@ export default function Attendance() {
           <div style={{ background: "var(--card)", borderRadius: "var(--radius-lg)", border: "1px solid var(--border)", boxShadow: "var(--shadow-sm)", overflow: "hidden" }}>
             <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
               <h3 style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>{isManagerOrHR ? "Team Regularization Requests" : "My Regularization Requests"}</h3>
-              <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--subtext)" }}>Employee → Manager review → HR verification → attendance update</p>
             </div>
             {regularizationsList.length === 0 ? (
-              <EmptyState icon={Clock} title="No pending regularization requests" subtitle="Your direct reports have not submitted any pending regularization requests." />
+              <EmptyState icon={Clock} title="No pending regularization requests" subtitle="No pending regularization requests found." />
             ) : (
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
@@ -1116,61 +1423,52 @@ export default function Attendance() {
                       <th style={{ padding: "12px 16px", color: "var(--subtext)", fontWeight: 700 }}>Adjusted Out</th>
                       <th style={{ padding: "12px 16px", color: "var(--subtext)", fontWeight: 700 }}>Reason</th>
                       <th style={{ padding: "12px 16px", color: "var(--subtext)", fontWeight: 700 }}>Status</th>
-                      <th style={{ padding: "12px 16px", color: "var(--subtext)", fontWeight: 700, textAlign: "right" }}>Decision</th>
+                    {isManagerOrHR && (
+  <th style={{ padding: "12px 16px", color: "var(--subtext)", fontWeight: 700 }}>
+    Actions
+  </th>
+)}
                     </tr>
                   </thead>
                   <tbody>
                     {regularizationsList.map((reg) => (
                       <tr key={reg.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                        <td style={{ padding: "12px 16px", fontWeight: 600 }}>
-                          {reg.employeeName || "Employee"}
-                          <p style={{ margin: "2px 0 0", fontSize: "11px", color: "var(--subtext)" }}>{reg.employeeId}</p>
-                        </td>
-                        <td style={{ padding: "12px 16px" }}>
-                          {new Date(reg.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-                        </td>
-                        <td style={{ padding: "12px 16px", fontFamily: "monospace" }}>{reg.requestedPunchIn ? fmtTime(reg.requestedPunchIn) : "—"}</td>
-                        <td style={{ padding: "12px 16px", fontFamily: "monospace" }}>{reg.requestedPunchOut ? fmtTime(reg.requestedPunchOut) : "—"}</td>
-                        <td style={{ padding: "12px 16px", color: "var(--label)" }}>{reg.reason}</td>
-                        <td style={{ padding: "12px 16px" }}>
-                          <span title={reg.decisionNotes || reg.history?.at(-1)?.comment || ""} style={{ fontSize: "11px", fontWeight: 700, padding: "2px 8px", borderRadius: "4px", background: reg.status === "Approved" ? "var(--green-light)" : reg.status === "Rejected" ? "var(--red-light)" : "#fffbeb", color: reg.status === "Approved" ? "var(--green)" : reg.status === "Rejected" ? "var(--red)" : "#d97706" }}>
-                            {reg.status}
-                          </span>
-                          {reg.history?.length > 0 && <p style={{ margin: "4px 0 0", fontSize: "10px", color: "var(--subtext)" }}>{reg.history.length} timeline event(s)</p>}
-                        </td>
-                        <td style={{ padding: "12px 16px", textAlign: "right" }}>
-                          {user?.role === "MANAGER" && ["Submitted", "Resubmitted"].includes(reg.status) && reg.employeeId !== user.id ? (
-                            <div style={{ display: "inline-flex", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" }}>
-                              <button
-                                onClick={() => handleDecideRegularization(reg.id, "APPROVE")}
-                                style={{ padding: "5px 10px", background: "var(--green)", color: "#fff", border: "none", borderRadius: "4px", fontSize: "11.5px", fontWeight: 700, cursor: "pointer" }}
-                              >
-                                Approve
-                              </button>
-                              <button
-                                onClick={() => handleDecideRegularization(reg.id, "REQUEST_MORE_DETAILS")}
-                                style={{ padding: "5px 10px", background: "#d97706", color: "#fff", border: "none", borderRadius: "4px", fontSize: "11.5px", fontWeight: 700, cursor: "pointer" }}
-                              >
-                                More Details
-                              </button>
-                              <button
-                                onClick={() => handleDecideRegularization(reg.id, "REJECT")}
-                                style={{ padding: "5px 10px", background: "var(--red)", color: "#fff", border: "none", borderRadius: "4px", fontSize: "11.5px", fontWeight: 700, cursor: "pointer" }}
-                              >
-                                Reject
-                              </button>
-                            </div>
-                          ) : ["HR", "ADMIN"].includes(user?.role) && reg.status === "Manager Approved" && reg.employeeId !== user.id ? (
-                            <div style={{ display: "inline-flex", gap: "6px" }}>
-                              <button onClick={() => handleDecideRegularization(reg.id, "APPROVE")} style={{ padding: "5px 10px", background: "var(--green)", color: "#fff", border: "none", borderRadius: "4px", fontSize: "11.5px", fontWeight: 700, cursor: "pointer" }}>Verify</button>
-                              <button onClick={() => handleDecideRegularization(reg.id, "REJECT")} style={{ padding: "5px 10px", background: "var(--red)", color: "#fff", border: "none", borderRadius: "4px", fontSize: "11.5px", fontWeight: 700, cursor: "pointer" }}>Reject</button>
-                            </div>
-                          ) : reg.status === "More Details Required" && reg.employeeId === user?.id ? (
-                            <button onClick={() => beginResubmit(reg)} style={{ padding: "5px 10px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: "4px", fontSize: "11.5px", fontWeight: 700, cursor: "pointer" }}>Edit & Resubmit</button>
-                          ) : (
-                            <span style={{ fontSize: "11px", color: "var(--subtext)" }}>Decided</span>
-                          )}
-                        </td>
+                        <td style={{ padding: "12px 16px", fontWeight: 600 }}>{reg.employeeName || "Employee"}</td>
+                        <td style={{ padding: "12px 16px" }}>{new Date(reg.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</td>
+                        <td style={{ padding: "12px 16px" }}>{reg.requestedPunchIn ? fmtTime(reg.requestedPunchIn) : "—"}</td>
+                        <td style={{ padding: "12px 16px" }}>{reg.requestedPunchOut ? fmtTime(reg.requestedPunchOut) : "—"}</td>
+                        <td style={{ padding: "12px 16px" }}>{reg.reason}</td>
+                        <td style={{ padding: "12px 16px" }}>{reg.status}</td>
+                        {isManagerOrHR && (
+  <td style={{ padding: "12px 16px" }}>
+    {["Submitted", "Resubmitted", "Manager Approved"].includes(reg.status) ? (
+      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+        <button
+          type="button"
+          onClick={() => handleDecideRegularization(reg.id, "APPROVE")}
+        >
+          Approve
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleDecideRegularization(reg.id, "REQUEST_MORE_DETAILS")}
+        >
+          More Details
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleDecideRegularization(reg.id, "REJECT")}
+        >
+          Reject
+        </button>
+      </div>
+    ) : (
+      <span>—</span>
+    )}
+  </td>
+)}
                       </tr>
                     ))}
                   </tbody>
@@ -1180,302 +1478,47 @@ export default function Attendance() {
           </div>
         ) : (
           <>
-            {/* ── Filter Bar: Month/Year Selector & Status Counters ── */}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                flexWrap: "wrap",
-                gap: "12px",
-                marginBottom: "16px",
-              }}
-            >
-          <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <Calendar size={15} style={{ color: "var(--subtext)" }} />
-              <select
-                value={month}
-                onChange={(e) => setMonth(Number(e.target.value))}
-                style={{
-                  height: "36px",
-                  padding: "0 12px",
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--radius-sm)",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  background: "var(--card)",
-                  color: "var(--text)",
-                  outline: "none",
-                  cursor: "pointer",
-                }}
-              >
-                {MONTHS.map((m, i) => (
-                  <option key={m} value={i + 1}>
-                    {m}
-                  </option>
-                ))}
-              </select>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+              <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                <select value={month} onChange={(e) => setMonth(Number(e.target.value))} style={{ height: "36px", padding: "0 12px", borderRadius: "4px" }}>
+                  {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                </select>
+                <select value={year} onChange={(e) => setYear(Number(e.target.value))} style={{ height: "36px", padding: "0 12px", borderRadius: "4px" }}>
+                  {[2024, 2025, 2026, 2027].map((y) => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
             </div>
 
-            <select
-              value={year}
-              onChange={(e) => setYear(Number(e.target.value))}
-              style={{
-                height: "36px",
-                padding: "0 12px",
-                border: "1px solid var(--border)",
-                borderRadius: "var(--radius-sm)",
-                fontSize: "13px",
-                fontWeight: 600,
-                background: "var(--card)",
-                color: "var(--text)",
-                outline: "none",
-                cursor: "pointer",
-              }}
-            >
-              {[2024, 2025, 2026, 2027].map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Quick status pill counters */}
-          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-            {["Present", "Late", "Absent", "WFH"].map((s) => {
-              const count = countStatus(s);
-              const meta = attendanceStatusMeta[s];
-              return (
-                <span
-                  key={s}
-                  style={{
-                    fontSize: "11.5px",
-                    fontWeight: 700,
-                    color: meta?.color || "var(--text)",
-                    background: meta?.bg || "var(--background)",
-                    padding: "4px 10px",
-                    borderRadius: "99px",
-                    border: `1px solid ${meta?.color || "var(--border)"}22`,
-                  }}
-                >
-                  {s}: {count}
-                </span>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* ── Monthly Attendance Records Table ── */}
-        <div
-          style={{
-            background: "var(--card)",
-            borderRadius: "var(--radius-lg)",
-            border: "1px solid var(--border)",
-            boxShadow: "var(--shadow-sm)",
-            overflow: "hidden",
-          }}
-        >
-          {loading ? (
-            <div style={{ padding: "60px 0" }}>
-              <Spinner />
-            </div>
-          ) : records.length === 0 ? (
-            <EmptyState
-              icon={Calendar}
-              title="No attendance records found"
-              subtitle={`No logs found for ${MONTHS[month - 1]} ${year}. Choose another month or punch in.`}
-            />
-          ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
-                <thead>
-                  <tr style={{ background: "var(--background)", borderBottom: "1px solid var(--border)" }}>
-                    {["Date", "Status", "Check In", "Check Out", "Work Duration", "Break Sessions"].map((h) => (
-                      <th
-                        key={h}
-                        style={{
-                          padding: "13px 18px",
-                          fontSize: "11px",
-                          fontWeight: 700,
-                          color: "var(--subtext)",
-                          textTransform: "uppercase",
-                          letterSpacing: "0.5px",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {records.map((r, i) => {
-                    const meta = attendanceStatusMeta[r.status] || attendanceStatusMeta["Present"];
-                    const isToday = r.date === todayStr;
-                    return (
-                      <tr
-                        key={r.id || i}
-                        style={{
-                          borderBottom: i < records.length - 1 ? "1px solid var(--border)" : "none",
-                          background: isToday ? "rgba(15,118,110,0.03)" : "transparent",
-                          transition: "background 0.15s ease",
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!isToday) e.currentTarget.style.background = "var(--background)";
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!isToday) e.currentTarget.style.background = "transparent";
-                        }}
-                      >
-                        <td style={{ padding: "14px 18px", fontSize: "13.5px", color: "var(--text)", fontWeight: 600 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            {new Date(r.date + "T00:00:00").toLocaleDateString("en-IN", {
-                              weekday: "short",
-                              day: "2-digit",
-                              month: "short",
-                            })}
-                            {isToday && (
-                              <span
-                                style={{
-                                  fontSize: "10px",
-                                  fontWeight: 700,
-                                  color: "var(--primary)",
-                                  background: "var(--primary-light)",
-                                  padding: "1px 6px",
-                                  borderRadius: "4px",
-                                }}
-                              >
-                                Today
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td style={{ padding: "14px 18px" }}>
-                          <StatusBadge label={meta.label} color={meta.color} bg={meta.bg} />
-                        </td>
-                        <td
-                          style={{
-                            padding: "14px 18px",
-                            fontSize: "13.5px",
-                            color: r.checkIn ? "var(--text)" : "var(--subtext)",
-                            fontFamily: "monospace",
-                            fontWeight: r.checkIn ? 600 : 400,
-                          }}
-                        >
-                          {r.checkIn ? fmtTime(r.checkIn) : "—"}
-                        </td>
-                        <td
-                          style={{
-                            padding: "14px 18px",
-                            fontSize: "13.5px",
-                            color: r.checkOut ? "var(--text)" : "var(--subtext)",
-                            fontFamily: "monospace",
-                            fontWeight: r.checkOut ? 600 : 400,
-                          }}
-                        >
-                          {r.checkOut ? fmtTime(r.checkOut) : "—"}
-                        </td>
-                        <td
-                          style={{
-                            padding: "14px 18px",
-                            fontSize: "13.5px",
-                            color: r.hoursWorked > 0 ? "var(--text)" : "var(--subtext)",
-                            fontWeight: 600,
-                          }}
-                        >
-                          {r.hoursWorked > 0 ? `${r.hoursWorked} hrs` : "—"}
-                        </td>
-                        <td style={{ padding: "14px 18px", fontSize: "12.5px", color: "var(--subtext)" }}>
-                          {isToday && session.breaks.length > 0 ? (
-                            <span style={{ color: "#d97706", fontWeight: 600 }}>
-                              {session.breaks.length} logged
-                            </span>
-                          ) : r.breaks ? (
-                            `${r.breaks} session(s)`
-                          ) : (
-                            "Standard"
-                          )}
-                        </td>
+            <div style={{ background: "var(--card)", borderRadius: "var(--radius-lg)", border: "1px solid var(--border)", overflow: "hidden" }}>
+              {loading ? (
+                <div style={{ padding: "60px 0" }}><Spinner /></div>
+              ) : records.length === 0 ? (
+                <EmptyState icon={Calendar} title="No attendance records found" subtitle="No logs found for this period." />
+              ) : (
+                <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+                  <thead>
+                    <tr style={{ background: "var(--background)", borderBottom: "1px solid var(--border)" }}>
+                      {["Date", "Status", "Check In", "Check Out", "Work Duration"].map((h) => (
+                        <th key={h} style={{ padding: "13px 18px", fontSize: "11px", fontWeight: 700, color: "var(--subtext)" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {records.map((r, i) => (
+                      <tr key={r.id || i} style={{ borderBottom: "1px solid var(--border)" }}>
+                        <td style={{ padding: "14px 18px", fontWeight: 600 }}>{r.date}</td>
+                        <td style={{ padding: "14px 18px" }}>{r.status}</td>
+                        <td style={{ padding: "14px 18px" }}>{r.checkIn ? fmtTime(r.checkIn) : "—"}</td>
+                        <td style={{ padding: "14px 18px" }}>{r.checkOut ? fmtTime(r.checkOut) : "—"}</td>
+                        <td style={{ padding: "14px 18px" }}>{r.hoursWorked > 0 ? `${r.hoursWorked} hrs` : "—"}</td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
-          )}
-        </div>
-        </>
-      )}
-
-      {/* Modal: Request Regularization */}
-      {showRegularizeModal && (
-        <Modal isOpen={showRegularizeModal} title={editingRegularization ? "Add Details & Resubmit" : "Request Attendance Regularization"} onClose={() => { setShowRegularizeModal(false); setEditingRegularization(null); }} maxWidth="480px">
-          <form onSubmit={editingRegularization ? handleResubmit : handleRegularizeSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-              <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Date to Regularize *</label>
-              <input
-                type="date"
-                required
-                value={regDate}
-                onChange={(e) => setRegDate(e.target.value)}
-                disabled={!!editingRegularization}
-                style={{ height: "36px", padding: "0 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontSize: "13px" }}
-              />
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Actual Check-In *</label>
-                <input
-                  type="time"
-                  required
-                  value={regCheckIn}
-                  onChange={(e) => setRegCheckIn(e.target.value)}
-                  style={{ height: "36px", padding: "0 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontSize: "13px" }}
-                />
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Actual Check-Out *</label>
-                <input
-                  type="time"
-                  required
-                  value={regCheckOut}
-                  onChange={(e) => setRegCheckOut(e.target.value)}
-                  style={{ height: "36px", padding: "0 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontSize: "13px" }}
-                />
-              </div>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-              <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>Reason for Regularization *</label>
-              <textarea
-                rows={3}
-                required
-                value={regReason}
-                onChange={(e) => setRegReason(e.target.value)}
-                placeholder="e.g. Biometric machine offline, work on client site, forgot to punch"
-                style={{ padding: "8px 10px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontSize: "13px" }}
-              />
-            </div>
-            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "10px" }}>
-              <button
-                type="button"
-                onClick={() => { setShowRegularizeModal(false); setEditingRegularization(null); }}
-                style={{ padding: "8px 16px", background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", fontSize: "13px", cursor: "pointer" }}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={submittingReg}
-                style={{ padding: "8px 20px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
-              >
-                {submittingReg ? "Submitting…" : editingRegularization ? "Resubmit Request" : "Submit Request"}
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
+          </>
+        )}
       </div>
     </MainLayout>
   );

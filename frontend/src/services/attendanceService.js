@@ -15,6 +15,18 @@ export const getTeamSummary = async () => {
   return res.data; // { data }
 };
 
+export const getSummaryRows = async ({ date, bucket, page = 1, pageSize = 50 } = {}) => {
+  const res = await api.get("/attendance/summary-rows", {
+    params: {
+      date,
+      bucket,
+      page,
+      pageSize,
+    },
+  });
+  return res.data; // { data: { rows, count, ... } }
+};
+
 export const checkIn = async (employeeId, method = "Web") => {
   const res = await api.post("/attendance/check-in", { employeeId, method });
   return res.data;

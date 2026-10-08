@@ -107,6 +107,60 @@ export class OrganizationManagementController {
   // =========================================================
   // LOCATIONS
   // =========================================================
+  // =========================================================
+  // TEAMS
+  // =========================================================
+
+  async getTeams(req: Request, res: Response) {
+    try {
+      const data = await organizationManagementService.getTeams();
+      return res.status(200).json(data);
+    } catch (error: any) {
+      console.error("getTeams error:", error);
+      return res.status(500).json({
+        message: error.message || "Failed to get teams",
+      });
+    }
+  }
+
+  async addTeam(req: Request, res: Response) {
+    try {
+      const data = await organizationManagementService.addTeam(req.body);
+      return res.status(201).json(data);
+    } catch (error: any) {
+      console.error("addTeam error:", error);
+      return res.status(400).json({
+        message: error.message || "Failed to create team",
+      });
+    }
+  }
+
+  async getTeamMembers(req: Request, res: Response) {
+    try {
+      const data = await organizationManagementService.getTeamMembers(req.params.id);
+      return res.status(200).json(data);
+    } catch (error: any) {
+      return res.status(400).json({ message: error.message || "Failed to get team members" });
+    }
+  }
+
+  async updateTeam(req: Request, res: Response) {
+    try {
+      const data = await organizationManagementService.updateTeam(req.params.id, req.body);
+      return res.status(200).json(data);
+    } catch (error: any) {
+      return res.status(400).json({ message: error.message || "Failed to update team" });
+    }
+  }
+
+  async setTeamMembers(req: Request, res: Response) {
+    try {
+      const data = await organizationManagementService.setTeamMembers(req.params.id, req.body?.employeeIds);
+      return res.status(200).json(data);
+    } catch (error: any) {
+      return res.status(400).json({ message: error.message || "Failed to update team members" });
+    }
+  }
 
   async getLocations(req: Request, res: Response) {
     try {
@@ -146,7 +200,9 @@ export class OrganizationManagementController {
         );
 
       if (data.error) {
-        return res.status(400).json(data);
+        return res.status(400).json({
+          message: data.error,
+        });
       }
 
       return res.status(200).json(data);
@@ -159,6 +215,29 @@ export class OrganizationManagementController {
     }
   }
 
+
+  async activateLocation(req: Request, res: Response) {
+    try {
+      const data =
+        await organizationManagementService.activateLocation(
+          req.params.id
+        );
+
+      if (data.error) {
+        return res.status(400).json({
+          message: data.error,
+        });
+      }
+
+      return res.status(200).json(data);
+    } catch (error: any) {
+      console.error("activateLocation error:", error);
+
+      return res.status(500).json({
+        message: error.message || "Failed to activate location",
+      });
+    }
+  }
   // =========================================================
   // COST CENTERS
   // =========================================================
@@ -193,6 +272,66 @@ export class OrganizationManagementController {
     }
   }
 
+  async updateCostCenter(req: Request, res: Response) {
+    try {
+      const data =
+        await organizationManagementService.updateCostCenter(
+          req.params.id,
+          req.body
+        );
+
+      return res.status(200).json(data);
+    } catch (error: any) {
+      console.error("updateCostCenter error:", error);
+
+      const status =
+        error.message === "Cost Center not found" ? 404 : 400;
+
+      return res.status(status).json({
+        message: error.message || "Failed to update cost center",
+      });
+    }
+  }
+
+  async deactivateCostCenter(req: Request, res: Response) {
+    try {
+      const data =
+        await organizationManagementService.deactivateCostCenter(
+          req.params.id
+        );
+
+      return res.status(200).json(data);
+    } catch (error: any) {
+      console.error("deactivateCostCenter error:", error);
+
+      const status =
+        error.message === "Cost Center not found" ? 404 : 400;
+
+      return res.status(status).json({
+        message: error.message || "Failed to deactivate cost center",
+      });
+    }
+  }
+
+  async activateCostCenter(req: Request, res: Response) {
+    try {
+      const data =
+        await organizationManagementService.activateCostCenter(
+          req.params.id
+        );
+
+      return res.status(200).json(data);
+    } catch (error: any) {
+      console.error("activateCostCenter error:", error);
+
+      const status =
+        error.message === "Cost Center not found" ? 404 : 400;
+
+      return res.status(status).json({
+        message: error.message || "Failed to activate cost center",
+      });
+    }
+  }
   // =========================================================
   // DESIGNATIONS
   // =========================================================

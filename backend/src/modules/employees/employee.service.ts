@@ -18,6 +18,7 @@ function toDecimal(v: unknown): number {
 const EMPLOYEE_INCLUDE = {
   department: true,
   designation: true,
+  team: true,
   location: true,
   user: { select: { email: true } },
   reportingManager: { select: { employeeCode: true, firstName: true, lastName: true, avatarUrl: true } },
@@ -143,6 +144,7 @@ export interface CreateEmployeeInput {
   bankName?: string;
   designationId?: string;
   departmentId?: string;
+  teamId?: string;
   locationId?: string;
   designation?: string;
   department?: string;
@@ -270,6 +272,75 @@ async function resolveNameToId(
   throw AppError.badRequest(`${label} "${name}" not found. Add it in Organization first.`);
 }
 
+async function validateTeamDepartment(
+  teamId: string | undefined,
+  departmentId: string | null | undefined
+) {
+  if (!teamId) return;
+
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    select: {
+      id: true,
+      name: true,
+      departmentId: true,
+      isActive: true,
+    },
+  });
+
+  if (!team) {
+    throw AppError.notFound("Team not found.");
+  }
+
+  if (!team.isActive) {
+    throw AppError.badRequest("Cannot assign an inactive team.");
+  }
+
+  if (!departmentId) {
+    throw AppError.badRequest(
+      "A department must be assigned before assigning a team."
+    );
+  }
+
+  if (team.departmentId !== departmentId) {
+    throw AppError.badRequest(
+      "Selected team does not belong to the employee's department."
+    );
+  }
+}
+async function syncEmployeeShiftAssignment(
+  employeeId: string,
+  shiftId: string | null | undefined,
+  effectiveFromInput?: string | Date
+) {
+  const effectiveFrom = effectiveFromInput ? new Date(effectiveFromInput) : new Date();
+  effectiveFrom.setHours(0, 0, 0, 0);
+
+  const active = await prisma.employeeShiftAssignment.findFirst({
+    where: { employeeId, effectiveTo: null },
+    orderBy: { effectiveFrom: "desc" },
+  });
+
+  if (active?.shiftId === shiftId) return;
+
+  if (active) {
+    const effectiveTo = new Date(effectiveFrom);
+    effectiveTo.setDate(effectiveTo.getDate() - 1);
+    await prisma.employeeShiftAssignment.update({
+      where: { id: active.id },
+      data: { effectiveTo },
+    });
+  }
+
+  if (shiftId) {
+    const shift = await prisma.attendanceShift.findUnique({ where: { id: shiftId }, select: { id: true } });
+    if (!shift) throw AppError.notFound("Shift not found.");
+    await prisma.employeeShiftAssignment.create({
+      data: { employeeId, shiftId, effectiveFrom },
+    });
+  }
+}
+
 async function resolveOrgRefs(input: Partial<CreateEmployeeInput>) {
   const [designationId, departmentId, locationId] = await Promise.all([
     input.designationId ? Promise.resolve(input.designationId)
@@ -362,6 +433,8 @@ export async function createEmployee(input: CreateEmployeeInput, actorId?: strin
   const { designationId, departmentId, locationId } = await resolveOrgRefs(input);
   const reportingManagerId = await resolveManagerId(input.managerId);
 
+  await validateTeamDepartment(input.teamId, departmentId);
+
   // Validate reporting manager if provided
   if (reportingManagerId) {
     const mgr = await prisma.employee.findUnique({ where: { id: reportingManagerId } });
@@ -413,6 +486,7 @@ export async function createEmployee(input: CreateEmployeeInput, actorId?: strin
       gender: input.gender ?? null,
       designationId,
       departmentId,
+      teamId: input.teamId ?? null,
       locationId,
       reportingManagerId,
       dateOfJoining: joinDate,
@@ -436,6 +510,10 @@ export async function createEmployee(input: CreateEmployeeInput, actorId?: strin
     },
     include: EMPLOYEE_INCLUDE,
   });
+
+  if (input.shiftId) {
+    await syncEmployeeShiftAssignment(emp.id, input.shiftId, joinDate);
+  }
 
   // Record initial movement
   await prisma.employeeMovement.create({
@@ -490,6 +568,12 @@ export async function updateEmployee(id: string, input: Partial<CreateEmployeeIn
 
   const { designationId, departmentId, locationId } = await resolveOrgRefs(input);
   const resolvedManagerId = input.managerId !== undefined ? await resolveManagerId(input.managerId) : undefined;
+  const effectiveDepartmentId = departmentId ?? existing.departmentId;
+  if (input.teamId !== undefined) {
+    await validateTeamDepartment(input.teamId || undefined, effectiveDepartmentId);
+  } else if (departmentId && existing.teamId) {
+    await validateTeamDepartment(existing.teamId, effectiveDepartmentId);
+  }
 
   if (resolvedManagerId !== undefined && resolvedManagerId !== existing.reportingManagerId) {
     await validateReportingHierarchy(id, resolvedManagerId);
@@ -516,6 +600,11 @@ export async function updateEmployee(id: string, input: Partial<CreateEmployeeIn
     gender: input.gender ?? undefined,
     designation: designationId ? { connect: { id: designationId } } : undefined,
     department: departmentId ? { connect: { id: departmentId } } : undefined,
+    team: input.teamId !== undefined
+      ? (input.teamId
+          ? { connect: { id: input.teamId } }
+          : { disconnect: true })
+      : undefined,
     location: locationId ? { connect: { id: locationId } } : undefined,
     reportingManager: resolvedManagerId !== undefined ? (resolvedManagerId ? { connect: { id: resolvedManagerId } } : { disconnect: true }) : undefined,
     employmentType: input.employmentType ?? undefined,
@@ -531,6 +620,10 @@ export async function updateEmployee(id: string, input: Partial<CreateEmployeeIn
     data,
     include: EMPLOYEE_INCLUDE,
   });
+
+  if (input.shiftId !== undefined) {
+    await syncEmployeeShiftAssignment(id, input.shiftId || null, input.dateOfJoining || new Date());
+  }
 
   // Track status change movement
   if (input.status && input.status !== existing.status) {

@@ -25,6 +25,8 @@ const applyBodySchema = z.object({
   leaveTypeId: z.string().min(1, "leaveTypeId is required"),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "startDate must be YYYY-MM-DD"),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "endDate must be YYYY-MM-DD"),
+  startDayPortion: z.enum(["FULL", "FIRST_HALF", "SECOND_HALF"]).optional(),
+  endDayPortion: z.enum(["FULL", "FIRST_HALF", "SECOND_HALF"]).optional(),
   reason: z.string().max(1000).optional(),
 
   documentName: z.string().max(255).optional(),

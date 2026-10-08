@@ -188,9 +188,205 @@ export class OrganizationManagementService {
     // =========================================================
     // LOCATIONS
     // =========================================================
+    // =========================================================
+    // TEAMS
+    // =========================================================
+
+    async getTeams() {
+        const teams = await prisma.team.findMany({
+            include: {
+                department: {
+                    select: {
+                        id: true,
+                        name: true,
+                    },
+                },
+                _count: {
+                    select: {
+                        employees: true,
+                    },
+                },
+            },
+            orderBy: {
+                name: "asc",
+            },
+        });
+
+        return teams.map((team) => ({
+            id: team.id,
+            name: team.name,
+            description: team.description,
+            departmentId: team.departmentId,
+            departmentName: team.department.name,
+            employeeCount: team._count.employees,
+            isActive: team.isActive,
+            status: team.isActive ? "Active" : "Inactive",
+        }));
+    }
+
+    async addTeam(data: any) {
+        if (!data.name?.trim()) {
+            throw new Error("Team name is required");
+        }
+
+        if (!data.departmentId) {
+            throw new Error("Department ID is required");
+        }
+
+        const department = await prisma.department.findUnique({
+            where: { id: data.departmentId },
+        });
+
+        if (!department) {
+            throw new Error("Department not found");
+        }
+        if (!department.isActive) {
+            throw new Error("Cannot create a team under an inactive department");
+        }
+
+        const existing = await prisma.team.findFirst({
+            where: {
+                departmentId: data.departmentId,
+                name: { equals: data.name.trim(), mode: "insensitive" },
+            },
+        });
+
+        if (existing) {
+            throw new Error(
+                "Team with this name already exists in this department"
+            );
+        }
+
+        const team = await prisma.team.create({
+            data: {
+                name: data.name.trim(),
+                description: data.description?.trim() || null,
+                departmentId: data.departmentId,
+            },
+        });
+
+        return {
+            id: team.id,
+            name: team.name,
+            description: team.description,
+            departmentId: team.departmentId,
+            isActive: team.isActive,
+            status: team.isActive ? "Active" : "Inactive",
+        };
+    }
+
+    async getTeamMembers(teamId: string) {
+        const team = await prisma.team.findUnique({
+            where: { id: teamId },
+            select: { id: true, name: true, departmentId: true, isActive: true },
+        });
+        if (!team) throw new Error("Team not found");
+
+        const employees = await prisma.employee.findMany({
+            where: { departmentId: team.departmentId, isSoftDeleted: false },
+            select: {
+                id: true, employeeCode: true, firstName: true, lastName: true,
+                status: true, teamId: true,
+            },
+            orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+        });
+
+        return {
+            team,
+            employees: employees.map((employee) => ({
+                ...employee,
+                name: `${employee.firstName} ${employee.lastName}`.trim(),
+                isMember: employee.teamId === team.id,
+                canAssign: !["Inactive", "Terminated"].includes(employee.status),
+            })),
+        };
+    }
+
+    async updateTeam(teamId: string, data: any) {
+        const existing = await prisma.team.findUnique({ where: { id: teamId } });
+        if (!existing) throw new Error("Team not found");
+
+        const name = data.name !== undefined ? String(data.name).trim() : existing.name;
+        if (!name) throw new Error("Team name is required");
+
+        const duplicate = await prisma.team.findFirst({
+            where: { departmentId: existing.departmentId, name: { equals: name, mode: "insensitive" }, NOT: { id: teamId } },
+            select: { id: true },
+        });
+        if (duplicate) throw new Error("Team with this name already exists in this department");
+
+        const nextActive = data.isActive !== undefined ? Boolean(data.isActive) : existing.isActive;
+        const updated = await prisma.$transaction(async (tx: any) => {
+            if (!nextActive && existing.isActive) {
+                await tx.employee.updateMany({ where: { teamId }, data: { teamId: null } });
+            }
+            return tx.team.update({
+                where: { id: teamId },
+                data: {
+                    name,
+                    description: data.description !== undefined ? (String(data.description).trim() || null) : undefined,
+                    isActive: nextActive,
+                },
+                include: { _count: { select: { employees: true } }, department: { select: { name: true } } },
+            });
+        });
+
+        return {
+            id: updated.id, name: updated.name, description: updated.description,
+            departmentId: updated.departmentId, departmentName: updated.department.name,
+            employeeCount: updated._count.employees, isActive: updated.isActive,
+            status: updated.isActive ? "Active" : "Inactive",
+        };
+    }
+
+    async setTeamMembers(teamId: string, employeeIds: string[]) {
+        const team = await prisma.team.findUnique({ where: { id: teamId } });
+        if (!team) throw new Error("Team not found");
+        if (!team.isActive) throw new Error("Cannot assign members to an inactive team");
+
+        const uniqueIds = [...new Set(Array.isArray(employeeIds) ? employeeIds : [])];
+        const employees = uniqueIds.length ? await prisma.employee.findMany({
+            where: { id: { in: uniqueIds } },
+            select: { id: true, departmentId: true, status: true, isSoftDeleted: true },
+        }) : [];
+
+        if (employees.length !== uniqueIds.length) throw new Error("One or more selected employees do not exist");
+        if (employees.some((e) => e.isSoftDeleted)) throw new Error("Deleted employees cannot be assigned to a team");
+        if (employees.some((e) => e.departmentId !== team.departmentId)) throw new Error("All team members must belong to the team's department");
+        if (employees.some((e) => ["Inactive", "Terminated"].includes(e.status))) throw new Error("Inactive or terminated employees cannot be assigned to a team");
+
+        await prisma.$transaction(async (tx: any) => {
+            await tx.employee.updateMany({
+                where: { teamId, ...(uniqueIds.length ? { id: { notIn: uniqueIds } } : {}) },
+                data: { teamId: null },
+            });
+            if (uniqueIds.length) {
+                await tx.employee.updateMany({
+                    where: { id: { in: uniqueIds }, departmentId: team.departmentId },
+                    data: { teamId },
+                });
+            }
+        });
+
+        const refreshed = await prisma.team.findUnique({
+            where: { id: teamId }, include: { _count: { select: { employees: true } } },
+        });
+        return { teamId, employeeCount: refreshed?._count.employees ?? 0, employeeIds: uniqueIds };
+    }
 
     async getLocations() {
         const locations = await prisma.location.findMany({
+            include: {
+                _count: {
+                    select: {
+                        employees: {
+                            where: {
+                                status: "Active",
+                            },
+                        },
+                    },
+                },
+            },
             orderBy: {
                 name: "asc",
             },
@@ -286,6 +482,61 @@ export class OrganizationManagementService {
         };
     }
 
+
+    async activateLocation(id: string) {
+        const location = await prisma.location.findUnique({
+            where: { id },
+        });
+
+        if (!location) {
+            return {
+                error: "Location not found",
+            };
+        }
+
+        if (location.isActive) {
+            return {
+                location: {
+                    id: location.id,
+                    name: location.name,
+                    city: (location as any).city ?? "",
+                    country: (location as any).country ?? "",
+                    status: "Active",
+                    employeeCount: await prisma.employee.count({
+                        where: {
+                            locationId: id,
+                            status: "Active",
+                        },
+                    }),
+                },
+            };
+        }
+
+        const updated = await prisma.location.update({
+            where: { id },
+            data: {
+                isActive: true,
+            },
+        });
+
+        const employeeCount = await prisma.employee.count({
+            where: {
+                locationId: id,
+                status: "Active",
+            },
+        });
+
+        return {
+            location: {
+                id: updated.id,
+                name: updated.name,
+                city: (updated as any).city ?? "",
+                country: (updated as any).country ?? "",
+                status: updated.isActive ? "Active" : "Inactive",
+                employeeCount,
+            },
+        };
+    }
     // =========================================================
     // COST CENTERS
     // =========================================================
@@ -305,22 +556,33 @@ export class OrganizationManagementService {
             code: cc.code,
             name: cc.name,
             departmentIds: cc.departments?.map((d: any) => d.id) ?? [],
+            isActive: cc.isActive,
             status: cc.isActive ? "Active" : "Inactive",
         }));
     }
 
     async addCostCenter(data: any) {
-        if (!data.code?.trim()) {
+        const code = data.code?.trim();
+        const name = data.name?.trim();
+        const departmentIds: string[] = Array.isArray(data.departmentIds)
+            ? [...new Set<string>(
+                data.departmentIds.filter(
+                    (id: unknown): id is string => typeof id === "string"
+                )
+            )]
+            : [];
+
+        if (!code) {
             throw new Error("Cost Center code is required");
         }
 
-        if (!data.name?.trim()) {
+        if (!name) {
             throw new Error("Cost Center name is required");
         }
 
         const existing = await prisma.costCenter.findFirst({
             where: {
-                code: data.code.trim(),
+                code,
             },
         });
 
@@ -328,14 +590,27 @@ export class OrganizationManagementService {
             throw new Error("Cost Center with this code already exists");
         }
 
+        if (departmentIds.length > 0) {
+            const validDepartmentCount = await prisma.department.count({
+                where: {
+                    id: {
+                        in: departmentIds,
+                    },
+                },
+            });
+
+            if (validDepartmentCount !== departmentIds.length) {
+                throw new Error("One or more selected departments do not exist");
+            }
+        }
+
         const costCenter = await prisma.costCenter.create({
             data: {
-                code: data.code.trim(),
-                name: data.name.trim(),
-
-                ...(data.departmentIds?.length > 0 && {
+                code,
+                name,
+                ...(departmentIds.length > 0 && {
                     departments: {
-                        connect: data.departmentIds.map((id: string) => ({
+                        connect: departmentIds.map((id: string) => ({
                             id,
                         })),
                     },
@@ -350,14 +625,201 @@ export class OrganizationManagementService {
             id: costCenter.id,
             code: costCenter.code,
             name: costCenter.name,
-            departmentIds: (costCenter as any).departments?.map(
-                (d: any) => d.id
-            ) ?? [],
+            departmentIds:
+                (costCenter as any).departments?.map((d: any) => d.id) ?? [],
             isActive: costCenter.isActive,
             status: costCenter.isActive ? "Active" : "Inactive",
         };
     }
 
+    async updateCostCenter(id: string, data: any) {
+        const existing = await prisma.costCenter.findUnique({
+            where: {
+                id,
+            },
+        });
+
+        if (!existing) {
+            throw new Error("Cost Center not found");
+        }
+
+        const code =
+            data.code !== undefined
+                ? data.code?.trim()
+                : existing.code;
+
+        const name =
+            data.name !== undefined
+                ? data.name?.trim()
+                : existing.name;
+
+        if (!code) {
+            throw new Error("Cost Center code is required");
+        }
+
+        if (!name) {
+            throw new Error("Cost Center name is required");
+        }
+
+        const duplicate = await prisma.costCenter.findFirst({
+            where: {
+                code,
+                id: {
+                    not: id,
+                },
+            },
+        });
+
+        if (duplicate) {
+            throw new Error("Cost Center with this code already exists");
+        }
+
+        let departmentIds: string[] | undefined;
+
+        if (data.departmentIds !== undefined) {
+            if (!Array.isArray(data.departmentIds)) {
+                throw new Error("Department IDs must be an array");
+            }
+
+            const normalizedDepartmentIds: string[] = [
+                ...new Set<string>(
+                    data.departmentIds.filter(
+                        (id: unknown): id is string => typeof id === "string"
+                    )
+                ),
+            ];
+
+            if (normalizedDepartmentIds.length > 0) {
+                const validDepartmentCount = await prisma.department.count({
+                    where: {
+                        id: {
+                            in: normalizedDepartmentIds,
+                        },
+                    },
+                });
+
+                if (validDepartmentCount !== normalizedDepartmentIds.length) {
+                    throw new Error(
+                        "One or more selected departments do not exist"
+                    );
+                }
+            }
+
+            departmentIds = normalizedDepartmentIds;
+        }
+
+        const costCenter = await prisma.costCenter.update({
+            where: {
+                id,
+            },
+            data: {
+                code,
+                name,
+                ...(departmentIds !== undefined && {
+                    departments: {
+                        set: departmentIds.map((departmentId: string) => ({
+                            id: departmentId,
+                        })),
+                    },
+                }),
+            },
+            include: {
+                departments: true,
+            },
+        });
+
+        return {
+            id: costCenter.id,
+            code: costCenter.code,
+            name: costCenter.name,
+            departmentIds:
+                (costCenter as any).departments?.map((d: any) => d.id) ?? [],
+            isActive: costCenter.isActive,
+            status: costCenter.isActive ? "Active" : "Inactive",
+        };
+    }
+
+    async deactivateCostCenter(id: string) {
+        const existing = await prisma.costCenter.findUnique({
+            where: {
+                id,
+            },
+            include: {
+                departments: true,
+            },
+        });
+
+        if (!existing) {
+            throw new Error("Cost Center not found");
+        }
+
+        if (!existing.isActive) {
+            throw new Error("Cost Center is already inactive");
+        }
+
+        const costCenter = await prisma.costCenter.update({
+            where: {
+                id,
+            },
+            data: {
+                isActive: false,
+            },
+            include: {
+                departments: true,
+            },
+        });
+
+        return {
+            id: costCenter.id,
+            code: costCenter.code,
+            name: costCenter.name,
+            departmentIds:
+                (costCenter as any).departments?.map((d: any) => d.id) ?? [],
+            isActive: costCenter.isActive,
+            status: "Inactive",
+        };
+    }
+
+    async activateCostCenter(id: string) {
+        const existing = await prisma.costCenter.findUnique({
+            where: {
+                id,
+            },
+            include: {
+                departments: true,
+            },
+        });
+
+        if (!existing) {
+            throw new Error("Cost Center not found");
+        }
+
+        if (existing.isActive) {
+            throw new Error("Cost Center is already active");
+        }
+
+        const costCenter = await prisma.costCenter.update({
+            where: {
+                id,
+            },
+            data: {
+                isActive: true,
+            },
+            include: {
+                departments: true,
+            },
+        });
+
+        return {
+            id: costCenter.id,
+            code: costCenter.code,
+            name: costCenter.name,
+            departmentIds:
+                (costCenter as any).departments?.map((d: any) => d.id) ?? [],
+            isActive: costCenter.isActive,
+            status: "Active",
+        };
+    }
     // =========================================================
     // DESIGNATIONS
     // =========================================================
@@ -399,6 +861,7 @@ export class OrganizationManagementService {
             data: {
                 title: title,
                 grade: data.grade?.trim() || null,
+                level: data.level?.trim() || "L3",
                 isActive: data.isActive ?? true,
             },
         });
@@ -407,6 +870,7 @@ export class OrganizationManagementService {
             id: designation.id,
             title: designation.title,
             grade: designation.grade,
+            level: designation.level,
             isActive: designation.isActive,
             status: designation.isActive ? "Active" : "Inactive",
         };
@@ -961,3 +1425,4 @@ export class OrganizationManagementService {
 
 export const organizationManagementService =
     new OrganizationManagementService();
+

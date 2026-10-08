@@ -1,9 +1,12 @@
 /// <reference types="node" />
 import { PrismaClient, Prisma } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { hashPassword } from "../src/lib/password";
 import { encryptPII } from "../src/lib/encryption";
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
+});
 
 // ── Permissions (mirrors frontend/src/context/AuthContext.jsx ROLE_PERMISSIONS) ──
 
@@ -278,12 +281,13 @@ const EMPLOYEES: EmployeeSeed[] = [
 ];
 
 const LEAVE_TYPES = [
-  { code: "LT01", name: "Earned Leave", maxDays: 18, carryForward: true },
-  { code: "LT02", name: "Sick Leave", maxDays: 12, carryForward: false },
-  { code: "LT03", name: "Casual Leave", maxDays: 6, carryForward: false },
-  { code: "LT04", name: "Compensatory Off", maxDays: 10, carryForward: false },
-  { code: "LT05", name: "Maternity Leave", maxDays: 180, carryForward: false },
-  { code: "LT06", name: "Paternity Leave", maxDays: 15, carryForward: false },
+  { code: "LT01", name: "Earned Leave", maxDays: 18, carryForward: true, isPaid: true },
+  { code: "LT02", name: "Sick Leave", maxDays: 12, carryForward: false, isPaid: true },
+  { code: "LT03", name: "Casual Leave", maxDays: 6, carryForward: false, isPaid: true },
+  { code: "LT04", name: "Compensatory Off", maxDays: 10, carryForward: false, isPaid: true },
+  { code: "LT05", name: "Maternity Leave", maxDays: 180, carryForward: false, isPaid: true },
+  { code: "LT06", name: "Paternity Leave", maxDays: 15, carryForward: false, isPaid: true },
+  { code: "LT07", name: "Leave Without Pay", maxDays: 0, carryForward: false, isPaid: false },
 ];
 
 async function main() {
@@ -422,7 +426,7 @@ async function main() {
   const leaveTypeByCode = new Map<string, string>();
   for (const lt of LEAVE_TYPES) {
     const t = await prisma.leaveType.create({
-      data: { name: lt.name, code: lt.code, defaultAnnualDays: lt.maxDays, carryForward: lt.carryForward },
+      data: { name: lt.name, code: lt.code, defaultAnnualDays: lt.maxDays, carryForward: lt.carryForward, isPaid: lt.isPaid },
     });
     leaveTypeByCode.set(lt.code, t.id);
   }

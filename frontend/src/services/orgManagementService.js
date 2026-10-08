@@ -1,5 +1,5 @@
 /**
- * Organization Management service — Module 20
+ * Organization Management service â€” Module 20
  * Talks to the real backend.
  *
  * Backend base URL:
@@ -115,6 +115,46 @@ export const addDepartment = async (payload) => {
 /**
  * GET /api/v1/organization/locations
  */
+
+/**
+ * GET /api/v1/organization/teams
+ */
+export const getTeams = async () => {
+  const res = await api.get("/organization/teams");
+
+  return {
+    data: res.data,
+  };
+};
+
+/**
+ * POST /api/v1/organization/teams
+ */
+export const addTeam = async (payload) => {
+  const res = await api.post(
+    "/organization/teams",
+    payload
+  );
+
+  return {
+    data: res.data,
+  };
+};
+export const getTeamMembers = async (id) => {
+  const res = await api.get(`/organization/teams/${id}/members`);
+  return { data: res.data };
+};
+
+export const updateTeam = async (id, payload) => {
+  const res = await api.put(`/organization/teams/${id}`, payload);
+  return { data: res.data };
+};
+
+export const setTeamMembers = async (id, employeeIds) => {
+  const res = await api.put(`/organization/teams/${id}/members`, { employeeIds });
+  return { data: res.data };
+};
+
 export const getLocations = async () => {
   const res = await api.get("/organization/locations");
 
@@ -151,6 +191,19 @@ export const deactivateLocation = async (id) => {
 };
 
 
+
+/**
+ * PUT /api/v1/organization/locations/:id/activate
+ */
+export const activateLocation = async (id) => {
+  const res = await api.put(
+    `/organization/locations/${id}/activate`
+  );
+
+  return {
+    data: res.data,
+  };
+};
 /* ========================================================================= */
 /* COST CENTERS                                                              */
 /* ========================================================================= */
@@ -182,6 +235,38 @@ export const addCostCenter = async (payload) => {
   };
 };
 
+
+
+export const updateCostCenter = async (id, payload) => {
+  const res = await api.put(
+    `/organization/cost-centers/${id}`,
+    payload
+  );
+
+  return {
+    data: res.data,
+  };
+};
+
+export const deactivateCostCenter = async (id) => {
+  const res = await api.patch(
+    `/organization/cost-centers/${id}/deactivate`
+  );
+
+  return {
+    data: res.data,
+  };
+};
+
+export const activateCostCenter = async (id) => {
+  const res = await api.patch(
+    `/organization/cost-centers/${id}/activate`
+  );
+
+  return {
+    data: res.data,
+  };
+};
 
 /* ========================================================================= */
 /* DESIGNATIONS                                                              */

@@ -10,6 +10,14 @@ export const getPayrollRuns = async () => {
   return res.data;
 };
 
+export const createPayrollRun = async (month, year) => {
+  const res = await api.post("/payroll/runs", {
+    month: Number(month),
+    year: Number(year),
+  });
+  return res.data;
+};
+
 export const getPayslips = async (employeeId) => {
   if (!employeeId) {
     throw new Error("Employee ID is required.");
@@ -144,4 +152,18 @@ export const printForm16 = async () => {
   link.remove();
 
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
+};
+export const getPayrollConfiguration = async () => {
+  const res = await api.get("/payroll/configuration");
+  return res.data;
+};
+
+export const createPayrollPolicy = async (payload) => {
+  const res = await api.post("/payroll/configuration/policies", payload);
+  return res.data;
+};
+
+export const createStatutoryRule = async (payload) => {
+  const res = await api.post("/payroll/configuration/statutory-rules", payload);
+  return res.data;
 };

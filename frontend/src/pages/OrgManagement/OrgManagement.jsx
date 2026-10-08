@@ -1,6 +1,6 @@
-/**
- * Organization Management Page  •  Module 20
- * Tabs: Structure  •  Locations  •  Cost Centers  •  Designations & Grades  •  Reporting Structure
+﻿/**
+ * Organization Management Page
+ * Tabs: Structure | Locations | Cost Centers | Designations & Grades | Reporting Structure | Visual Org Chart | Holiday Calendar
  */
 
 import { useState, useEffect, useCallback } from "react";
@@ -30,11 +30,20 @@ import {
   addBusinessUnit,
   getDepartments,
   addDepartment,
+  getTeams,
+  addTeam,
+  getTeamMembers,
+  updateTeam,
+  setTeamMembers,
   getLocations,
   addLocation,
   deactivateLocation,
+  activateLocation,
   getCostCenters,
   addCostCenter,
+  updateCostCenter,
+  deactivateCostCenter,
+  activateCostCenter,
   getDesignations,
   addDesignation,
   updateDesignation,
@@ -159,6 +168,7 @@ function AddBusinessUnitModal({ isOpen, onClose, company, onSaved }) {
           {fieldLabel("Name *")}
           <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle(false)} />
         </div>
+
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
           <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving..." : "Add Business Unit"}</PrimaryButton>
@@ -215,69 +225,286 @@ function AddDepartmentModal({ isOpen, onClose, businessUnits, onSaved }) {
           {fieldLabel("Name *")}
           <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle(false)} />
         </div>
+
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving • " : "Add Department"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving..." : "Add Department"}</PrimaryButton>
         </div>
       </form>
     </Modal>
   );
 }
 
-function StructureTab({ company, businessUnits, departments, onBUAdded, onDeptAdded }) {
+
+function AddTeamModal({ isOpen, onClose, departments, onSaved }) {
+  const [departmentId, setDepartmentId] = useState("");
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    if (!departmentId) {
+      setError("Please select a department.");
+      return;
+    }
+
+    if (!name.trim()) {
+      setError("Team name is required.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const res = await addTeam({
+        departmentId,
+        name: name.trim(),
+        description: description.trim(),
+      });
+
+      onSaved(res.data);
+
+      setDepartmentId("");
+      setName("");
+      setDescription("");
+      onClose();
+    } catch (err) {
+      setError(
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to create team."
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} title="Add Team" onClose={onClose}>
+      <form onSubmit={handleSubmit}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+
+          <div>
+            {fieldLabel("Department")}
+            <select
+              value={departmentId}
+              onChange={(e) => setDepartmentId(e.target.value)}
+              style={inputStyle(false)}
+            >
+              <option value="">Select department</option>
+              {departments.map((department) => (
+                <option key={department.id} value={department.id}>
+                  {department.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            {fieldLabel("Team Name")}
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Backend Team"
+              style={inputStyle(false)}
+            />
+          </div>
+
+          <div>
+            {fieldLabel("Description")}
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Optional team description"
+              rows={3}
+              style={{
+                ...inputStyle(false),
+                resize: "vertical",
+              }}
+            />
+          </div>
+
+          {error && (
+            <p style={{ margin: 0, fontSize: "12px", color: "#dc2626" }}>
+              {error}
+            </p>
+          )}
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: "8px",
+              marginTop: "4px",
+            }}
+          >
+            <SecondaryButton type="button" onClick={onClose}>
+              Cancel
+            </SecondaryButton>
+
+            <PrimaryButton type="submit" disabled={saving}>
+              {saving ? "Saving..." : "Add Team"}
+            </PrimaryButton>
+          </div>
+
+        </div>
+      </form>
+    </Modal>
+  );
+}
+function TeamManagementModal({ team, isOpen, onClose, onUpdated }) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [employees, setEmployees] = useState([]);
+  const [selected, setSelected] = useState([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!isOpen || !team) return;
+    setName(team.name || "");
+    setDescription(team.description || "");
+    setError("");
+    setLoadingMembers(true);
+    getTeamMembers(team.id)
+      .then((res) => {
+        const rows = res.data?.employees || [];
+        setEmployees(rows);
+        setSelected(rows.filter((e) => e.isMember).map((e) => e.id));
+      })
+      .catch((err) => setError(err?.response?.data?.message || "Failed to load employees."))
+      .finally(() => setLoadingMembers(false));
+  }, [isOpen, team]);
+
+  const toggle = (employee) => {
+    if (!employee.canAssign && !employee.isMember) return;
+    setSelected((prev) => prev.includes(employee.id) ? prev.filter((id) => id !== employee.id) : [...prev, employee.id]);
+  };
+
+  const save = async () => {
+    if (!name.trim()) return setError("Team name is required.");
+    try {
+      setSaving(true); setError("");
+      await updateTeam(team.id, { name: name.trim(), description: description.trim() });
+      const membersRes = await setTeamMembers(team.id, selected);
+      onUpdated({ ...team, name: name.trim(), description: description.trim(), employeeCount: membersRes.data.employeeCount });
+      onClose();
+    } catch (err) {
+      setError(err?.response?.data?.message || err?.message || "Failed to save team.");
+    } finally { setSaving(false); }
+  };
+
+  const deactivate = async () => {
+    if (!window.confirm(`Deactivate ${team?.name}? Its members will be unassigned from this team.`)) return;
+    try {
+      setSaving(true); setError("");
+      const res = await updateTeam(team.id, { isActive: false });
+      onUpdated(res.data);
+      onClose();
+    } catch (err) { setError(err?.response?.data?.message || "Failed to deactivate team."); }
+    finally { setSaving(false); }
+  };
+
+  const activate = async () => {
+    try {
+      setSaving(true); setError("");
+      const res = await updateTeam(team.id, { isActive: true });
+      onUpdated(res.data);
+      onClose();
+    } catch (err) { setError(err?.response?.data?.message || "Failed to activate team."); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <Modal isOpen={isOpen} title="Manage Team" onClose={onClose}>
+      {!team ? null : <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+        <div>{fieldLabel("Team Name")}<input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle(false)} /></div>
+        <div>{fieldLabel("Description")}<textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} style={{ ...inputStyle(false), resize: "vertical" }} /></div>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
+            {fieldLabel("Members (same department only)")}
+            <span style={{ fontSize: "11px", color: "var(--subtext)" }}>{selected.length} selected</span>
+          </div>
+          {loadingMembers ? <Spinner /> : employees.length === 0 ? (
+            <p style={{ fontSize: "12px", color: "var(--subtext)" }}>No employees are available in this department.</p>
+          ) : (
+            <div style={{ maxHeight: "240px", overflowY: "auto", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)" }}>
+              {employees.map((employee) => (
+                <label key={employee.id} style={{ display: "flex", alignItems: "center", gap: "9px", padding: "9px 10px", borderBottom: "1px solid var(--border)", opacity: employee.canAssign || employee.isMember ? 1 : 0.55, cursor: employee.canAssign || employee.isMember ? "pointer" : "not-allowed" }}>
+                  <input type="checkbox" checked={selected.includes(employee.id)} disabled={!employee.canAssign && !employee.isMember} onChange={() => toggle(employee)} />
+                  <span style={{ flex: 1, fontSize: "12.5px", color: "var(--text)" }}>{employee.name} <span style={{ color: "var(--subtext)" }}>({employee.employeeCode})</span></span>
+                  <span style={{ fontSize: "11px", color: "var(--subtext)" }}>{employee.status}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+        {error && <p style={{ margin: 0, fontSize: "12px", color: "#dc2626" }}>{error}</p>}
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "8px" }}>
+          {team.isActive !== false ? <SecondaryButton type="button" disabled={saving} onClick={deactivate}>Deactivate</SecondaryButton> : <SecondaryButton type="button" disabled={saving} onClick={activate}>Activate</SecondaryButton>}
+          <div style={{ display: "flex", gap: "8px" }}><SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton><PrimaryButton type="button" disabled={saving || loadingMembers || team.isActive === false} onClick={save}>{saving ? "Saving..." : "Save Team"}</PrimaryButton></div>
+        </div>
+      </div>}
+    </Modal>
+  );
+}
+
+function StructureTab({ company, businessUnits, departments, teams, onBUAdded, onDeptAdded, onTeamAdded, onTeamUpdated }) {
   const [showBU, setShowBU] = useState(false);
   const [showDept, setShowDept] = useState(false);
+  const [showTeam, setShowTeam] = useState(false);
+  const [manageTeam, setManageTeam] = useState(null);
 
   return (
     <div>
       <div style={{ ...cardStyle, padding: "18px 20px", marginBottom: "18px" }}>
         <p style={{ fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.4px" }}>Company</p>
         <h2 style={{ fontSize: "16px", fontWeight: 700, color: "var(--text)", marginTop: "4px" }}>{company.name}</h2>
-        <p style={{ fontSize: "12.5px", color: "var(--subtext)", marginTop: "2px" }}>{company.registrationNumber}  •  {company.country}  •  {company.currency}</p>
+        <p style={{ fontSize: "12.5px", color: "var(--subtext)", marginTop: "2px" }}>{company.registrationNumber} {" - "} {company.country} {" - "} {company.currency}</p>
       </div>
-
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-        <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Business Units ? Departments</h3>
+        <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Business Units {" - "} Departments {" - "} Teams</h3>
         <div style={{ display: "flex", gap: "8px" }}>
           <SecondaryButton onClick={() => setShowBU(true)}><Plus size={14} style={{ marginRight: "4px" }} />Business Unit</SecondaryButton>
           <PrimaryButton onClick={() => setShowDept(true)}><Plus size={16} /> Department</PrimaryButton>
+          <SecondaryButton onClick={() => setShowTeam(true)}><Plus size={14} style={{ marginRight: "4px" }} />Team</SecondaryButton>
         </div>
       </div>
-
       <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         {businessUnits.map((bu) => {
-          const meta = statusMeta[bu.status];
+          const meta = statusMeta[bu.status] || statusMeta.Active;
           const buDepts = departments.filter((d) => d.businessUnitId === bu.id);
-          return (
-            <div key={bu.id} style={{ ...cardStyle, padding: "16px 20px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
-                <Building2 size={16} style={{ color: "var(--primary)" }} />
-                <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>{bu.name}</span>
-                <StatusBadge label={bu.status} color={meta.color} bg={meta.bg} />
-              </div>
-              {buDepts.length === 0 ? (
-                <p style={{ fontSize: "12px", color: "var(--subtext)", marginLeft: "24px" }}>No departments yet.</p>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginLeft: "24px" }}>
-                  {buDepts.map((d) => {
-                    const dMeta = statusMeta[d.status];
-                    return (
-                      <div key={d.id} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        <ChevronRight size={13} style={{ color: "var(--subtext)" }} />
-                        <span style={{ fontSize: "13px", color: "var(--text)" }}>{d.name}</span>
-                        <StatusBadge label={d.status} color={dMeta.color} bg={dMeta.bg} />
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
+          return <div key={bu.id} style={{ ...cardStyle, padding: "16px 20px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}><Building2 size={16} style={{ color: "var(--primary)" }} /><span style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>{bu.name}</span><StatusBadge label={bu.status} color={meta.color} bg={meta.bg} /></div>
+            {buDepts.length === 0 ? <p style={{ fontSize: "12px", color: "var(--subtext)", marginLeft: "24px" }}>No departments yet.</p> : <div style={{ display: "flex", flexDirection: "column", gap: "9px", marginLeft: "24px" }}>
+              {buDepts.map((d) => {
+                const dMeta = statusMeta[d.status] || statusMeta.Active;
+                const deptTeams = teams.filter((t) => t.departmentId === d.id);
+                return <div key={d.id}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}><ChevronRight size={13} style={{ color: "var(--subtext)" }} /><span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>{d.name}</span><StatusBadge label={d.status} color={dMeta.color} bg={dMeta.bg} /></div>
+                  <div style={{ marginLeft: "26px", marginTop: "5px", display: "flex", flexDirection: "column", gap: "5px" }}>
+                    {deptTeams.length === 0 ? <span style={{ fontSize: "11.5px", color: "var(--subtext)" }}>No teams yet</span> : deptTeams.map((team) => <div key={team.id} style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+                      <ChevronRight size={11} style={{ color: "var(--subtext)" }} />
+                      <button type="button" onClick={() => setManageTeam(team)} style={{ border: 0, background: "transparent", padding: 0, font: "inherit", fontSize: "12px", fontWeight: 600, color: "var(--primary)", cursor: "pointer" }}>{team.name}</button>
+                      <span style={{ fontSize: "11px", color: "var(--subtext)" }}>{team.employeeCount ?? 0} employees</span>
+                      <span style={{ fontSize: "10.5px", color: team.isActive === false ? "#dc2626" : "var(--subtext)" }}>{team.status || (team.isActive === false ? "Inactive" : "Active")}</span>
+                    </div>)}
+                  </div>
+                </div>;
+              })}
+            </div>}
+          </div>;
         })}
       </div>
-
       <AddBusinessUnitModal isOpen={showBU} onClose={() => setShowBU(false)} company={company} onSaved={onBUAdded} />
       <AddDepartmentModal isOpen={showDept} onClose={() => setShowDept(false)} businessUnits={businessUnits} onSaved={onDeptAdded} />
+      <AddTeamModal isOpen={showTeam} onClose={() => setShowTeam(false)} departments={departments} onSaved={onTeamAdded} />
+      <TeamManagementModal team={manageTeam} isOpen={!!manageTeam} onClose={() => setManageTeam(null)} onUpdated={onTeamUpdated} />
     </div>
   );
 }
@@ -336,9 +563,10 @@ function AddLocationModal({ isOpen, onClose, onSaved }) {
             <input value={country} onChange={(e) => setCountry(e.target.value)} style={inputStyle(false)} />
           </div>
         </div>
+
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving • " : "Add Location"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving..." : "Add Location"}</PrimaryButton>
         </div>
       </form>
     </Modal>
@@ -361,8 +589,11 @@ function LocationsTab({ locations, onAdded, onUpdated }) {
       onUpdated(res.data.location || res.data);
     } catch (error) {
       const message =
-        error.response?.data?.message ||
-        error.response?.data?.error ||
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.data?.message ||
+        error?.data?.error ||
+        error?.message ||
         "Unable to deactivate location.";
 
       setErrors((p) => ({
@@ -372,6 +603,29 @@ function LocationsTab({ locations, onAdded, onUpdated }) {
     }
   };
 
+
+  const handleActivate = async (id) => {
+    try {
+      const res = await activateLocation(id);
+
+      setErrors((p) => ({
+        ...p,
+        [id]: null,
+      }));
+
+      onUpdated(res.data.location || res.data);
+    } catch (error) {
+      const message =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        "Unable to activate location.";
+
+      setErrors((p) => ({
+        ...p,
+        [id]: message,
+      }));
+    }
+  };
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
@@ -400,8 +654,36 @@ function LocationsTab({ locations, onAdded, onUpdated }) {
                     <AlertTriangle size={12} style={{ marginTop: "1px", flexShrink: 0 }} /> {errors[l.id]}
                   </p>
                 )}
-                {l.status === "Active" && (
-                  <button onClick={() => handleDeactivate(l.id)} style={{ marginTop: "10px", fontSize: "11.5px", fontWeight: 700, color: "var(--red)", border: "none", background: "none", cursor: "pointer" }}>Deactivate</button>
+                {l.status === "Active" ? (
+                  <button
+                    onClick={() => handleDeactivate(l.id)}
+                    style={{
+                      marginTop: "10px",
+                      fontSize: "11.5px",
+                      fontWeight: 700,
+                      color: "var(--red)",
+                      border: "none",
+                      background: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Deactivate
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleActivate(l.id)}
+                    style={{
+                      marginTop: "10px",
+                      fontSize: "11.5px",
+                      fontWeight: 700,
+                      color: "#16a34a",
+                      border: "none",
+                      background: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Activate
+                  </button>
                 )}
               </div>
             );
@@ -421,6 +703,7 @@ function AddCostCenterModal({ isOpen, onClose, departments, onSaved }) {
   const [name, setName] = useState("");
   const [departmentIds, setDepartmentIds] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const toggleDept = (id) => setDepartmentIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
@@ -430,6 +713,7 @@ function AddCostCenterModal({ isOpen, onClose, departments, onSaved }) {
     if (!code.trim() || !name.trim()) return;
 
     setSaving(true);
+    setErrorMessage("");
 
     try {
       const cc = {
@@ -447,6 +731,15 @@ function AddCostCenterModal({ isOpen, onClose, departments, onSaved }) {
       setName("");
       setDepartmentIds([]);
     } catch (error) {
+      const message =
+        error?.message ||
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.data?.message ||
+        error?.data?.error ||
+        "Unable to add cost center.";
+
+      setErrorMessage(message);
       console.error("Failed to add cost center:", error);
     } finally {
       setSaving(false);
@@ -475,48 +768,406 @@ function AddCostCenterModal({ isOpen, onClose, departments, onSaved }) {
             </label>
           ))}
         </div>
+        {errorMessage && (
+          <div
+            style={{
+              padding: "10px 12px",
+              border: "1px solid #fecaca",
+              borderRadius: "6px",
+              background: "#fef2f2",
+              color: "#dc2626",
+              fontSize: "12.5px",
+              fontWeight: 600,
+            }}
+          >
+            {errorMessage}
+          </div>
+        )}
+
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving • " : "Add Cost Center"}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving..." : "Add Cost Center"}</PrimaryButton>
         </div>
       </form>
     </Modal>
   );
 }
 
-function CostCentersTab({ costCenters, departments, onAdded }) {
+function EditCostCenterModal({ isOpen, onClose, costCenter, departments, onSaved }) {
+  const [code, setCode] = useState("");
+  const [name, setName] = useState("");
+  const [departmentIds, setDepartmentIds] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    if (!isOpen || !costCenter) return;
+
+    setCode(costCenter.code || "");
+    setName(costCenter.name || "");
+    setDepartmentIds(costCenter.departmentIds || []);
+    setErrorMessage("");
+  }, [isOpen, costCenter]);
+
+  const toggleDept = (id) => {
+    setDepartmentIds((prev) =>
+      prev.includes(id)
+        ? prev.filter((x) => x !== id)
+        : [...prev, id]
+    );
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!code.trim() || !name.trim() || !costCenter) return;
+
+    setSaving(true);
+    setErrorMessage("");
+
+    try {
+      const res = await updateCostCenter(costCenter.id, {
+        code: code.trim(),
+        name: name.trim(),
+        departmentIds,
+      });
+
+      onSaved(res.data);
+      onClose();
+    } catch (error) {
+      setErrorMessage(
+        error?.message ||
+        "Unable to update cost center."
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} title="Edit Cost Center" onClose={onClose}>
+      <form
+        onSubmit={handleSubmit}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "16px",
+        }}
+      >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 2fr",
+            gap: "12px",
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+            {fieldLabel("Code *")}
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              style={inputStyle(false)}
+            />
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+            {fieldLabel("Name *")}
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              style={inputStyle(false)}
+            />
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          {fieldLabel("Linked Departments (many-to-many)")}
+
+          {departments.map((d) => (
+            <label
+              key={d.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                fontSize: "12.5px",
+                color: "var(--label)",
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={departmentIds.includes(d.id)}
+                onChange={() => toggleDept(d.id)}
+              />
+              {d.name}
+            </label>
+          ))}
+        </div>
+
+        {errorMessage && (
+          <div
+            style={{
+              padding: "10px 12px",
+              border: "1px solid #fecaca",
+              borderRadius: "6px",
+              background: "#fef2f2",
+              color: "#dc2626",
+              fontSize: "12.5px",
+              fontWeight: 600,
+            }}
+          >
+            {errorMessage}
+          </div>
+        )}
+
+        <div
+          style={{
+            display: "flex",
+            gap: "10px",
+            justifyContent: "flex-end",
+          }}
+        >
+          <SecondaryButton type="button" onClick={onClose}>
+            Cancel
+          </SecondaryButton>
+
+          <PrimaryButton type="submit" disabled={saving}>
+            {saving ? "Saving..." : "Save Changes"}
+          </PrimaryButton>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function CostCentersTab({ costCenters, departments, onAdded, onUpdated }) {
   const [showAdd, setShowAdd] = useState(false);
-  const deptName = (id) => departments.find((d) => d.id === id)?.name || id;
+  const [editing, setEditing] = useState(null);
+  const [actionId, setActionId] = useState(null);
+  const [actionError, setActionError] = useState("");
+
+  const deptName = (id) =>
+    departments.find((d) => d.id === id)?.name || id;
+
+  const handleStatusChange = async (cc) => {
+    setActionId(cc.id);
+    setActionError("");
+
+    try {
+      const res =
+        cc.status === "Active"
+          ? await deactivateCostCenter(cc.id)
+          : await activateCostCenter(cc.id);
+
+      onUpdated(res.data);
+    } catch (error) {
+      setActionError(
+        error?.message ||
+        "Unable to change cost center status."
+      );
+    } finally {
+      setActionId(null);
+    }
+  };
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-        <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Cost Centers</h2>
-        <PrimaryButton onClick={() => setShowAdd(true)}><Plus size={16} /> Add Cost Center</PrimaryButton>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "14px",
+        }}
+      >
+        <h2
+          style={{
+            fontSize: "14px",
+            fontWeight: 700,
+            color: "var(--text)",
+          }}
+        >
+          Cost Centers
+        </h2>
+
+        <PrimaryButton onClick={() => setShowAdd(true)}>
+          <Plus size={16} /> Add Cost Center
+        </PrimaryButton>
       </div>
 
+      {actionError && (
+        <div
+          style={{
+            marginBottom: "12px",
+            padding: "10px 12px",
+            border: "1px solid #fecaca",
+            borderRadius: "6px",
+            background: "#fef2f2",
+            color: "#dc2626",
+            fontSize: "12.5px",
+            fontWeight: 600,
+          }}
+        >
+          {actionError}
+        </div>
+      )}
+
       {costCenters.length === 0 ? (
-        <EmptyState icon={Wallet} title="No cost centers yet" />
+        <EmptyState
+          icon={Wallet}
+          title="No cost centers yet"
+        />
       ) : (
         <div style={{ ...cardStyle, overflow: "hidden" }}>
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+              }}
+            >
               <thead>
-                <tr style={{ background: "var(--background)", borderBottom: "1px solid var(--border)" }}>
-                  {["Code", "Name", "Linked Departments", "Status"].map((h) => (
-                    <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.5px", whiteSpace: "nowrap" }}>{h}</th>
+                <tr
+                  style={{
+                    background: "var(--background)",
+                    borderBottom: "1px solid var(--border)",
+                  }}
+                >
+                  {[
+                    "Code",
+                    "Name",
+                    "Linked Departments",
+                    "Status",
+                    "Actions",
+                  ].map((h) => (
+                    <th
+                      key={h}
+                      style={{
+                        padding: "11px 16px",
+                        textAlign: "left",
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        color: "var(--subtext)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {h}
+                    </th>
                   ))}
                 </tr>
               </thead>
+
               <tbody>
                 {costCenters.map((cc, i) => {
-                  const meta = statusMeta[cc.status];
+                  const meta =
+                    statusMeta[cc.status] ||
+                    statusMeta.Active;
+
                   return (
-                    <tr key={cc.id} style={{ borderBottom: i < costCenters.length - 1 ? "1px solid var(--border)" : "none" }}>
-                      <td style={{ padding: "13px 16px", fontSize: "13px", color: "var(--text)", fontFamily: "monospace" }}>{cc.code}</td>
-                      <td style={{ padding: "13px 16px", fontSize: "13.5px", color: "var(--text)", fontWeight: 600 }}>{cc.name}</td>
-                      <td style={{ padding: "13px 16px", fontSize: "12.5px", color: "var(--subtext)" }}>{cc.departmentIds.map(deptName).join(", ") || " • "}</td>
-                      <td style={{ padding: "13px 16px" }}><StatusBadge label={cc.status} color={meta.color} bg={meta.bg} /></td>
+                    <tr
+                      key={cc.id}
+                      style={{
+                        borderBottom:
+                          i < costCenters.length - 1
+                            ? "1px solid var(--border)"
+                            : "none",
+                      }}
+                    >
+                      <td
+                        style={{
+                          padding: "13px 16px",
+                          fontSize: "13px",
+                          color: "var(--text)",
+                          fontFamily: "monospace",
+                        }}
+                      >
+                        {cc.code}
+                      </td>
+
+                      <td
+                        style={{
+                          padding: "13px 16px",
+                          fontSize: "13.5px",
+                          color: "var(--text)",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {cc.name}
+                      </td>
+
+                      <td
+                        style={{
+                          padding: "13px 16px",
+                          fontSize: "12.5px",
+                          color: "var(--subtext)",
+                        }}
+                      >
+                        {cc.departmentIds
+                          ?.map(deptName)
+                          .join(", ") || "-"}
+                      </td>
+
+                      <td style={{ padding: "13px 16px" }}>
+                        <StatusBadge
+                          label={cc.status}
+                          color={meta.color}
+                          bg={meta.bg}
+                        />
+                      </td>
+
+                      <td
+                        style={{
+                          padding: "13px 16px",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setEditing(cc)}
+                          style={{
+                            border: "none",
+                            background: "none",
+                            cursor: "pointer",
+                            color: "var(--primary)",
+                            fontWeight: 700,
+                            fontSize: "12px",
+                            marginRight: "12px",
+                          }}
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={actionId === cc.id}
+                          onClick={() => handleStatusChange(cc)}
+                          style={{
+                            border: "none",
+                            background: "none",
+                            cursor:
+                              actionId === cc.id
+                                ? "not-allowed"
+                                : "pointer",
+                            color:
+                              cc.status === "Active"
+                                ? "var(--red)"
+                                : "#16a34a",
+                            fontWeight: 700,
+                            fontSize: "12px",
+                            opacity:
+                              actionId === cc.id ? 0.6 : 1,
+                          }}
+                        >
+                          {actionId === cc.id
+                            ? "Saving..."
+                            : cc.status === "Active"
+                              ? "Deactivate"
+                              : "Activate"}
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -526,21 +1177,33 @@ function CostCentersTab({ costCenters, departments, onAdded }) {
         </div>
       )}
 
-      <AddCostCenterModal isOpen={showAdd} onClose={() => setShowAdd(false)} departments={departments} onSaved={onAdded} />
+      <AddCostCenterModal
+        isOpen={showAdd}
+        onClose={() => setShowAdd(false)}
+        departments={departments}
+        onSaved={onAdded}
+      />
+
+      <EditCostCenterModal
+        isOpen={Boolean(editing)}
+        onClose={() => setEditing(null)}
+        costCenter={editing}
+        departments={departments}
+        onSaved={onUpdated}
+      />
     </div>
   );
 }
-
 /* ---------------------------------- Designations & Grades tab ---------------------------------- */
 
 const DESIGNATION_LEVELS = [
-  { value: "L1", label: "L1 — Intern" },
-  { value: "L2", label: "L2 — Junior" },
-  { value: "L3", label: "L3 — Engineer" },
-  { value: "L4", label: "L4 — Senior Engineer" },
-  { value: "L5", label: "L5 — Lead" },
-  { value: "L6", label: "L6 — Manager" },
-  { value: "L7", label: "L7 — Director" },
+  { value: "L1", label: "L1" },
+  { value: "L2", label: "L2" },
+  { value: "L3", label: "L3" },
+  { value: "L4", label: "L4" },
+  { value: "L5", label: "L5" },
+  { value: "L6", label: "L6" },
+  { value: "L7", label: "L7" },
 ];
 
 function DesignationsGradesTab({
@@ -552,15 +1215,19 @@ function DesignationsGradesTab({
 }) {
   const [newDesignation, setNewDesignation] = useState("");
   const [newLevel, setNewLevel] = useState("L3");
+  const [designationError, setDesignationError] = useState("");
   const [newGrade, setNewGrade] = useState({
     code: "",
     name: "",
   });
+  const [gradeError, setGradeError] = useState("");
 
   const handleAddDesignation = async (e) => {
     e.preventDefault();
 
     if (!newDesignation.trim()) return;
+
+    setDesignationError("");
 
     try {
       const d = {
@@ -574,6 +1241,12 @@ function DesignationsGradesTab({
       setNewDesignation("");
       setNewLevel("L3");
     } catch (error) {
+      const message =
+        error?.message ||
+        error?.response?.data?.message ||
+        "Unable to add designation.";
+
+      setDesignationError(message);
       console.error("Failed to add designation:", error);
     }
   };
@@ -591,8 +1264,12 @@ function DesignationsGradesTab({
 
   const handleAddGrade = async (e) => {
     e.preventDefault();
+    setGradeError("");
 
-    if (!newGrade.code.trim() || !newGrade.name.trim()) return;
+    if (!newGrade.code.trim() || !newGrade.name.trim()) {
+      setGradeError("Grade code and name are required");
+      return;
+    }
 
     try {
       const g = {
@@ -609,8 +1286,14 @@ function DesignationsGradesTab({
         code: "",
         name: "",
       });
+      setGradeError("");
     } catch (error) {
       console.error("Failed to add grade:", error);
+      setGradeError(
+        error?.message ||
+        error?.response?.data?.message ||
+        "Failed to add grade"
+      );
     }
   };
 
@@ -749,6 +1432,23 @@ function DesignationsGradesTab({
             Add
           </SecondaryButton>
         </form>
+
+        {designationError && (
+          <div
+            style={{
+              marginTop: "10px",
+              padding: "10px 12px",
+              border: "1px solid #fecaca",
+              borderRadius: "6px",
+              background: "#fef2f2",
+              color: "#dc2626",
+              fontSize: "12.5px",
+              fontWeight: 600,
+            }}
+          >
+            {designationError}
+          </div>
+        )}
       </div>
 
       {/* ================= GRADES ================= */}
@@ -809,7 +1509,7 @@ function DesignationsGradesTab({
                   }}
                 >
                   <strong>{g.code}</strong>
-                  {" — "}
+                  {" - "}
                   {g.name}
                 </span>
 
@@ -821,6 +1521,24 @@ function DesignationsGradesTab({
               </div>
             );
           })}
+
+        {gradeError && (
+          <div
+            style={{
+              marginTop: "12px",
+              marginBottom: "10px",
+              padding: "10px 12px",
+              border: "1px solid #fecaca",
+              background: "#fef2f2",
+              color: "#dc2626",
+              borderRadius: "6px",
+              fontSize: "13px",
+              fontWeight: 500,
+            }}
+          >
+            {gradeError}
+          </div>
+        )}
 
         <form
           onSubmit={handleAddGrade}
@@ -871,7 +1589,7 @@ function DesignationsGradesTab({
 
 /* ---------------------------------- Reporting Structure tab ---------------------------------- */
 
-function ReassignManagerRow({ employee, roster, departments, onReassign, error }) {
+function ReassignManagerRow({ employee, roster, departments, onReassign, error, success }) {
   const [managerId, setManagerId] = useState(employee.managerId || "");
   const manager = roster.find((r) => r.id === employee.managerId);
   const dept = departments.find((d) => d.id === employee.departmentId);
@@ -881,7 +1599,7 @@ function ReassignManagerRow({ employee, roster, departments, onReassign, error }
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
         <div>
           <p style={{ fontSize: "13.5px", fontWeight: 600, color: "var(--text)" }}>{employee.name}</p>
-          <p style={{ fontSize: "11.5px", color: "var(--subtext)" }}>{employee.title}  •  {dept?.name || " • "}  •  reports to {manager?.name || " •  (top of hierarchy)"}</p>
+          <p style={{ fontSize: "11.5px", color: "var(--subtext)" }}>{employee.title || "No designation"} {" | "} {dept?.name || "No department"} {" | reports to "} {manager?.name || "No Manager (top of hierarchy)"}</p>
 
         </div>
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
@@ -895,6 +1613,12 @@ function ReassignManagerRow({ employee, roster, departments, onReassign, error }
       {error && (
         <p style={{ fontSize: "11px", color: "var(--red)", marginTop: "6px", display: "flex", alignItems: "flex-start", gap: "4px" }}>
           <AlertTriangle size={12} style={{ marginTop: "1px", flexShrink: 0 }} /> {error}
+        </p>
+      )}
+
+      {success && (
+        <p style={{ fontSize: "11px", color: "#16a34a", marginTop: "6px", fontWeight: 600 }}>
+          {success}
         </p>
       )}
     </div>
@@ -922,7 +1646,7 @@ function BulkReassignPanel({ roster, departments, onReassigned }) {
       setConfirming(false);
 
       setResult(
-        `Reassigned ${res.data.changedCount} employee(s) — each logged individually in the audit trail.`
+        `Reassigned ${res.data.changedCount} employee(s) - each logged individually in the audit trail.`
       );
 
       onReassigned(res.data.roster);
@@ -947,7 +1671,7 @@ function BulkReassignPanel({ roster, departments, onReassigned }) {
   return (
     <div style={{ ...cardStyle, padding: "18px 20px", marginTop: "18px" }}>
       <h3 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)", marginBottom: "6px" }}>Bulk Reassignment</h3>
-      <p style={{ fontSize: "12px", color: "var(--subtext)", marginBottom: "12px" }}>High-blast-radius action  •  requires explicit confirmation and logs every affected record individually, not just a summary line.</p>
+      <p style={{ fontSize: "12px", color: "var(--subtext)", marginBottom: "12px" }}>High-blast-radius action - requires explicit confirmation and logs every affected record individually, not just a summary line.</p>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "12px" }}>
         {roster.map((r) => (
@@ -960,7 +1684,7 @@ function BulkReassignPanel({ roster, departments, onReassigned }) {
 
       <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
         <select value={newDepartmentId} onChange={(e) => setNewDepartmentId(e.target.value)} style={{ ...inputStyle(false), height: "36px", width: "200px" }}>
-          <option value="">New department • </option>
+          <option value="">New department</option>
           {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
         </select>
         {!confirming ? (
@@ -968,7 +1692,7 @@ function BulkReassignPanel({ roster, departments, onReassigned }) {
         ) : (
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             <span style={{ fontSize: "12px", color: "var(--red)", fontWeight: 600 }}>Confirm reassigning {selected.length} employee(s)?</span>
-            <PrimaryButton onClick={handleConfirm} disabled={saving}>{saving ? "Applying • " : "Yes, confirm"}</PrimaryButton>
+            <PrimaryButton onClick={handleConfirm} disabled={saving}>{saving ? "Applying..." : "Yes, confirm"}</PrimaryButton>
             <SecondaryButton onClick={() => setConfirming(false)}>Cancel</SecondaryButton>
           </div>
         )}
@@ -994,7 +1718,7 @@ function AuditLogPanel({ log, roster }) {
           ) : (
             log.map((entry) => (
               <div key={entry.id} style={{ padding: "10px 16px", borderBottom: "1px solid var(--border)", fontSize: "12px", color: "var(--text)" }}>
-                <strong>{empName(entry.entityId)}</strong>.{entry.field}: {entry.oldValue || " • "} ? {entry.newValue || " • "}  •  by {entry.actor}  •  {new Date(entry.timestamp).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                <strong>{empName(entry.entityId)}</strong> {entry.field}: {entry.oldValue || "None"} -&gt; {entry.newValue || "None"} by {entry.actor} - {new Date(entry.timestamp).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
               </div>
             ))
           )}
@@ -1006,6 +1730,7 @@ function AuditLogPanel({ log, roster }) {
 
 function ReportingStructureTab({ roster, departments, auditLog, onManagerUpdated, onBulkReassigned }) {
   const [errors, setErrors] = useState({});
+  const [successes, setSuccesses] = useState({});
 
   const handleReassign = async (employeeId, newManagerId) => {
     try {
@@ -1019,12 +1744,29 @@ function ReportingStructureTab({ roster, departments, auditLog, onManagerUpdated
         [employeeId]: null,
       }));
 
+      setSuccesses((p) => ({
+        ...p,
+        [employeeId]: "Reporting manager updated successfully.",
+      }));
+
       onManagerUpdated(res.data);
+
+      setTimeout(() => {
+        setSuccesses((p) => ({
+          ...p,
+          [employeeId]: null,
+        }));
+      }, 3000);
     } catch (error) {
       const message =
         error.response?.data?.message ||
         error.response?.data?.error ||
         "Failed to update reporting manager.";
+
+      setSuccesses((p) => ({
+        ...p,
+        [employeeId]: null,
+      }));
 
       setErrors((p) => ({
         ...p,
@@ -1040,7 +1782,7 @@ function ReportingStructureTab({ roster, departments, auditLog, onManagerUpdated
 
       <div style={{ ...cardStyle, overflow: "hidden" }}>
         {roster.map((emp) => (
-          <ReassignManagerRow key={emp.id} employee={emp} roster={roster} departments={departments} onReassign={handleReassign} error={errors[emp.id]} />
+          <ReassignManagerRow key={emp.id} employee={emp} roster={roster} departments={departments} onReassign={handleReassign} error={errors[emp.id]} success={successes[emp.id]} />
         ))}
       </div>
 
@@ -1054,7 +1796,7 @@ function ReportingStructureTab({ roster, departments, auditLog, onManagerUpdated
 
 function OrgChartNode({ node, level = 0 }) {
   const [expanded, setExpanded] = useState(true);
-  const hasReports = node.directReports && node.directReports.length > 0;
+  const hasReports = node.children && node.children.length > 0;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", position: "relative" }}>
@@ -1115,7 +1857,7 @@ function OrgChartNode({ node, level = 0 }) {
                 cursor: "pointer",
               }}
             >
-              {node.directReports.length} {expanded ? "▲ Hide" : "▼ Direct"}
+              {node.children.length} {expanded ? "Hide" : "Direct"}
             </button>
           )}
         </div>
@@ -1125,7 +1867,7 @@ function OrgChartNode({ node, level = 0 }) {
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: "16px", width: "100%" }}>
           <div style={{ width: "2px", height: "16px", background: "var(--border)" }} />
           <div style={{ display: "flex", gap: "20px", justifyContent: "center", flexWrap: "wrap", position: "relative", paddingTop: "12px" }}>
-            {node.directReports.map((report) => (
+            {node.children.map((report) => (
               <OrgChartNode key={report.id} node={report} level={level + 1} />
             ))}
           </div>
@@ -1206,7 +1948,7 @@ function HolidayCalendarTab({ locations }) {
         name: holidayName.trim(),
         date: holidayDate,
         locationId: holidayLocationId || undefined,
-        isOptional,
+        isMandatory: !isOptional,
       });
       setShowAddModal(false);
       setHolidayName("");
@@ -1275,11 +2017,11 @@ function HolidayCalendarTab({ locations }) {
                   </td>
                   <td style={{ padding: "12px 18px", fontWeight: 700, color: "var(--text)" }}>{h.name}</td>
                   <td style={{ padding: "12px 18px", color: "var(--label)" }}>
-                    {h.location?.name || "All Hub Locations (National)"}
+                    {h.locationName || "All Hub Locations (National)"}
                   </td>
                   <td style={{ padding: "12px 18px" }}>
-                    <span style={{ fontSize: "11px", fontWeight: 700, padding: "2px 8px", borderRadius: "4px", background: h.isOptional ? "#fffbeb" : "var(--green-light)", color: h.isOptional ? "#d97706" : "var(--green)" }}>
-                      {h.isOptional ? "Optional / Restricted" : "Gazetted / Public"}
+                    <span style={{ fontSize: "11px", fontWeight: 700, padding: "2px 8px", borderRadius: "4px", background: !h.isMandatory ? "#fffbeb" : "var(--green-light)", color: !h.isMandatory ? "#d97706" : "var(--green)" }}>
+                      {!h.isMandatory ? "Optional / Restricted" : "Gazetted / Public"}
                     </span>
                   </td>
                   <td style={{ padding: "12px 18px", textAlign: "right" }}>
@@ -1345,7 +2087,7 @@ function HolidayCalendarTab({ locations }) {
             </label>
             <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "10px" }}>
               <SecondaryButton type="button" onClick={() => setShowAddModal(false)}>Cancel</SecondaryButton>
-              <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving…" : "Save Holiday"}</PrimaryButton>
+              <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving..." : "Save Holiday"}</PrimaryButton>
             </div>
           </form>
         </Modal>
@@ -1372,6 +2114,7 @@ export default function OrgManagement() {
   const [company, setCompany] = useState(null);
   const [businessUnits, setBusinessUnits] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [teams, setTeams] = useState([]);
   const [locations, setLocations] = useState([]);
   const [costCenters, setCostCenters] = useState([]);
   const [designations, setDesignations] = useState([]);
@@ -1388,6 +2131,7 @@ export default function OrgManagement() {
           c,
           bu,
           d,
+          t,
           l,
           cc,
           ds,
@@ -1398,6 +2142,7 @@ export default function OrgManagement() {
           getCompany(),
           getBusinessUnits(),
           getDepartments(),
+          getTeams(),
           getLocations(),
           getCostCenters(),
           getDesignations(),
@@ -1409,6 +2154,7 @@ export default function OrgManagement() {
         setCompany(c.data);
         setBusinessUnits(bu.data);
         setDepartments(d.data);
+        setTeams(t.data);
         setLocations(l.data);
         setCostCenters(cc.data);
         setDesignations(ds.data);
@@ -1458,8 +2204,11 @@ export default function OrgManagement() {
             company={company}
             businessUnits={businessUnits}
             departments={departments}
+            teams={teams}
             onBUAdded={(bu) => setBusinessUnits((prev) => [...prev, bu])}
             onDeptAdded={(d) => setDepartments((prev) => [...prev, d])}
+            onTeamAdded={(team) => setTeams((prev) => [...prev, team])}
+            onTeamUpdated={(team) => setTeams((prev) => prev.map((t) => (t.id === team.id ? { ...t, ...team } : t)))}
           />
         )}
 
@@ -1472,7 +2221,20 @@ export default function OrgManagement() {
         )}
 
         {activeTab === "costCenters" && (
-          <CostCentersTab costCenters={costCenters} departments={departments} onAdded={(cc) => setCostCenters((prev) => [...prev, cc])} />
+          <CostCentersTab
+            costCenters={costCenters}
+            departments={departments}
+            onAdded={(cc) =>
+              setCostCenters((prev) => [...prev, cc])
+            }
+            onUpdated={(cc) =>
+              setCostCenters((prev) =>
+                prev.map((x) =>
+                  x.id === cc.id ? { ...x, ...cc } : x
+                )
+              )
+            }
+          />
         )}
 
         {activeTab === "designationsGrades" && (
@@ -1506,3 +2268,6 @@ export default function OrgManagement() {
     </MainLayout>
   );
 }
+
+
+
