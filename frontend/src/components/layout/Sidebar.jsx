@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, UserCheck, CalendarDays, Wallet, TrendingUp,
   GraduationCap, Laptop, CheckSquare, Receipt, Plane, Home, Headphones,
   FileText, LogOut, Building2, GitBranch, BarChart3, Bell, Shield, UserPlus,
-  ClipboardList, ChevronDown, UserRound, CreditCard, Briefcase, ClipboardCheck,
+  ClipboardList, ChevronDown, UserRound, CreditCard, Briefcase, ClipboardCheck, ShieldCheck
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -38,6 +38,21 @@ const NAV_GROUPS = [
       { icon: UserPlus, title: "Recruitment", href: "/recruitment", permission: "recruitment" },
       { icon: ClipboardList, title: "Onboarding", href: "/onboarding", permission: "onboarding" },
       { icon: GraduationCap, title: "LMS", href: "/lms", permission: "lms" },
+    ],
+  },
+  {
+    key: "bgv",
+    label: "Background Verification",
+    icon: ShieldCheck,
+    category: "COMPLIANCE",
+    items: [
+      {
+        icon: ShieldCheck,
+        title: "BGV Manager",
+        href: "/bgv",
+        permission: "bgv",
+        alwaysShow: true,
+      },
     ],
   },
   {
@@ -276,7 +291,7 @@ export default function Sidebar({ isOpen }) {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) return JSON.parse(stored);
-    } catch {}
+    } catch { }
     // Default: expand Workforce and Self Service
     return { workforce: true, selfservice: true };
   });
@@ -285,7 +300,7 @@ export default function Sidebar({ isOpen }) {
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(expandedGroups));
-    } catch {}
+    } catch { }
   }, [expandedGroups]);
 
   const isActive = (href) => {

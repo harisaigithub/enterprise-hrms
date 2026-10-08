@@ -6,7 +6,21 @@ const btn = { border: 0, borderRadius: 7, padding: "8px 12px", background: "var(
 const statusColor = { "HR Review": "#d97706", "Second Approval": "#7c3aed", "Offer Sent": "#0284c7", "Employee Created": "#16a34a", Rejected: "#dc2626" };
 
 export default function CandidateLifecycleTab() {
-  const { role } = useAuth(); const [rows, setRows] = useState([]); const [error, setError] = useState(""); const [notice, setNotice] = useState(""); const [busy, setBusy] = useState("");
+  const { role } = useAuth(); const [rows, setRows] = useState([]);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState("");
+
+  const isBgvCleared = (row) => {
+    const bgv = row.bgvCase;
+
+    return (
+      bgv?.status === "CLEARED" &&
+      bgv?.finalResult === "CLEARED" &&
+      bgv?.finalDecision === "PROCEED"
+    );
+  };
+
   const load = () => getLifecycleApplications().then((r) => setRows(r.data || [])).catch((e) => setError(e.message));
   useEffect(() => {
     load();
@@ -24,6 +38,68 @@ export default function CandidateLifecycleTab() {
       {role === "HR" && row.approvalStatus === "HR Review" && <><button style={btn} disabled={busy === row.id} onClick={() => run(row.id, () => firstApproveApplication(row.id, "Reviewed by HR"))}>First approval</button><button style={{ ...btn, background: "#b91c1c" }} onClick={() => reject(row.id)}>Reject</button></>}
       {role === "ADMIN" && row.approvalStatus === "Second Approval" && <><button style={btn} disabled={busy === row.id} onClick={() => secondApprove(row)}>Second approval & generate offer</button><button style={{ ...btn, background: "#b91c1c" }} onClick={() => reject(row.id)}>Reject</button></>}
       {row.offer && <p><b>Offer:</b> {row.offer.status} · ₹{Number(row.offer.proposedSalary).toLocaleString("en-IN")}</p>}
+      {row.bgvCase && (
+        <div
+          style={{
+            marginTop: 14,
+            padding: 14,
+            borderRadius: 10,
+            border: "1px solid var(--border)",
+            background: "var(--background)",
+          }}
+        >
+          <b>Background Verification</b>
+
+          <div style={{ marginTop: 8 }}>
+            <span>
+              <b>Status:</b>{" "}
+              {row.bgvCase.status || "Not started"}
+            </span>
+
+            {row.bgvCase.finalResult && (
+              <span style={{ marginLeft: 15 }}>
+                <b>Result:</b> {row.bgvCase.finalResult}
+              </span>
+            )}
+
+            {row.bgvCase.finalDecision && (
+              <span style={{ marginLeft: 15 }}>
+                <b>Decision:</b> {row.bgvCase.finalDecision}
+              </span>
+            )}
+          </div>
+
+          <div style={{ marginTop: 8, color: "var(--subtext)" }}>
+            Verifications: {row.bgvCase.verifications?.length || 0}
+            {" · "}
+            Discrepancies: {row.bgvCase.discrepancies?.length || 0}
+          </div>
+
+          {!isBgvCleared(row) && (
+            <p
+              style={{
+                marginBottom: 0,
+                color: "#b45309",
+                fontWeight: 600,
+              }}
+            >
+              Employee creation is locked until BGV is cleared.
+            </p>
+          )}
+
+          {isBgvCleared(row) && (
+            <p
+              style={{
+                marginBottom: 0,
+                color: "#047857",
+                fontWeight: 600,
+              }}
+            >
+              ✓ BGV cleared. Employee creation is available.
+            </p>
+          )}
+        </div>
+      )}
       {!!row.documents.length && (
         <div>
           <b>Documents</b>
@@ -85,7 +161,37 @@ export default function CandidateLifecycleTab() {
           })}
         </div>
       )}
-      {role === "HR" && row.offer?.status === "Accepted" && row.documents.length > 0 && row.documents.every((d) => d.status === "Verified") && !row.employeeId && <button style={btn} onClick={() => run(row.id, () => convertCandidateToEmployee(row.id))}>Create employee account</button>}
+      {!row.bgvCase &&
+        row.offer?.status === "Accepted" &&
+        row.documents.length > 0 &&
+        row.documents.every((d) => d.status === "Verified") && (
+          <p
+            style={{
+              marginTop: 12,
+              padding: 10,
+              background: "#fff7ed",
+              color: "#c2410c",
+              borderRadius: 7,
+            }}
+          >
+            Background Verification has not been initiated yet.
+          </p>
+        )}
+      {role === "HR" &&
+        row.offer?.status === "Accepted" &&
+        row.documents.length > 0 &&
+        row.documents.every((d) => d.status === "Verified") &&
+        isBgvCleared(row) &&
+        !row.employeeId && (
+          <button
+            style={btn}
+            onClick={() =>
+              run(row.id, () => convertCandidateToEmployee(row.id))
+            }
+          >
+            Create employee account
+          </button>
+        )}
     </article>)}
   </div>;
 }

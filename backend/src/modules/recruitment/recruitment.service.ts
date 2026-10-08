@@ -1040,34 +1040,59 @@ function serializeApplication(row: any) {
     const candidate = row.candidate;
 
     return {
+        // Application
         id: row.id,
-
         candidateId: candidate.id,
-
         requisitionId: row.requisitionId,
 
+        // Candidate Basic Information
+        candidateCode: candidate.candidateCode,
         name: `${candidate.firstName} ${candidate.lastName ?? ""}`.trim(),
-
         firstName: candidate.firstName,
-
         lastName: candidate.lastName,
-
         email: candidate.email,
-
         phone: candidate.phone,
 
+        // Personal Information
+        dateOfBirth: candidate.dateOfBirth,
+        gender: candidate.gender,
+        fatherName: candidate.fatherName,
+        motherName: candidate.motherName,
+
+        // Address
+        address: candidate.address,
+        city: candidate.city,
+        state: candidate.state,
+        country: candidate.country,
+        postalCode: candidate.postalCode,
+
+        // Education
+        highestEducation: candidate.highestEducation,
+        degree: candidate.degree,
+        specialization: candidate.specialization,
+        collegeName: candidate.collegeName,
+        passingYear: candidate.passingYear,
+
+        // Employment
+        totalExperienceYears: candidate.totalExperienceYears,
+        currentCompany: candidate.currentCompany,
+        currentDesignation: candidate.currentDesignation,
+        noticePeriodDays: candidate.noticePeriodDays,
+        currentLocation: candidate.currentLocation,
+
+        // Resume
         resumeSummary: candidate.resumeSummary,
 
+        // Application Information
         stage: row.stage,
-
         rating: row.rating,
-
         notes: row.notes,
 
         appliedOn: row.appliedOn
             ? new Date(row.appliedOn).toISOString()
             : null,
 
+        // Requisition
         requisition: row.requisition
             ? {
                 id: row.requisition.id,

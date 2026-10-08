@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   UserPlus,
   AlertTriangle,
+  Eye,
 } from "lucide-react";
 import MainLayout from "../../components/layout/MainLayout";
 import PageHeader from "../../components/shared/PageHeader";
@@ -39,6 +40,7 @@ import {
 import { getEmployees } from "../../services/employeeService";
 import { getDepartments, getGrades } from "../../services/orgManagementService";
 import CandidateLifecycleTab from "./CandidateLifecycleTab";
+import BgvTab from "./BgvTab";
 
 const requisitionStatusMeta = {
   Draft: { color: "#64748b", bg: "#f1f5f9" },
@@ -482,7 +484,186 @@ function AddCandidateModal({ isOpen, onClose, requisitions, onSaved }) {
   );
 }
 
+function CandidateDetailsModal({ isOpen, onClose, candidate, requisitionTitle }) {
+  if (!candidate) return null;
+
+  const detailRows = [
+    ["Full Name", candidate.name || [candidate.firstName, candidate.lastName].filter(Boolean).join(" ") || "—"],
+    ["Email", candidate.email || "—"],
+    ["Phone", candidate.phone || "—"],
+    ["Date of Birth", fmtDate(candidate.dateOfBirth)],
+    ["Gender", candidate.gender || "—"],
+    ["Father's Name", candidate.fatherName || "—"],
+    ["Mother's Name", candidate.motherName || "—"],
+    ["Address", candidate.address || "—"],
+    ["City", candidate.city || "—"],
+    ["State", candidate.state || "—"],
+    ["Country", candidate.country || "—"],
+    ["Postal Code", candidate.postalCode || "—"],
+    ["Highest Education", candidate.highestEducation || "—"],
+    ["Degree", candidate.degree || "—"],
+    ["Specialization", candidate.specialization || "—"],
+    ["College / University", candidate.collegeName || "—"],
+    ["Passing Year", candidate.passingYear || "—"],
+    ["Experience", candidate.totalExperienceYears != null ? `${candidate.totalExperienceYears} years` : "—"],
+    ["Current Company", candidate.currentCompany || "—"],
+    ["Current Designation", candidate.currentDesignation || "—"],
+    ["Notice Period", candidate.noticePeriodDays != null ? `${candidate.noticePeriodDays} days` : "—"],
+    ["Current Location", candidate.currentLocation || "—"],
+    ["Applied On", fmtDate(candidate.appliedOn)],
+    ["Candidate ID", candidate.id || "—"],
+  ];
+
+  return (
+    <Modal isOpen={isOpen} title="Candidate Details" onClose={onClose}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            padding: "14px",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)",
+            background: "var(--background)",
+          }}
+        >
+          <div
+            style={{
+              width: "44px",
+              height: "44px",
+              borderRadius: "12px",
+              display: "grid",
+              placeItems: "center",
+              background: "var(--primary-soft, #eff6ff)",
+              color: "var(--primary)",
+              fontWeight: 800,
+              fontSize: "16px",
+            }}
+          >
+            {(candidate.name || candidate.firstName || "C").charAt(0).toUpperCase()}
+          </div>
+
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: "15px", fontWeight: 800, color: "var(--text)" }}>
+              {candidate.name ||
+                [candidate.firstName, candidate.lastName].filter(Boolean).join(" ") ||
+                "Unnamed Candidate"}
+            </div>
+            <div style={{ fontSize: "11.5px", color: "var(--subtext)", marginTop: "3px" }}>
+              {requisitionTitle}
+            </div>
+          </div>
+
+          <StatusBadge
+            label={candidate.stage || "Applied"}
+            color={(stageMeta[candidate.stage] || stageMeta.Applied).color}
+            bg={(stageMeta[candidate.stage] || stageMeta.Applied).bg}
+          />
+        </div>
+
+        {candidate.resumeSummary && (
+          <div
+            style={{
+              padding: "12px 14px",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-md)",
+              background: "var(--card)",
+            }}
+          >
+            <div style={{ fontSize: "11px", fontWeight: 800, color: "var(--label)", marginBottom: "5px" }}>
+              Resume Summary
+            </div>
+            <div style={{ fontSize: "12.5px", lineHeight: 1.55, color: "var(--subtext)" }}>
+              {candidate.resumeSummary}
+            </div>
+          </div>
+        )}
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            gap: "1px",
+            overflow: "hidden",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)",
+            background: "var(--border)",
+          }}
+        >
+          {detailRows.map(([label, value]) => (
+            <div
+              key={label}
+              style={{
+                minWidth: 0,
+                padding: "10px 12px",
+                background: "var(--card)",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "9.5px",
+                  fontWeight: 700,
+                  color: "var(--subtext)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.35px",
+                  marginBottom: "4px",
+                }}
+              >
+                {label}
+              </div>
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "var(--text)",
+                  fontWeight: 600,
+                  overflowWrap: "anywhere",
+                }}
+              >
+                {value}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {candidate.notes && (
+          <div
+            style={{
+              padding: "11px 13px",
+              borderLeft: "3px solid var(--primary)",
+              background: "var(--background)",
+              borderRadius: "0 var(--radius-sm) var(--radius-sm) 0",
+            }}
+          >
+            <div style={{ fontSize: "10px", fontWeight: 800, color: "var(--label)", marginBottom: "4px" }}>
+              Recruiter Notes
+            </div>
+            <div style={{ fontSize: "12px", color: "var(--subtext)", lineHeight: 1.45 }}>
+              {candidate.notes}
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+          <SecondaryButton type="button" onClick={onClose}>
+            Close
+          </SecondaryButton>
+        </div>
+
+        <style>{`
+          @media (max-width: 560px) {
+            .candidate-details-grid {
+              grid-template-columns: 1fr !important;
+            }
+          }
+        `}</style>
+      </div>
+    </Modal>
+  );
+}
+
 function CandidateCard({ candidate, requisitionTitle, onMove }) {
+  const [showDetails, setShowDetails] = useState(false);
   const idx = PIPELINE_STAGES.indexOf(candidate.stage);
   const canAdvance = idx >= 0 && idx < PIPELINE_STAGES.length - 2; // not past Offer, and not already Hired/Rejected
   const nextStage = PIPELINE_STAGES[idx + 1];
@@ -508,17 +689,56 @@ function CandidateCard({ candidate, requisitionTitle, onMove }) {
       </div>
       {candidate.resumeSummary && <p style={{ fontSize: "12px", color: "var(--subtext)", marginTop: "6px", lineHeight: 1.4 }}>{candidate.resumeSummary}</p>}
       {candidate.notes && <p style={{ fontSize: "11.5px", color: "var(--label)", marginTop: "6px", fontStyle: "italic" }}>"{candidate.notes}"</p>}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "10px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginTop: "10px", flexWrap: "wrap" }}>
         <span style={{ fontSize: "10.5px", color: "var(--subtext)" }}>{fmtDate(candidate.appliedOn)}</span>
-        {canAdvance && candidate.stage !== "Rejected" && (
+
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginLeft: "auto" }}>
           <button
-            onClick={() => onMove(candidate.id, nextStage)}
-            style={{ fontSize: "11px", fontWeight: 700, color: "var(--primary)", border: "none", background: "none", cursor: "pointer" }}
+            type="button"
+            onClick={() => setShowDetails(true)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "5px",
+              padding: "6px 9px",
+              fontSize: "11px",
+              fontWeight: 700,
+              color: "var(--label)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-sm)",
+              background: "var(--card)",
+              cursor: "pointer",
+            }}
           >
-            Move ? {nextStage}
+            <Eye size={13} />
+            View
           </button>
-        )}
+
+          {canAdvance && candidate.stage !== "Rejected" && (
+            <button
+              type="button"
+              onClick={() => onMove(candidate.id, nextStage)}
+              style={{
+                fontSize: "11px",
+                fontWeight: 700,
+                color: "var(--primary)",
+                border: "none",
+                background: "none",
+                cursor: "pointer",
+              }}
+            >
+              Move → {nextStage}
+            </button>
+          )}
+        </div>
       </div>
+
+      <CandidateDetailsModal
+        isOpen={showDetails}
+        onClose={() => setShowDetails(false)}
+        candidate={candidate}
+        requisitionTitle={requisitionTitle}
+      />
     </div>
   );
 }
@@ -530,15 +750,22 @@ function PipelineTab({ candidates, requisitions, onCandidateAdded, onMove }) {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-        <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Candidate Pipeline</h2>
+        <div>
+          <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)", margin: 0 }}>Candidate Pipeline</h2>
+          <p style={{ fontSize: "11px", color: "var(--subtext)", margin: "3px 0 0" }}>
+            Open <strong>View</strong> on any candidate to review their complete available profile.
+          </p>
+        </div>
         <PrimaryButton onClick={() => setShowAdd(true)}><Plus size={16} /> Add Candidate</PrimaryButton>
       </div>
 
       <div
+        className="candidate-pipeline-board"
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+          gridTemplateColumns: "repeat(5, minmax(190px, 1fr))",
           gap: "14px",
+          overflowX: "auto",
           width: "100%",
           minWidth: 0,
           paddingBottom: "8px",
@@ -562,6 +789,15 @@ function PipelineTab({ candidates, requisitions, onCandidateAdded, onMove }) {
           );
         })}
       </div>
+
+      <style>{`
+        @media (max-width: 900px) {
+          .candidate-pipeline-board {
+            grid-template-columns: repeat(5, minmax(240px, 1fr)) !important;
+            overflow-x: auto;
+          }
+        }
+      `}</style>
 
       <AddCandidateModal isOpen={showAdd} onClose={() => setShowAdd(false)} requisitions={requisitions} onSaved={onCandidateAdded} />
     </div>
@@ -1004,7 +1240,7 @@ function OfferRow({ offer, candidateName, onUpdate }) {
   const logConsent = () => onUpdate(offer.id, "Background Verification", { consentOnFile: true });
   const send = () => {
     if (!offer.consentOnFile) return; // hard block: cannot send without BV consent flow having run
-    onUpdate(offer.id, "Sent  •  Awaiting Signature", { sentAt: new Date().toISOString().slice(0, 10) });
+    onUpdate(offer.id, "Sent — Awaiting Signature", { sentAt: new Date().toISOString().slice(0, 10) });
   };
   const accept = () => onUpdate(offer.id, "Accepted", {});
   const decline = () => onUpdate(offer.id, "Declined", {});
@@ -1100,6 +1336,7 @@ const TABS = [
   { key: "interviews", label: "Interviews", icon: Users2 },
   { key: "offers", label: "Offers", icon: FileSignature },
   { key: "candidate-lifecycle", label: "Candidate Onboarding", icon: UserPlus },
+  { key: "bgv", label: "Background Verification", icon: ShieldCheck },
 ];
 
 export default function Recruitment() {
@@ -1200,6 +1437,7 @@ export default function Recruitment() {
           />
         )}
         {activeTab === "candidate-lifecycle" && <CandidateLifecycleTab />}
+        {activeTab === "bgv" && <BgvTab />}
       </div>
     </MainLayout>
   );

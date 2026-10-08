@@ -10,6 +10,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // ── Core Organization ──────────────────────────────────────────────────────
@@ -118,8 +119,8 @@ model CostCenter {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
-  departments      Department[]
-  expenseClaims    ExpenseClaim[]
+  departments   Department[]
+  expenseClaims ExpenseClaim[]
 
   @@map("cost_centers")
 }
@@ -201,14 +202,14 @@ model SecurityState {
 }
 
 model User {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email        String    @unique @db.VarChar(150)
-  passwordHash String    @map("password_hash") @db.VarChar(255)
-  roleId       String    @map("role_id") @db.Uuid
-  isActive     Boolean   @default(true) @map("is_active")
-  lastLogin    DateTime? @map("last_login")
-  passwordChangedAt DateTime @default(now()) @map("password_changed_at") @db.Timestamp(6)
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email             String    @unique @db.VarChar(150)
+  passwordHash      String    @map("password_hash") @db.VarChar(255)
+  roleId            String    @map("role_id") @db.Uuid
+  isActive          Boolean   @default(true) @map("is_active")
+  lastLogin         DateTime? @map("last_login")
+  passwordChangedAt DateTime  @default(now()) @map("password_changed_at") @db.Timestamp(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
 
   role                         Role                     @relation(fields: [roleId], references: [id], onDelete: Restrict)
   employee                     Employee?
@@ -318,6 +319,29 @@ model Employee {
   taskHistoryActions TaskHistory[]       @relation("TaskHistoryActor")
   taskTimeEntries    TaskTimeEntry[]     @relation("TaskTimeEntryEmployee")
 
+  onboardingChecklistAssignments OnboardingChecklistItem[] @relation("OnboardingChecklistAssignee")
+
+  // BGV
+  bgvCasesEmployee BGVCase[] @relation("BGVEmployee")
+  bgvCasesAssigned BGVCase[] @relation("BGVCaseAssignee")
+  bgvCasesReviewed BGVCase[] @relation("BGVCaseReviewer")
+
+  bgvVerificationsAssigned BGVVerification[] @relation("BGVVerificationAssignee")
+
+  bgvReviews BGVReview[] @relation("BGVReviewer")
+
+  bgvDocumentsUploaded BGVDocument[] @relation("BGVDocumentUploader")
+  bgvDocumentsVerified BGVDocument[] @relation("BGVDocumentVerifier")
+
+  bgvDiscrepanciesRaised   BGVDiscrepancy[] @relation("BGVDiscrepancyRaiser")
+  bgvDiscrepanciesResolved BGVDiscrepancy[] @relation("BGVDiscrepancyResolver")
+
+  bgvAssignmentAssignees BGVAssignmentHistory[] @relation("BGVAssignmentAssignee")
+  bgvAssignmentsMade     BGVAssignmentHistory[] @relation("BGVAssignmentActor")
+
+  bgvAudits        BGVAudit[]         @relation("BGVAuditActor")
+  bgvStatusChanges BGVStatusHistory[] @relation("BGVStatusActor")
+
   assetsHeld    Asset[]        @relation("AssetCurrentHolder")
   assetRequests AssetRequest[]
   assetHistory  AssetHistory[]
@@ -332,15 +356,15 @@ model Employee {
 
   expenseClaims             ExpenseClaim[]           @relation("ExpenseClaimEmployee")
   rejectedExpenseClaims     ExpenseClaim[]           @relation("RejectedExpenseClaims")
-  sentBackExpenseClaims       ExpenseClaim[]           @relation("SentBackExpenseClaims")
+  sentBackExpenseClaims     ExpenseClaim[]           @relation("SentBackExpenseClaims")
   expenseClaimHistory       ExpenseClaimHistory[]
   correctingEntriesCreated  ExpenseCorrectingEntry[] @relation("CorrectingEntryCreator")
   correctingEntriesApproved ExpenseCorrectingEntry[] @relation("CorrectingEntryApprover")
   travelRequests            TravelRequest[]          @relation("TravelRequester")
   travelActions             TravelRequestHistory[]   @relation("TravelHistoryActor")
 
-  essTaxDeclarations        EssTaxDeclaration[]
-  essDataExportRequests     EssDataExportRequest[]
+  essTaxDeclarations    EssTaxDeclaration[]
+  essDataExportRequests EssDataExportRequest[]
 
   @@index([departmentId])
   @@index([designationId])
@@ -348,7 +372,6 @@ model Employee {
   @@index([status])
   @@map("employees")
 }
-
 
 model EssTaxDeclaration {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -360,7 +383,8 @@ model EssTaxDeclaration {
   proofStatus    String   @default("Pending") @map("proof_status") @db.VarChar(20)
   submittedAt    DateTime @default(now()) @map("submitted_at") @db.Timestamp(6)
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee       Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
   @@index([employeeId, financialYear])
   @@map("ess_tax_declarations")
 }
@@ -373,7 +397,8 @@ model EssDataExportRequest {
   expiresAt   DateTime  @map("expires_at") @db.Timestamp(6)
   downloadUrl String?   @map("download_url") @db.Text
   completedAt DateTime? @map("completed_at") @db.Timestamp(6)
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
   @@index([employeeId, requestedAt])
   @@map("ess_data_export_requests")
 }
@@ -431,19 +456,19 @@ model AuditLog {
 // ── Compliance Management ────────────────────────────────────────────────
 
 model ComplianceObligation {
-  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  workflowInstanceId String? @unique @map("workflow_instance_id") @db.Uuid
-  title           String    @db.VarChar(180)
-  category        String    @db.VarChar(80)
-  dueDate         DateTime  @map("due_date") @db.Date
-  owner           String    @db.VarChar(160)
-  recurrence      String    @default("One-off") @db.VarChar(30)
-  status          String    @default("Pending") @db.VarChar(30)
-  filedAt         DateTime? @map("filed_at") @db.Timestamp(6)
-  filedByUserId   String?   @map("filed_by_user_id") @db.Uuid
-  createdByUserId String?   @map("created_by_user_id") @db.Uuid
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workflowInstanceId String?   @unique @map("workflow_instance_id") @db.Uuid
+  title              String    @db.VarChar(180)
+  category           String    @db.VarChar(80)
+  dueDate            DateTime  @map("due_date") @db.Date
+  owner              String    @db.VarChar(160)
+  recurrence         String    @default("One-off") @db.VarChar(30)
+  status             String    @default("Pending") @db.VarChar(30)
+  filedAt            DateTime? @map("filed_at") @db.Timestamp(6)
+  filedByUserId      String?   @map("filed_by_user_id") @db.Uuid
+  createdByUserId    String?   @map("created_by_user_id") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
 
   workflowInstance WorkflowInstance? @relation(fields: [workflowInstanceId], references: [id], onDelete: SetNull)
 
@@ -544,7 +569,7 @@ model PolicyVersion {
   createdAt                   DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
 
   policy           Policy                  @relation(fields: [policyId], references: [id], onDelete: Cascade)
-  workflowInstance WorkflowInstance?        @relation(fields: [workflowInstanceId], references: [id], onDelete: SetNull)
+  workflowInstance WorkflowInstance?       @relation(fields: [workflowInstanceId], references: [id], onDelete: SetNull)
   acknowledgements PolicyAcknowledgement[]
 
   @@unique([policyId, versionNumber])
@@ -599,17 +624,17 @@ model LeaveBalance {
 }
 
 model LeaveRequest {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  workflowInstanceId String? @unique @map("workflow_instance_id") @db.Uuid
-  employeeId  String    @map("employee_id") @db.Uuid
-  leaveTypeId String    @map("leave_type_id") @db.Uuid
-  startDate   DateTime  @map("start_date") @db.Date
-  endDate     DateTime  @map("end_date") @db.Date
-  reason      String?
-  status      String    @default("Pending") @db.VarChar(20)
-  approvedBy  String?   @map("approved_by") @db.Uuid
-  approvedOn  DateTime? @map("approved_on") @db.Date
-  comments    String?
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workflowInstanceId String?   @unique @map("workflow_instance_id") @db.Uuid
+  employeeId         String    @map("employee_id") @db.Uuid
+  leaveTypeId        String    @map("leave_type_id") @db.Uuid
+  startDate          DateTime  @map("start_date") @db.Date
+  endDate            DateTime  @map("end_date") @db.Date
+  reason             String?
+  status             String    @default("Pending") @db.VarChar(20)
+  approvedBy         String?   @map("approved_by") @db.Uuid
+  approvedOn         DateTime? @map("approved_on") @db.Date
+  comments           String?
 
   documentName     String? @map("document_name") @db.VarChar(255)
   documentUrl      String? @map("document_url") @db.Text
@@ -618,9 +643,9 @@ model LeaveRequest {
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
-  employee         Employee         @relation("LeaveRequestsSubmitted", fields: [employeeId], references: [id], onDelete: Cascade)
-  leaveType        LeaveType        @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
-  approver         Employee?        @relation("LeaveRequestsApproved", fields: [approvedBy], references: [id], onDelete: SetNull)
+  employee         Employee          @relation("LeaveRequestsSubmitted", fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType        LeaveType         @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+  approver         Employee?         @relation("LeaveRequestsApproved", fields: [approvedBy], references: [id], onDelete: SetNull)
   workflowInstance WorkflowInstance? @relation(fields: [workflowInstanceId], references: [id], onDelete: SetNull)
 
   @@index([employeeId])
@@ -693,29 +718,29 @@ model SalaryStructure {
 }
 
 model PayrollRun {
-  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  workflowInstanceId String? @unique @map("workflow_instance_id") @db.Uuid
-  period          String    @db.VarChar(20)
-  month           Int
-  year            Int
-  status          String    @default("Draft") @db.VarChar(20)
-  processedOn     DateTime? @map("processed_on") @db.Date
-  preparedBy      String?   @map("prepared_by") @db.Uuid
-  preparedAt      DateTime? @map("prepared_at") @db.Timestamp(6)
-  approvedBy      String?   @map("approved_by") @db.Uuid
-  approvedAt      DateTime? @map("approved_at") @db.Timestamp(6)
-  releasedBy      String?   @map("released_by") @db.Uuid
-  releasedAt      DateTime? @map("released_at") @db.Timestamp(6)
-  rejectionReason String?   @map("rejection_reason") @db.Text
-  totalEmployees  Int       @default(0) @map("total_employees")
-  grossPayroll    Decimal   @default(0) @map("gross_payroll") @db.Decimal(14, 2)
-  totalDeductions Decimal   @default(0) @map("total_deductions") @db.Decimal(14, 2)
-  netPayroll      Decimal   @default(0) @map("net_payroll") @db.Decimal(14, 2)
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workflowInstanceId String?   @unique @map("workflow_instance_id") @db.Uuid
+  period             String    @db.VarChar(20)
+  month              Int
+  year               Int
+  status             String    @default("Draft") @db.VarChar(20)
+  processedOn        DateTime? @map("processed_on") @db.Date
+  preparedBy         String?   @map("prepared_by") @db.Uuid
+  preparedAt         DateTime? @map("prepared_at") @db.Timestamp(6)
+  approvedBy         String?   @map("approved_by") @db.Uuid
+  approvedAt         DateTime? @map("approved_at") @db.Timestamp(6)
+  releasedBy         String?   @map("released_by") @db.Uuid
+  releasedAt         DateTime? @map("released_at") @db.Timestamp(6)
+  rejectionReason    String?   @map("rejection_reason") @db.Text
+  totalEmployees     Int       @default(0) @map("total_employees")
+  grossPayroll       Decimal   @default(0) @map("gross_payroll") @db.Decimal(14, 2)
+  totalDeductions    Decimal   @default(0) @map("total_deductions") @db.Decimal(14, 2)
+  netPayroll         Decimal   @default(0) @map("net_payroll") @db.Decimal(14, 2)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
 
-  preparedByEmployee Employee? @relation("PayrollRunPreparedBy", fields: [preparedBy], references: [id], onDelete: SetNull)
-  approvedByEmployee Employee? @relation("PayrollRunApprovedBy", fields: [approvedBy], references: [id], onDelete: SetNull)
-  releasedByEmployee Employee? @relation("PayrollRunReleasedBy", fields: [releasedBy], references: [id], onDelete: SetNull)
+  preparedByEmployee Employee?         @relation("PayrollRunPreparedBy", fields: [preparedBy], references: [id], onDelete: SetNull)
+  approvedByEmployee Employee?         @relation("PayrollRunApprovedBy", fields: [approvedBy], references: [id], onDelete: SetNull)
+  releasedByEmployee Employee?         @relation("PayrollRunReleasedBy", fields: [releasedBy], references: [id], onDelete: SetNull)
   workflowInstance   WorkflowInstance? @relation(fields: [workflowInstanceId], references: [id], onDelete: SetNull)
   payslips           Payslip[]
 
@@ -816,25 +841,25 @@ model WorkflowInstance {
 }
 
 model WorkflowInstanceStep {
-  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  instanceId          String    @map("instance_id") @db.Uuid
-  definitionStepId    String    @map("definition_step_id") @db.Uuid
-  name                String    @db.VarChar(120)
-  approverRule        String    @map("approver_rule") @db.VarChar(80)
-  parallelGroup       String?   @map("parallel_group") @db.VarChar(20)
-  slaHours            Int       @map("sla_hours")
-  approverId          String?   @map("approver_id") @db.VarChar(80)
-  approverName        String?   @map("approver_name") @db.VarChar(120)
-  selfApprovalBlocked Boolean   @default(false) @map("self_approval_blocked")
-  escalatedTo         String?   @map("escalated_to") @db.VarChar(80)
-  escalatedToName     String?   @map("escalated_to_name") @db.VarChar(120)
-  status              String    @default("Pending") @db.VarChar(20)
-  actedBy             String?   @map("acted_by") @db.VarChar(80)
-  actedByName         String?   @map("acted_by_name") @db.VarChar(120)
-  roleApproverOverride Boolean  @default(false) @map("role_approver_override")
-  actedAt             DateTime? @map("acted_at") @db.Timestamp(6)
-  rejectionReason     String?   @map("rejection_reason") @db.Text
-  startedAt           DateTime  @default(now()) @map("started_at") @db.Timestamp(6)
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  instanceId           String    @map("instance_id") @db.Uuid
+  definitionStepId     String    @map("definition_step_id") @db.Uuid
+  name                 String    @db.VarChar(120)
+  approverRule         String    @map("approver_rule") @db.VarChar(80)
+  parallelGroup        String?   @map("parallel_group") @db.VarChar(20)
+  slaHours             Int       @map("sla_hours")
+  approverId           String?   @map("approver_id") @db.VarChar(80)
+  approverName         String?   @map("approver_name") @db.VarChar(120)
+  selfApprovalBlocked  Boolean   @default(false) @map("self_approval_blocked")
+  escalatedTo          String?   @map("escalated_to") @db.VarChar(80)
+  escalatedToName      String?   @map("escalated_to_name") @db.VarChar(120)
+  status               String    @default("Pending") @db.VarChar(20)
+  actedBy              String?   @map("acted_by") @db.VarChar(80)
+  actedByName          String?   @map("acted_by_name") @db.VarChar(120)
+  roleApproverOverride Boolean   @default(false) @map("role_approver_override")
+  actedAt              DateTime? @map("acted_at") @db.Timestamp(6)
+  rejectionReason      String?   @map("rejection_reason") @db.Text
+  startedAt            DateTime  @default(now()) @map("started_at") @db.Timestamp(6)
 
   instance       WorkflowInstance       @relation(fields: [instanceId], references: [id], onDelete: Cascade)
   definitionStep WorkflowDefinitionStep @relation(fields: [definitionStepId], references: [id], onDelete: Restrict)
@@ -978,17 +1003,50 @@ model JobRequisition {
 }
 
 model Candidate {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  candidateCode String   @unique @map("candidate_code") @db.VarChar(30)
-  firstName     String   @map("first_name") @db.VarChar(80)
-  lastName      String?  @map("last_name") @db.VarChar(80)
-  email         String   @db.VarChar(150)
-  phone         String?  @db.VarChar(20)
+  id            String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidateCode String  @unique @map("candidate_code") @db.VarChar(30)
+  firstName     String  @map("first_name") @db.VarChar(80)
+  lastName      String? @map("last_name") @db.VarChar(80)
+  email         String  @db.VarChar(150)
+  phone         String? @db.VarChar(20)
+
+  dateOfBirth DateTime? @map("date_of_birth") @db.Date
+  gender      String?   @db.VarChar(20)
+
+  fatherName String? @map("father_name") @db.VarChar(150)
+  motherName String? @map("mother_name") @db.VarChar(150)
+
+  address    String? @db.Text
+  city       String? @db.VarChar(100)
+  state      String? @db.VarChar(100)
+  country    String? @default("India") @db.VarChar(100)
+  postalCode String? @map("postal_code") @db.VarChar(20)
+
   resumeSummary String?  @map("resume_summary") @db.Text
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
+  resumeFileName  String? @map("resume_file_name") @db.VarChar(255)
+  resumeFileUrl   String? @map("resume_file_url") @db.Text
+  resumeObjectKey String? @map("resume_object_key") @db.Text
+  resumeMimeType  String? @map("resume_mime_type") @db.VarChar(100)
+  resumeFileSize  Int?    @map("resume_file_size")
+
+  totalExperienceYears Decimal? @map("total_experience_years") @db.Decimal(5, 2)
+  highestEducation     String?  @map("highest_education") @db.VarChar(100)
+  degree               String?  @db.VarChar(150)
+  specialization       String?  @db.VarChar(150)
+  collegeName          String?  @map("college_name") @db.VarChar(200)
+  passingYear          Int?     @map("passing_year")
+  currentCompany       String?  @map("current_company") @db.VarChar(200)
+  currentDesignation   String?  @map("current_designation") @db.VarChar(150)
+  noticePeriodDays     Int?     @map("notice_period_days")
+  currentLocation      String?  @map("current_location") @db.VarChar(150)
+  expectedSalary       Decimal? @map("expected_salary") @db.Decimal(12, 2)
+
   applications Application[]
+
+  bgvCases BGVCase[] @relation("BGVCandidate")
 
   @@index([email])
   @@map("candidates")
@@ -1017,6 +1075,8 @@ model Application {
   interviews  Interview[]
   offer       Offer?
   documents   CandidateDocument[]
+
+  bgvCases BGVCase[] @relation("BGVApplication")
 
   @@unique([candidateId, requisitionId])
   @@index([candidateId])
@@ -1097,6 +1157,460 @@ model Offer {
   @@map("offers")
 }
 
+enum BGVCaseStatus {
+  DRAFT
+  INITIATED
+  CANDIDATE_ACTION_REQUIRED
+  IN_PROGRESS
+  UNDER_REVIEW
+  DISCREPANCY
+  ESCALATED
+  CLEARED
+  CONCERN
+  UNABLE_TO_VERIFY
+  ON_HOLD
+  CANCELLED
+  CLOSED
+}
+
+enum BGVPriority {
+  NORMAL
+  HIGH
+  CRITICAL
+}
+
+model BGVCase {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  candidateId   String? @db.Uuid
+  employeeId    String? @db.Uuid
+  applicationId String? @db.Uuid
+
+  packageId String? @db.Uuid
+
+  assignedVerifierId String? @db.Uuid
+  vendorId           String? @db.Uuid
+
+  status   BGVCaseStatus @default(DRAFT)
+  priority BGVPriority   @default(NORMAL)
+
+  required Boolean @default(true)
+  blocking Boolean @default(false)
+
+  startedAt   DateTime?
+  dueAt       DateTime?
+  completedAt DateTime?
+  closedAt    DateTime?
+
+  finalResult   BGVFinalResult?
+  finalDecision BGVFinalDecision?
+
+  reviewedById  String?   @db.Uuid
+  reviewedAt    DateTime?
+  reviewRemarks String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  candidate   Candidate?   @relation("BGVCandidate", fields: [candidateId], references: [id], onDelete: SetNull)
+  employee    Employee?    @relation("BGVEmployee", fields: [employeeId], references: [id], onDelete: SetNull)
+  application Application? @relation("BGVApplication", fields: [applicationId], references: [id], onDelete: SetNull)
+
+  package BGVPackage? @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  vendor  BGVVendor?  @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+
+  assignedVerifier Employee? @relation("BGVCaseAssignee", fields: [assignedVerifierId], references: [id], onDelete: SetNull)
+  reviewedBy       Employee? @relation("BGVCaseReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  verifications     BGVVerification[]
+  documents         BGVDocument[]
+  discrepancies     BGVDiscrepancy[]
+  reviews           BGVReview[]
+  audits            BGVAudit[]
+  assignmentHistory BGVAssignmentHistory[]
+  statusHistory     BGVStatusHistory[]
+
+  @@index([candidateId])
+  @@index([employeeId])
+  @@index([applicationId])
+  @@index([status])
+  @@index([assignedVerifierId])
+  @@index([vendorId])
+  @@index([dueAt])
+}
+
+enum BGVVerificationType {
+  IDENTITY
+  ADDRESS
+  EMPLOYMENT
+  EDUCATION
+  CRIMINAL
+  REFERENCE
+  DOCUMENT
+  CUSTOM
+}
+
+enum BGVVerificationStatus {
+  PENDING
+  ASSIGNED
+  IN_PROGRESS
+  CANDIDATE_ACTION_REQUIRED
+  SUBMITTED
+  UNDER_REVIEW
+  COMPLETED
+  DISCREPANCY
+  FAILED
+  UNABLE_TO_VERIFY
+  ON_HOLD
+  CANCELLED
+}
+
+enum BGVVerificationResult {
+  CLEAR
+  CONCERN
+  DISCREPANCY
+  FAILED
+  UNABLE_TO_VERIFY
+}
+
+model BGVVerification {
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  caseId              String              @db.Uuid
+  assignedToId        String?             @db.Uuid
+  vendorId            String?             @db.Uuid
+  candidateDocumentId String?             @map("candidate_document_id") @db.Uuid
+  type                BGVVerificationType
+
+  status BGVVerificationStatus @default(PENDING)
+
+  source String?
+
+  startedAt   DateTime?
+  dueAt       DateTime?
+  completedAt DateTime?
+
+  result           BGVVerificationResult?
+  discrepancyLevel BGVDiscrepancyLevel?
+
+  remarks String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  case BGVCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  assignedTo Employee? @relation("BGVVerificationAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  vendor BGVVendor? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+
+  candidateDocument CandidateDocument? @relation(fields: [candidateDocumentId], references: [id], onDelete: SetNull)
+
+  candidateActionMessage String?   @map("candidate_action_message") @db.Text
+  candidateResponse      String?   @map("candidate_response") @db.Text
+  candidateRespondedAt   DateTime? @map("candidate_responded_at") @db.Timestamp(6)
+
+  documents     BGVDocument[]
+  discrepancies BGVDiscrepancy[]
+  fields        BGVVerificationField[]
+
+  @@index([caseId])
+  @@index([type])
+  @@index([status])
+  @@index([assignedToId])
+  @@index([candidateDocumentId])
+}
+
+enum BGVFieldMatchStatus {
+  NOT_CHECKED
+  MATCH
+  MISMATCH
+  MISSING
+  NOT_APPLICABLE
+}
+
+model BGVVerificationField {
+  id String @id @default(uuid()) @db.Uuid
+
+  verificationId String @map("verification_id") @db.Uuid
+  fieldName      String @map("field_name")
+
+  expectedValue String? @map("expected_value") @db.Text
+  actualValue   String? @map("actual_value") @db.Text
+
+  matchStatus BGVFieldMatchStatus @map("match_status")
+  remarks     String?             @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  verification BGVVerification @relation(fields: [verificationId], references: [id], onDelete: Cascade)
+
+  @@unique([verificationId, fieldName])
+  @@index([verificationId])
+  @@index([fieldName])
+}
+
+enum BGVDiscrepancyLevel {
+  MINOR
+  MAJOR
+  CRITICAL
+}
+
+enum BGVDiscrepancyStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  ACCEPTED
+  REJECTED
+}
+
+model BGVDiscrepancy {
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  caseId         String  @db.Uuid
+  verificationId String? @db.Uuid
+  raisedById     String  @db.Uuid
+  resolvedById   String? @db.Uuid
+
+  level BGVDiscrepancyLevel
+
+  fieldName     String?
+  expectedValue String?
+  actualValue   String?
+
+  description String
+
+  status BGVDiscrepancyStatus @default(OPEN)
+
+  resolvedAt DateTime?
+
+  resolution String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  case BGVCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  verification BGVVerification? @relation(fields: [verificationId], references: [id], onDelete: SetNull)
+
+  raisedBy Employee @relation("BGVDiscrepancyRaiser", fields: [raisedById], references: [id], onDelete: Restrict)
+
+  resolvedBy Employee? @relation("BGVDiscrepancyResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([caseId])
+  @@index([verificationId])
+  @@index([status])
+}
+
+enum BGVDocumentStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  EXPIRED
+}
+
+model BGVDocument {
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  caseId         String  @db.Uuid
+  verificationId String? @db.Uuid
+  uploadedById   String  @db.Uuid
+  verifiedById   String? @db.Uuid
+
+  documentType String
+
+  fileName String
+  filePath String
+  mimeType String?
+  fileSize Int?
+
+  version Int @default(1)
+
+  uploadedAt DateTime @default(now())
+
+  verificationStatus BGVDocumentStatus @default(PENDING)
+
+  verifiedAt DateTime?
+
+  rejectionReason String?
+
+  expiresAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  case         BGVCase          @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  verification BGVVerification? @relation(fields: [verificationId], references: [id], onDelete: SetNull)
+
+  uploadedBy Employee @relation("BGVDocumentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  verifiedBy Employee? @relation("BGVDocumentVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)
+
+  @@index([caseId])
+  @@index([verificationId])
+  @@index([verificationStatus])
+}
+
+model BGVPackage {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  name        String
+  description String?
+
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  checks BGVPackageCheck[]
+  cases  BGVCase[]
+}
+
+model BGVPackageCheck {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  packageId String              @db.Uuid
+  type      BGVVerificationType
+
+  required Boolean @default(true)
+  blocking Boolean @default(false)
+
+  slaHours Int?
+
+  package BGVPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@unique([packageId, type])
+}
+
+model BGVVendor {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  name String
+  code String @unique
+
+  email String?
+  phone String?
+
+  active Boolean @default(true)
+
+  apiEnabled Boolean @default(false)
+  apiBaseUrl String?
+
+  defaultSlaHours Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cases                  BGVCase[]
+  verifications          BGVVerification[]
+  bgvassignmentHistories BGVAssignmentHistory[]
+}
+
+enum BGVReviewDecision {
+  APPROVE
+  REJECT
+  REQUEST_MORE_INFORMATION
+  ESCALATE
+}
+
+model BGVReview {
+  id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  caseId String @db.Uuid
+
+  reviewerId String @db.Uuid
+
+  decision BGVReviewDecision
+
+  remarks String
+
+  createdAt DateTime @default(now())
+
+  case     BGVCase  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  reviewer Employee @relation("BGVReviewer", fields: [reviewerId], references: [id], onDelete: Restrict)
+
+  @@index([caseId])
+  @@index([reviewerId])
+}
+
+enum BGVFinalResult {
+  CLEARED
+  CLEARED_WITH_DISCREPANCY
+  CONCERN
+  UNABLE_TO_VERIFY
+  EXCEPTION
+  REJECTED
+}
+
+enum BGVFinalDecision {
+  PROCEED
+  HOLD
+  ESCALATE
+  CLOSE
+}
+
+model BGVAudit {
+  id      String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  caseId  String @db.Uuid
+  actorId String @db.Uuid
+
+  action String
+
+  oldValue Json?
+  newValue Json?
+
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  case  BGVCase  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  actor Employee @relation("BGVAuditActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([caseId])
+  @@index([actorId])
+  @@index([createdAt])
+}
+
+model BGVAssignmentHistory {
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  caseId       String  @db.Uuid
+  assignedToId String? @db.Uuid
+  vendorId     String? @db.Uuid
+  assignedById String  @db.Uuid
+
+  reason String?
+
+  assignedAt DateTime  @default(now())
+  endedAt    DateTime?
+
+  case BGVCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  assignedTo Employee? @relation("BGVAssignmentAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  vendor BGVVendor? @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+
+  assignedBy Employee @relation("BGVAssignmentActor", fields: [assignedById], references: [id], onDelete: Restrict)
+
+  @@index([caseId])
+}
+
+model BGVStatusHistory {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  caseId      String  @db.Uuid
+  changedById String? @db.Uuid
+
+  fromStatus BGVCaseStatus?
+  toStatus   BGVCaseStatus
+
+  case BGVCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  changedBy Employee? @relation("BGVStatusActor", fields: [changedById], references: [id], onDelete: SetNull)
+
+  reason String?
+
+  createdAt DateTime @default(now())
+
+  @@index([caseId])
+}
+
 model CandidateDocument {
   id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   applicationId   String    @map("application_id") @db.Uuid
@@ -1111,6 +1625,8 @@ model CandidateDocument {
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
 
   application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  bgvVerifications BGVVerification[]
 
   @@index([applicationId])
   @@index([status])
@@ -1142,21 +1658,21 @@ model PerformanceReviewCycle {
 }
 
 model PerformanceGoal {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  workflowInstanceId String? @unique @map("workflow_instance_id") @db.Uuid
-  employeeId    String   @map("employee_id") @db.Uuid
-  reviewCycleId String   @map("review_cycle_id") @db.Uuid
-  title         String   @db.VarChar(255)
-  category      String   @db.VarChar(50)
-  status        String   @default("Pending Approval") @db.VarChar(30)
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workflowInstanceId String?  @unique @map("workflow_instance_id") @db.Uuid
+  employeeId         String   @map("employee_id") @db.Uuid
+  reviewCycleId      String   @map("review_cycle_id") @db.Uuid
+  title              String   @db.VarChar(255)
+  category           String   @db.VarChar(50)
+  status             String   @default("Pending Approval") @db.VarChar(30)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
 
-  employee    Employee                @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  reviewCycle PerformanceReviewCycle  @relation(fields: [reviewCycleId], references: [id], onDelete: Restrict)
-  workflowInstance WorkflowInstance?  @relation(fields: [workflowInstanceId], references: [id], onDelete: SetNull)
-  keyResults  PerformanceKeyResult[]
-  reviewItems PerformanceReviewItem[]
+  employee         Employee                @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewCycle      PerformanceReviewCycle  @relation(fields: [reviewCycleId], references: [id], onDelete: Restrict)
+  workflowInstance WorkflowInstance?       @relation(fields: [workflowInstanceId], references: [id], onDelete: SetNull)
+  keyResults       PerformanceKeyResult[]
+  reviewItems      PerformanceReviewItem[]
 
   @@index([employeeId])
   @@index([reviewCycleId])
@@ -1299,19 +1815,19 @@ model PerformanceRatingHistory {
 }
 
 model PerformanceRatingProposal {
-  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  workflowInstanceId    String   @unique @map("workflow_instance_id") @db.Uuid
-  employeeId            String   @map("employee_id") @db.Uuid
-  reviewCycleId         String   @map("review_cycle_id") @db.Uuid
-  cycleName             String   @map("cycle_name") @db.VarChar(100)
-  selfRating            Int      @map("self_rating")
-  originalManagerRating Int      @map("original_manager_rating")
-  finalRating           Int      @map("final_rating")
-  increment             String   @db.VarChar(20)
-  promotion             Boolean  @default(false)
-  appraisalLetterUrl    String?  @map("appraisal_letter_url") @db.VarChar(255)
-  status                String   @default("Pending Approval") @db.VarChar(30)
-  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workflowInstanceId    String    @unique @map("workflow_instance_id") @db.Uuid
+  employeeId            String    @map("employee_id") @db.Uuid
+  reviewCycleId         String    @map("review_cycle_id") @db.Uuid
+  cycleName             String    @map("cycle_name") @db.VarChar(100)
+  selfRating            Int       @map("self_rating")
+  originalManagerRating Int       @map("original_manager_rating")
+  finalRating           Int       @map("final_rating")
+  increment             String    @db.VarChar(20)
+  promotion             Boolean   @default(false)
+  appraisalLetterUrl    String?   @map("appraisal_letter_url") @db.VarChar(255)
+  status                String    @default("Pending Approval") @db.VarChar(30)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
   decidedAt             DateTime? @map("decided_at") @db.Timestamp(6)
 
   workflowInstance WorkflowInstance @relation(fields: [workflowInstanceId], references: [id], onDelete: Restrict)
@@ -1414,6 +1930,8 @@ model OnboardingChecklistItem {
   category String
   owner    String
 
+  assignedToId String? @db.Uuid
+
   dueDate DateTime
   status  ChecklistItemStatus @default(Pending)
 
@@ -1422,14 +1940,17 @@ model OnboardingChecklistItem {
 
   completedAt DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  assignedTo Employee? @relation("OnboardingChecklistAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
 
   onboarding Onboarding @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([onboardingId])
   @@index([status])
   @@index([dependsOn])
+  @@index([assignedToId])
 }
 
 enum CourseStatus {
@@ -1667,14 +2188,14 @@ model CourseCertificate {
 // ── Task Management (Module 13) ───────────────────────────────────────────
 
 model TaskProject {
-  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name           String    @db.VarChar(150)
-  description    String?   @db.Text
-  projectLeadId  String?   @map("project_lead_id") @db.Uuid
-  startDate      DateTime? @map("start_date") @db.Date
-  targetEndDate  DateTime? @map("target_end_date") @db.Date
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String    @db.VarChar(150)
+  description   String?   @db.Text
+  projectLeadId String?   @map("project_lead_id") @db.Uuid
+  startDate     DateTime? @map("start_date") @db.Date
+  targetEndDate DateTime? @map("target_end_date") @db.Date
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
 
   projectLead Employee?           @relation("TaskProjectLead", fields: [projectLeadId], references: [id], onDelete: SetNull)
   members     TaskProjectMember[]
@@ -1862,29 +2383,29 @@ model Asset {
 }
 
 model AssetRequest {
-  id            String @id @default(uuid()) @db.Uuid
+  id                 String  @id @default(uuid()) @db.Uuid
   workflowInstanceId String? @unique @map("workflow_instance_id") @db.Uuid
-  employeeId    String @db.Uuid
-  category      String
-  justification String
+  employeeId         String  @db.Uuid
+  category           String
+  justification      String
 
   assetType          String?
-  model             String?
-  quantity          Int      @default(1)
-  neededBy          DateTime?
-  requestType       String?
-  deliveryLocation  String?
-  replacementAssetId String? @db.Uuid
-  costCenter        String?
-  estimatedCost     Decimal? @map("estimated_cost") @db.Decimal(12, 2)
-  attachmentUrl     String?
+  model              String?
+  quantity           Int       @default(1)
+  neededBy           DateTime?
+  requestType        String?
+  deliveryLocation   String?
+  replacementAssetId String?   @db.Uuid
+  costCenter         String?
+  estimatedCost      Decimal?  @map("estimated_cost") @db.Decimal(12, 2)
+  attachmentUrl      String?
 
   status   AssetRequestStatus @default(PENDING_APPROVAL)
   raisedAt DateTime           @default(now())
 
-  approvedBy String?
-  approvedAt DateTime?
-  rejectionReason String? @map("rejection_reason") @db.Text
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectionReason String?   @map("rejection_reason") @db.Text
 
   fulfilledAt DateTime?
   assetId     String?   @db.Uuid
@@ -2168,48 +2689,48 @@ model ExpensePolicy {
 }
 
 model ExpenseClaim {
-  id                         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  claimNumber                String    @unique @map("claim_number") @db.VarChar(30)
-  employeeId                 String    @map("employee_id") @db.Uuid
-  category                   String    @db.VarChar(50)
-  amount                     Decimal   @db.Decimal(12, 2)
-  currency                   String    @default("INR") @db.VarChar(10)
-  expenseDate                DateTime  @map("expense_date") @db.Date
-  businessPurpose            String    @map("business_purpose") @db.Text
-  merchantName               String?   @map("merchant_name") @db.VarChar(200)
-  paymentMethod              String?   @map("payment_method") @db.VarChar(30)
-  gstApplicable              Boolean   @default(false) @map("gst_applicable")
-  gstRate                    Decimal?  @default(0) @map("gst_rate") @db.Decimal(5, 2)
-  gstAmount                  Decimal?  @default(0) @map("gst_amount") @db.Decimal(12, 2)
-  costCenterId               String?   @map("cost_center_id") @db.Uuid
-  projectId                  String?   @map("project_id") @db.Uuid
-  notes                      String?   @db.Text
-  status                     String    @default("Draft") @db.VarChar(40)
-  approvalStage              String?   @map("approval_stage") @db.VarChar(30)
-  submittedAt                DateTime? @map("submitted_at") @db.Timestamp(6)
-  managerApprovedAt          DateTime? @map("manager_approved_at") @db.Timestamp(6)
-  financeApprovedAt          DateTime? @map("finance_approved_at") @db.Timestamp(6)
-  approvedForReimbursementAt DateTime? @map("approved_for_reimbursement_at") @db.Timestamp(6)
-  queuedForPayrollAt         DateTime? @map("queued_for_payroll_at") @db.Timestamp(6)
-  rejectedAt                 DateTime? @map("rejected_at") @db.Timestamp(6)
-  rejectionReason            String?   @map("rejection_reason") @db.Text
-  rejectedBy                 String?   @map("rejected_by") @db.Uuid
-  sentBackAt                 DateTime? @map("sent_back_at") @db.Timestamp(6)
-  sentBackBy                 String?   @map("sent_back_by") @db.Uuid
-  sentBackReason             String?   @map("sent_back_reason") @db.Text
-  policyViolations           Json      @default("[]") @map("policy_violations") @db.JsonB
-  duplicateWarning           Json?     @map("duplicate_warning") @db.JsonB
-  isDraft                    Boolean   @default(true) @map("is_draft")
-  receiptPending             Boolean   @default(false) @map("receipt_pending")
-  isImmutable                Boolean   @default(false) @map("is_immutable")
-  correctingEntryId          String?   @unique @map("correcting_entry_id") @db.Uuid
-  originalClaimId            String?   @map("original_claim_id") @db.Uuid
-  workflowInstanceId         String?   @map("workflow_instance_id") @db.Uuid
-  reimbursementPayrollRunId String?   @map("reimbursement_payroll_run_id") @db.Uuid
-  reimbursementPaymentReference String? @map("reimbursement_payment_reference") @db.VarChar(120)
-  reimbursementPaidAt DateTime? @map("reimbursement_paid_at") @db.Timestamp(6)
-  createdAt                  DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt                  DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+  id                            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  claimNumber                   String    @unique @map("claim_number") @db.VarChar(30)
+  employeeId                    String    @map("employee_id") @db.Uuid
+  category                      String    @db.VarChar(50)
+  amount                        Decimal   @db.Decimal(12, 2)
+  currency                      String    @default("INR") @db.VarChar(10)
+  expenseDate                   DateTime  @map("expense_date") @db.Date
+  businessPurpose               String    @map("business_purpose") @db.Text
+  merchantName                  String?   @map("merchant_name") @db.VarChar(200)
+  paymentMethod                 String?   @map("payment_method") @db.VarChar(30)
+  gstApplicable                 Boolean   @default(false) @map("gst_applicable")
+  gstRate                       Decimal?  @default(0) @map("gst_rate") @db.Decimal(5, 2)
+  gstAmount                     Decimal?  @default(0) @map("gst_amount") @db.Decimal(12, 2)
+  costCenterId                  String?   @map("cost_center_id") @db.Uuid
+  projectId                     String?   @map("project_id") @db.Uuid
+  notes                         String?   @db.Text
+  status                        String    @default("Draft") @db.VarChar(40)
+  approvalStage                 String?   @map("approval_stage") @db.VarChar(30)
+  submittedAt                   DateTime? @map("submitted_at") @db.Timestamp(6)
+  managerApprovedAt             DateTime? @map("manager_approved_at") @db.Timestamp(6)
+  financeApprovedAt             DateTime? @map("finance_approved_at") @db.Timestamp(6)
+  approvedForReimbursementAt    DateTime? @map("approved_for_reimbursement_at") @db.Timestamp(6)
+  queuedForPayrollAt            DateTime? @map("queued_for_payroll_at") @db.Timestamp(6)
+  rejectedAt                    DateTime? @map("rejected_at") @db.Timestamp(6)
+  rejectionReason               String?   @map("rejection_reason") @db.Text
+  rejectedBy                    String?   @map("rejected_by") @db.Uuid
+  sentBackAt                    DateTime? @map("sent_back_at") @db.Timestamp(6)
+  sentBackBy                    String?   @map("sent_back_by") @db.Uuid
+  sentBackReason                String?   @map("sent_back_reason") @db.Text
+  policyViolations              Json      @default("[]") @map("policy_violations") @db.JsonB
+  duplicateWarning              Json?     @map("duplicate_warning") @db.JsonB
+  isDraft                       Boolean   @default(true) @map("is_draft")
+  receiptPending                Boolean   @default(false) @map("receipt_pending")
+  isImmutable                   Boolean   @default(false) @map("is_immutable")
+  correctingEntryId             String?   @unique @map("correcting_entry_id") @db.Uuid
+  originalClaimId               String?   @map("original_claim_id") @db.Uuid
+  workflowInstanceId            String?   @map("workflow_instance_id") @db.Uuid
+  reimbursementPayrollRunId     String?   @map("reimbursement_payroll_run_id") @db.Uuid
+  reimbursementPaymentReference String?   @map("reimbursement_payment_reference") @db.VarChar(120)
+  reimbursementPaidAt           DateTime? @map("reimbursement_paid_at") @db.Timestamp(6)
+  createdAt                     DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt                     DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
 
   employee           Employee                 @relation("ExpenseClaimEmployee", fields: [employeeId], references: [id], onDelete: Restrict)
   rejectedByEmployee Employee?                @relation("RejectedExpenseClaims", fields: [rejectedBy], references: [id], onDelete: SetNull)
