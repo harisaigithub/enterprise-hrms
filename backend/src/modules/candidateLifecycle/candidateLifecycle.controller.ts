@@ -16,6 +16,13 @@ export const candidateUpload = multer({
   },
 });
 
+export const resumeUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+  },
+});
+
 export async function uploadDocument(
   req: Request,
   res: Response
@@ -47,6 +54,33 @@ export async function uploadDocument(
         error instanceof Error
           ? error.message
           : "Failed to upload document",
+    });
+  }
+}
+
+export async function uploadResume(req: Request, res: Response) {
+  try {
+    if (!req.file) {
+      throw AppError.badRequest("Resume file is required");
+    }
+
+    const resume =
+      await service.uploadCandidateResume(
+        req.params.token,
+        req.file
+      );
+
+    res.json({
+      data: resume,
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(400).json({
+      message:
+        error instanceof Error
+          ? error.message
+          : "Failed to upload resume",
     });
   }
 }

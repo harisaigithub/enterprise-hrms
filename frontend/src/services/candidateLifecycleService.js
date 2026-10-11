@@ -24,6 +24,18 @@ export async function uploadCandidateDocument(
 
   return response.data;
 }
+
+export async function uploadCandidateResume(token, file) {
+  const formData = new FormData();
+
+  formData.append("resume", file);
+
+  return api.post(
+    `/candidate-lifecycle/portal/${token}/resume`,
+    formData
+  );
+}
+
 export const getLifecycleApplications = async () => (await api.get("/candidate-lifecycle/applications")).data;
 export const firstApproveApplication = async (id, notes = "") => (await api.post(`/candidate-lifecycle/applications/${id}/first-approval`, { notes })).data;
 export const secondApproveApplication = async (id, payload) => (await api.post(`/candidate-lifecycle/applications/${id}/second-approval`, payload)).data;

@@ -13,11 +13,52 @@ import minioClient, {
 
 const sha256 = (value: string) => crypto.createHash("sha256").update(value).digest("hex");
 
+// const lifecycleInclude = {
+//   candidate: true,
+//   requisition: { include: { department: true, designation: true, location: true } },
+//   offer: true,
+//   documents: { orderBy: { createdAt: "desc" as const } },
+// };
+
 const lifecycleInclude = {
   candidate: true,
-  requisition: { include: { department: true, designation: true, location: true } },
+  requisition: {
+    include: {
+      department: true,
+      designation: true,
+      location: true,
+    },
+  },
   offer: true,
-  documents: { orderBy: { createdAt: "desc" as const } },
+  documents: {
+    orderBy: {
+      createdAt: "desc" as const,
+    },
+  },
+  bgvCases: {
+    orderBy: {
+      createdAt: "desc" as const,
+    },
+    take: 1,
+    include: {
+      verifications: {
+        orderBy: {
+          createdAt: "asc" as const,
+        },
+      },
+      discrepancies: {
+        orderBy: {
+          createdAt: "desc" as const,
+        },
+      },
+      reviews: {
+        orderBy: {
+          createdAt: "desc" as const,
+        },
+        take: 5,
+      },
+    },
+  },
 };
 
 export async function listPublicJobs() {
@@ -35,35 +76,193 @@ export async function listPublicJobs() {
 
 export async function submitApplication(input: any) {
   const requisition = await prisma.jobRequisition.findFirst({
-    where: { id: input.requisitionId, status: { in: ["Open", "Approved"] } },
+    where: {
+      id: input.requisitionId,
+      status: { in: ["Open", "Approved"] },
+    },
   });
-  if (!requisition) throw AppError.notFound("This vacancy is not open for applications");
+
+  if (!requisition) {
+    throw AppError.notFound(
+      "This vacancy is not open for applications"
+    );
+  }
 
   const email = input.email.trim().toLowerCase();
+
   const existing = await prisma.application.findFirst({
-    where: { requisitionId: input.requisitionId, candidate: { email } },
+    where: {
+      requisitionId: input.requisitionId,
+      candidate: { email },
+    },
   });
-  if (existing) throw AppError.conflict("You have already applied for this vacancy");
+
+  if (existing) {
+    throw AppError.conflict(
+      "You have already applied for this vacancy"
+    );
+  }
 
   const suffix = `${Date.now()}`.slice(-8);
-  return prisma.application.create({
-    data: {
-      requisition: { connect: { id: input.requisitionId } },
-      stage: "Applied",
-      approvalStatus: "HR Review",
-      candidate: {
-        create: {
-          candidateCode: `CAN-${suffix}`,
-          firstName: input.firstName.trim(),
-          lastName: input.lastName?.trim() || null,
-          email,
-          phone: input.phone?.trim() || null,
-          resumeSummary: input.resumeSummary?.trim() || null,
+
+  let objectName: string | null = null;
+  let resumeFileUrl: string | null = null;
+
+  try {
+    // ==========================================
+    // RESUME → MINIO
+    // ==========================================
+
+    const resume = input.resume;
+
+    if (resume) {
+      const allowedResumeTypes = [
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ];
+
+      if (!allowedResumeTypes.includes(resume.mimetype)) {
+        throw AppError.badRequest(
+          "Resume must be PDF, DOC or DOCX"
+        );
+      }
+
+      objectName =
+        `candidate/resumes/${randomUUID()}${path.extname(
+          resume.originalname
+        ).toLowerCase()}`;
+
+      await minioClient.putObject(
+        MINIO_BUCKET,
+        objectName,
+        resume.buffer,
+        resume.size,
+        {
+          "Content-Type": resume.mimetype,
+        }
+      );
+
+      resumeFileUrl =
+        `/uploads/candidate/resumes/${objectName.replace(
+          "candidate/resumes/",
+          ""
+        )}`;
+    }
+
+    // ==========================================
+    // APPLICATION + CANDIDATE
+    // ==========================================
+
+    return await prisma.application.create({
+      data: {
+        requisition: {
+          connect: {
+            id: input.requisitionId,
+          },
+        },
+
+        stage: "Applied",
+
+        approvalStatus: "HR Review",
+
+        candidate: {
+          create: {
+            candidateCode: `CAN-${suffix}`,
+
+            firstName:
+              input.firstName.trim(),
+
+            lastName:
+              input.lastName?.trim() || null,
+
+            email,
+
+            phone:
+              input.phone?.trim() || null,
+
+            resumeSummary:
+              input.resumeSummary?.trim() || null,
+
+            // Resume
+            resumeFileName:
+              resume?.originalname || null,
+
+            resumeFileUrl,
+
+            resumeObjectKey:
+              objectName,
+
+            resumeMimeType:
+              resume?.mimetype || null,
+
+            resumeFileSize:
+              resume?.size || null,
+
+            // Candidate profile
+            totalExperienceYears:
+              input.totalExperienceYears !== undefined
+                ? Number(input.totalExperienceYears)
+                : null,
+
+            highestEducation:
+              input.highestEducation?.trim() || null,
+
+            degree:
+              input.degree?.trim() || null,
+
+            specialization:
+              input.specialization?.trim() || null,
+
+            collegeName:
+              input.collegeName?.trim() || null,
+
+            passingYear:
+              input.passingYear !== undefined
+                ? Number(input.passingYear)
+                : null,
+
+            currentCompany:
+              input.currentCompany?.trim() || null,
+
+            currentDesignation:
+              input.currentDesignation?.trim() || null,
+
+            noticePeriodDays:
+              input.noticePeriodDays !== undefined
+                ? Number(input.noticePeriodDays)
+                : null,
+
+            currentLocation:
+              input.currentLocation?.trim() || null,
+
+            expectedSalary:
+              input.expectedSalary !== undefined
+                ? Number(input.expectedSalary)
+                : null,
+          },
         },
       },
-    },
-    include: lifecycleInclude,
-  });
+
+      include: lifecycleInclude,
+    });
+
+  } catch (error) {
+    // If DB creation fails after MinIO upload,
+    // remove the uploaded resume.
+    if (objectName) {
+      try {
+        await minioClient.removeObject(
+          MINIO_BUCKET,
+          objectName
+        );
+      } catch {
+        // Keep the original error.
+      }
+    }
+
+    throw error;
+  }
 }
 
 export async function getPortal(invitationToken: string) {
@@ -71,16 +270,66 @@ export async function getPortal(invitationToken: string) {
     where: { invitationTokenHash: sha256(invitationToken) },
     include: { application: { include: lifecycleInclude } },
   });
-  if (!offer || !offer.invitationExpiresAt || offer.invitationExpiresAt < new Date()) {
+
+  if (
+    !offer ||
+    !offer.invitationExpiresAt ||
+    offer.invitationExpiresAt < new Date()
+  ) {
     throw AppError.unauthorized("Invitation is invalid or has expired");
   }
+
   const application = offer.application;
+  const latestBgvCase = application.bgvCases?.[0] ?? null;
+
+  /*
+   * Candidate portal receives only candidate-safe BGV information.
+   * Internal verifier IDs, audits, discrepancies and vendor details
+   * are intentionally not exposed.
+   */
+  const bgv = latestBgvCase
+    ? {
+        id: latestBgvCase.id,
+        status: latestBgvCase.status,
+        result: latestBgvCase.finalResult ?? null,
+        verifications: (latestBgvCase.verifications ?? []).map(
+          (verification: any) => ({
+            id: verification.id,
+            verificationType: verification.verificationType,
+            type: verification.verificationType,
+            status: verification.status,
+            result: verification.result ?? null,
+
+            candidateActionRequired:
+              verification.status === "CANDIDATE_ACTION_REQUIRED",
+
+            candidateActionMessage:
+              verification.status === "CANDIDATE_ACTION_REQUIRED"
+                ? verification.remarks ||
+                  "Please upload a clear and correct document so HR can complete your background verification."
+                : null,
+
+            documentType: verification.verificationType,
+          })
+        ),
+      }
+    : null;
+
   return {
-    candidate: { firstName: application.candidate.firstName, lastName: application.candidate.lastName },
+    candidate: {
+      firstName: application.candidate.firstName,
+      lastName: application.candidate.lastName,
+    },
     job: application.requisition.title,
-    offer: { id: offer.id, proposedSalary: Number(offer.proposedSalary), status: offer.status, joiningDate: offer.joiningDate },
+    offer: {
+      id: offer.id,
+      proposedSalary: Number(offer.proposedSalary),
+      status: offer.status,
+      joiningDate: offer.joiningDate,
+    },
     documents: application.documents,
     onboardingStatus: application.approvalStatus,
+    bgv,
   };
 }
 
@@ -268,17 +517,130 @@ export async function rejectApplication(applicationId: string, actorUserId: stri
   });
 }
 
-export async function verifyDocument(documentId: string, actorUserId: string, input: any) {
-  const document = await prisma.candidateDocument.findUnique({ where: { id: documentId } });
-  if (!document) throw AppError.notFound("Document not found");
-  if (input.status === "Rejected" && !input.reason?.trim()) throw AppError.badRequest("A rejection reason is required");
+export async function verifyDocument(
+  documentId: string,
+  actorUserId: string,
+  input: any
+) {
+  const document = await prisma.candidateDocument.findUnique({
+    where: { id: documentId },
+    select: {
+      id: true,
+      applicationId: true,
+    },
+  });
+
+  if (!document) {
+    throw AppError.notFound("Document not found");
+  }
+
+  if (
+    input.status === "Rejected" &&
+    !input.reason?.trim()
+  ) {
+    throw AppError.badRequest(
+      "A rejection reason is required"
+    );
+  }
+
   return prisma.$transaction(async (tx: any) => {
     const updated = await tx.candidateDocument.update({
-      where: { id: documentId },
-      data: { status: input.status, rejectionReason: input.status === "Rejected" ? input.reason.trim() : null, verifiedBy: actorUserId, verifiedAt: new Date() },
+      where: {
+        id: documentId,
+      },
+      data: {
+        status: input.status,
+        rejectionReason:
+          input.status === "Rejected"
+            ? input.reason.trim()
+            : null,
+        verifiedBy: actorUserId,
+        verifiedAt: new Date(),
+      },
     });
-    const remaining = await tx.candidateDocument.count({ where: { applicationId: document.applicationId, status: { not: "Verified" } } });
-    if (remaining === 0) await tx.application.update({ where: { id: document.applicationId }, data: { approvalStatus: "Ready for Employee Creation" } });
+
+    /*
+     * BGV can start only after every candidate document
+     * belonging to this application is verified.
+     */
+    const remaining = await tx.candidateDocument.count({
+      where: {
+        applicationId: document.applicationId,
+        status: {
+          not: "Verified",
+        },
+      },
+    });
+
+    if (remaining !== 0) {
+      return updated;
+    }
+
+    /*
+     * All documents are verified.
+     *
+     * Keep the application in Background Verification until
+     * the BGV case is actually cleared. Employee creation is
+     * independently protected by the BGV gate below.
+     */
+    const application = await tx.application.findUnique({
+      where: {
+        id: document.applicationId,
+      },
+      select: {
+        id: true,
+        candidateId: true,
+      },
+    });
+
+    if (!application) {
+      throw AppError.notFound("Application not found");
+    }
+
+    await tx.application.update({
+      where: {
+        id: application.id,
+      },
+      data: {
+        approvalStatus: "Background Verification",
+      },
+    });
+
+    /*
+     * Idempotent BGV creation:
+     *
+     * - If an active BGV case already exists, do nothing.
+     * - Otherwise create exactly one INITIATED case.
+     *
+     * This is intentionally done through the transaction client
+     * (tx) so document verification + BGV initiation commit or
+     * roll back together.
+     */
+    const existingBgvCase = await tx.bGVCase.findFirst({
+      where: {
+        applicationId: application.id,
+        status: {
+          notIn: ["CANCELLED", "CLOSED"],
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!existingBgvCase) {
+      await tx.bGVCase.create({
+        data: {
+          applicationId: application.id,
+          candidateId: application.candidateId,
+          status: "INITIATED",
+          priority: "NORMAL",
+          required: true,
+          blocking: true,
+        },
+      });
+    }
+
     return updated;
   });
 }
@@ -300,6 +662,55 @@ export async function createEmployeeAccount(applicationId: string) {
     ) {
         throw AppError.badRequest(
             "All onboarding documents must be verified first"
+        );
+    }
+
+        /*
+     * =====================================================
+     * BGV GATE
+     * =====================================================
+     *
+     * Employee creation is not allowed unless the
+     * candidate's latest BGV case is CLEARED.
+     */
+
+    const bgvCase = await prisma.bGVCase.findFirst({
+        where: {
+            applicationId,
+            status: {
+                notIn: [
+                    "CANCELLED",
+                    "CLOSED",
+                ],
+            },
+        },
+        orderBy: {
+            createdAt: "desc",
+        },
+        select: {
+            id: true,
+            status: true,
+            finalResult: true,
+            finalDecision: true,
+            completedAt: true,
+        },
+    });
+
+    if (!bgvCase) {
+        throw AppError.badRequest(
+            "Background verification must be completed before employee creation"
+        );
+    }
+
+    if (bgvCase.status !== "CLEARED") {
+        throw AppError.badRequest(
+            `Background verification is not cleared. Current status: ${bgvCase.status}`
+        );
+    }
+
+    if (bgvCase.finalResult !== "CLEARED") {
+        throw AppError.badRequest(
+            "Background verification does not have a clear final result"
         );
     }
 
@@ -666,4 +1077,76 @@ async function getApplication(id: string) {
   const application = await prisma.application.findUnique({ where: { id }, include: lifecycleInclude });
   if (!application) throw AppError.notFound("Application not found");
   return application;
+}
+
+export async function uploadCandidateResume(
+  token: string,
+  resume: Express.Multer.File
+) {
+  const offer = await prisma.offer.findFirst({
+    where: {
+      invitationTokenHash: token,
+    },
+    include: {
+      application: {
+        include: {
+          candidate: true,
+        },
+      },
+    },
+  });
+
+  if (!offer) {
+    throw AppError.notFound("Candidate portal not found");
+  }
+
+  if (!resume) {
+    throw AppError.badRequest("Resume file is required");
+  }
+
+  const allowedResumeTypes = [
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ];
+
+  if (!allowedResumeTypes.includes(resume.mimetype)) {
+    throw AppError.badRequest(
+      "Resume must be PDF, DOC or DOCX"
+    );
+  }
+
+  const objectName =
+    `candidate/resumes/${randomUUID()}${path.extname(
+      resume.originalname
+    ).toLowerCase()}`;
+
+  await minioClient.putObject(
+    MINIO_BUCKET,
+    objectName,
+    resume.buffer,
+    resume.size,
+    {
+      "Content-Type": resume.mimetype,
+    }
+  );
+
+  const resumeFileUrl =
+    `/uploads/candidate/resumes/${objectName.replace(
+      "candidate/resumes/",
+      ""
+    )}`;
+
+  return prisma.candidate.update({
+    where: {
+      id: offer.application.candidate.id,
+    },
+    data: {
+      resumeFileName: resume.originalname,
+      resumeFileUrl,
+      resumeObjectKey: objectName,
+      resumeMimeType: resume.mimetype,
+      resumeFileSize: resume.size,
+    },
+  });
 }

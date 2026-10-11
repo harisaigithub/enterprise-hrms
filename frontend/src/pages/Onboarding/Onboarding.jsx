@@ -14,6 +14,7 @@ import Spinner from "../../components/shared/Spinner";
 import EmptyState from "../../components/shared/EmptyState";
 import { getOnboardingRecords, getOnboardingSummary, updateChecklistItemStatus } from "../../services/onboardingService";
 import { checklistItemStatusMeta, checklistOwnerMeta } from "../../mock/onboarding";
+import { useAuth } from "../../context/AuthContext";
 
 function StatCard({ icon: Icon, label, value, color, bg }) {
   return (
@@ -63,7 +64,12 @@ function JoinerListItem({ record, active, onSelect }) {
   );
 }
 
-function ChecklistItemRow({ item, onChangeStatus, busy }) {
+function ChecklistItemRow({
+  item,
+  onChangeStatus,
+  busy,
+  canWrite,
+}) {
   const meta = checklistItemStatusMeta[item.status] || checklistItemStatusMeta.Pending;
   const ownerMeta = checklistOwnerMeta[item.owner] || checklistOwnerMeta.HR;
   const isBlocked = item.status === "Blocked";
@@ -99,12 +105,12 @@ function ChecklistItemRow({ item, onChangeStatus, busy }) {
       <select
         value={item.status}
         onChange={(event) => onChangeStatus(item.id, event.target.value)}
-        disabled={isBlocked || busy}
+        disabled={!canWrite || isBlocked || busy}
         title={isBlocked ? "Blocked until dependency is complete" : "Update checklist status"}
         style={{
           flexShrink: 0, minWidth: "142px", borderRadius: "7px", padding: "6px 8px",
           border: "1px solid var(--border)", background: "var(--card)", color: "var(--text)",
-          cursor: isBlocked || busy ? "not-allowed" : "pointer",
+          cursor: !canWrite || isBlocked || busy ? "not-allowed" : "pointer",
           opacity: isBlocked ? 0.5 : 1,
         }}
       >
@@ -118,6 +124,11 @@ function ChecklistItemRow({ item, onChangeStatus, busy }) {
 }
 
 export default function OnboardingChecklist() {
+  const { permissions = [] } = useAuth();
+
+  const canRead = permissions.includes("onboarding:read");
+  const canWrite = permissions.includes("onboarding:write");
+
   const [records, setRecords] = useState([]);
   const [summary, setSummary] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
@@ -126,8 +137,17 @@ export default function OnboardingChecklist() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (!canRead) {
+      setLoading(false);
+      return;
+    }
+
     let active = true;
-    Promise.all([getOnboardingRecords(), getOnboardingSummary()])
+
+    Promise.all([
+      getOnboardingRecords(),
+      getOnboardingSummary()
+    ])
       .then(([recRes, sumRes]) => {
         if (!active) return;
         setRecords(recRes.data);
@@ -141,7 +161,7 @@ export default function OnboardingChecklist() {
         if (active) setLoading(false);
       });
     return () => { active = false; };
-  }, []);
+  }, [canRead]);
 
   const handleChangeStatus = async (itemId, status) => {
     setError("");
@@ -162,6 +182,16 @@ export default function OnboardingChecklist() {
   const selectedCategories = [...new Set((selected?.items || []).map((item) => item.category))];
 
   if (loading) return <MainLayout><Spinner /></MainLayout>;
+  if (!canRead) {
+    return (
+      <MainLayout>
+        <EmptyState
+          title="Access denied"
+          subtitle="You do not have permission to view onboarding."
+        />
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -176,10 +206,10 @@ export default function OnboardingChecklist() {
 
         {summary && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "14px", marginBottom: "24px" }}>
-            <StatCard icon={Users}       label="New Joiners"          value={summary.newJoiners}                color="#0284c7" bg="#f0f9ff" />
-            <StatCard icon={CheckCircle2} label="Avg. Completion"     value={`${summary.avgCompletion}%`}       color="#16a34a" bg="#f0fdf4" />
-            <StatCard icon={AlertTriangle} label="Overdue Items"      value={summary.overdueItems}              color="#dc2626" bg="#fef2f2" />
-            <StatCard icon={PackageX}    label="Pending Procurement"  value={summary.pendingProcurement}        color="#d97706" bg="#fffbeb" />
+            <StatCard icon={Users} label="New Joiners" value={summary.newJoiners} color="#0284c7" bg="#f0f9ff" />
+            <StatCard icon={CheckCircle2} label="Avg. Completion" value={`${summary.avgCompletion}%`} color="#16a34a" bg="#f0fdf4" />
+            <StatCard icon={AlertTriangle} label="Overdue Items" value={summary.overdueItems} color="#dc2626" bg="#fef2f2" />
+            <StatCard icon={PackageX} label="Pending Procurement" value={summary.pendingProcurement} color="#d97706" bg="#fffbeb" />
           </div>
         )}
 
@@ -231,7 +261,13 @@ export default function OnboardingChecklist() {
                       <div key={category} style={{ padding: "16px 0" }}>
                         <p style={{ fontSize: "11px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>{category}</p>
                         {items.map((item) => (
-                          <ChecklistItemRow key={item.id} item={item} onChangeStatus={handleChangeStatus} busy={busyItemId === item.id} />
+                          <ChecklistItemRow
+                            key={item.id}
+                            item={item}
+                            onChangeStatus={handleChangeStatus}
+                            busy={busyItemId === item.id}
+                            canWrite={canWrite}
+                          />
                         ))}
                       </div>
                     );
