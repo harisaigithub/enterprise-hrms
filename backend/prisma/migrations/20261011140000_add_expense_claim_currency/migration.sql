@@ -1,0 +1,2 @@
+ALTER TABLE "expense_claims"
+  ADD COLUMN IF NOT EXISTS "currency" VARCHAR(10) NOT NULL DEFAULT 'INR';

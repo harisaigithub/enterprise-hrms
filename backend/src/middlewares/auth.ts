@@ -19,10 +19,13 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
 
     const user = await prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, isActive: true, passwordChangedAt: true },
+      select: { id: true, isActive: true, passwordChangedAt: true, role: { select: { name: true } } },
     });
     if (!user || !user.isActive) {
       throw AppError.unauthorized("Account is inactive");
+    }
+    if (user.role.name !== payload.role) {
+      throw AppError.unauthorized("Account role changed; sign in again");
     }
 
     const resetAllowed = req.originalUrl.includes("/auth/change-password")

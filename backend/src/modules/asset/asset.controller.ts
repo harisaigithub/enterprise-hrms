@@ -1,5 +1,4 @@
 import { Request, Response } from "express";
-import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
 import * as assetService from "./asset.service";
 
@@ -146,11 +145,6 @@ export async function getRequests(
     res: Response
 ) {
     try {
-        const employeeId =
-            typeof req.query.employeeId === "string"
-                ? req.query.employeeId
-                : undefined;
-
         const userId = req.auth?.sub;
 
         if (!userId) {

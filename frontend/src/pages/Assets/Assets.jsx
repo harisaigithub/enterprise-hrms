@@ -2799,51 +2799,73 @@ function MyAssetsTab({
           {myAssets.map((item) => (
             <div
               key={item.id}
+              className="my-asset-card"
               style={{
                 ...cardStyle,
-                padding: "16px 18px",
+                position: "relative",
+                overflow: "hidden",
+                padding: "20px",
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px", marginBottom: "6px", minWidth: 0 }}>
-              <h3
-                style={{
-                  fontSize: "14px",
-                  fontWeight: 700,
-                  color: "var(--text)",
-                  marginBottom: "6px",
-                  minWidth: 0,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {assetDisplayName(item)}
-              </h3>
-              <div style={{ maxWidth: "48%", minWidth: 0 }}>
-                <StatusBadge
-                  wrap
-                  label={item.acknowledged ? "Assigned" : "Pending acknowledgement"}
-                  color={item.acknowledged ? "#15803d" : "#d97706"}
-                  bg={item.acknowledged ? "#dcfce7" : "#fef3c7"}
-                  style={{ boxSizing: "border-box", maxWidth: "100%", padding: "3px 8px" }}
-                />
-              </div>
+              <div style={{ position: "absolute", inset: "0 0 auto", height: "3px", background: "linear-gradient(90deg, var(--primary), #5eead4)" }} />
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px", minWidth: 0 }}>
+                <div aria-hidden="true" style={{ display: "grid", placeItems: "center", width: "44px", height: "44px", flex: "0 0 44px", borderRadius: "12px", color: "var(--primary)", background: "var(--primary-light)" }}>
+                  <Laptop size={21} strokeWidth={1.8} />
+                </div>
+                <div style={{ flex: "1 1 auto", minWidth: 0 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px 8px", minWidth: 0 }}>
+                    <h3
+                      title={assetDisplayName(item)}
+                      style={{
+                        fontSize: "14px",
+                        fontWeight: 700,
+                        lineHeight: 1.35,
+                        color: "var(--text)",
+                        margin: 0,
+                        flex: "1 1 100px",
+                        minWidth: 0,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {assetDisplayName(item)}
+                    </h3>
+                    <StatusBadge
+                      label={item.acknowledged ? "Assigned" : "Pending acknowledgement"}
+                      color={item.acknowledged ? "#15803d" : "#d97706"}
+                      bg={item.acknowledged ? "#dcfce7" : "#fef3c7"}
+                      style={{ boxSizing: "border-box", maxWidth: "100%", padding: "3px 8px" }}
+                    />
+                  </div>
+                  <p style={{ fontSize: "11px", color: "var(--subtext)", margin: "4px 0 0" }}>
+                    Company asset
+                  </p>
+                </div>
               </div>
 
               <p
                 style={{
-                  fontSize: "12px",
+                  display: "flex",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  gap: "4px 8px",
+                  fontSize: "11.5px",
                   color: "var(--subtext)",
-                  marginBottom: "10px",
+                  background: "var(--background)",
+                  borderRadius: "8px",
+                  padding: "9px 11px",
+                  marginBottom: "12px",
                 }}
               >
-                <span style={{ fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace" }}>Serial: {item.serial}</span>
+                <span style={{ fontSize: "9px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>Serial</span>
+                <span style={{ fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace", color: "var(--label)", overflowWrap: "anywhere" }}>{item.serial}</span>
               </p>
 
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 14px", marginBottom: "10px", fontSize: "11.5px", color: "var(--subtext)" }}>
-                {item.location && <span>Location: {item.location}</span>}
-                {item.purchaseDate && <span>Purchased: {fmtDate(item.purchaseDate)}</span>}
-                {item.conditionNotes && <span>Condition: {item.conditionNotes}</span>}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "14px", fontSize: "11px", color: "var(--subtext)" }}>
+                {item.location && <span style={{ background: "var(--background)", borderRadius: "6px", padding: "4px 7px" }}>Location · {item.location}</span>}
+                {item.purchaseDate && <span style={{ background: "var(--background)", borderRadius: "6px", padding: "4px 7px" }}>Purchased · {fmtDate(item.purchaseDate)}</span>}
+                {item.conditionNotes && <span style={{ background: "var(--background)", borderRadius: "6px", padding: "4px 7px" }}>Condition · {item.conditionNotes}</span>}
               </div>
 
               {!item.acknowledged ? (
@@ -2851,6 +2873,7 @@ function MyAssetsTab({
                   onClick={() =>
                     handleAcknowledge(item.id)
                   }
+                  style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "7px", minHeight: "38px", whiteSpace: "nowrap" }}
                 >
                   <CheckCircle2 size={14} />
                   Acknowledge Receipt
@@ -2860,6 +2883,7 @@ function MyAssetsTab({
                   onClick={() =>
                     setReturnTarget(item)
                   }
+                  style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "7px", minHeight: "38px", whiteSpace: "nowrap" }}
                 >
                   <RotateCcw size={13} />
                   Return Asset
@@ -3053,6 +3077,22 @@ export default function Assets() {
     });
   };
 
+  const handleMyAssetChange = (item) => {
+    if (!item) return;
+
+    handleInventoryChange(item);
+    setMyAssets((prev) => {
+      if (item.status !== "ASSIGNED" || !item.currentHolderId) {
+        return prev.filter((asset) => asset.id !== item.id);
+      }
+
+      const exists = prev.some((asset) => asset.id === item.id);
+      return exists
+        ? prev.map((asset) => (asset.id === item.id ? item : asset))
+        : [item, ...prev];
+    });
+  };
+
   /* =====================================================
      REQUEST CHANGE
   ===================================================== */
@@ -3202,7 +3242,7 @@ export default function Assets() {
               ])
             }
             onAssetUpdated={
-              handleInventoryChange
+              handleMyAssetChange
             }
           />
         )}

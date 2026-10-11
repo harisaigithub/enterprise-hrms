@@ -36,6 +36,20 @@ export interface CreateProjectInput {
     milestones?: Array<{ title: string; dueDate: string }>;
 }
 
+export function assertProjectAssigneeMembership(
+    isProjectMember: boolean,
+    addAssigneeToProject: boolean,
+    actorRole: string
+) {
+    if (isProjectMember) return;
+    if (!addAssigneeToProject) {
+        throw AppError.badRequest("Assignee must be a member of the project");
+    }
+    if (!["ADMIN", "HR", "MANAGER"].includes(actorRole.toUpperCase())) {
+        throw AppError.forbidden("Only HR, Admin, or a Manager can add an assignee to the project team");
+    }
+}
+
 export interface CreateMilestoneInput {
     title: string;
     dueDate: string;
@@ -46,6 +60,8 @@ export interface CreateTaskInput {
     milestoneId?: string | null;
     title: string;
     assigneeId: string;
+    addAssigneeToProject?: boolean;
+    actorRole?: string;
     priority?: string;
     dueDate: string;
     comments?: string | null;
@@ -379,11 +395,9 @@ export async function createTask(
         (member) => member.employeeId
     );
 
-    if (!memberIds.includes(input.assigneeId)) {
-        throw AppError.badRequest(
-            "Assignee must be a member of the project"
-        );
-    }
+    const isProjectMember = memberIds.includes(input.assigneeId);
+    const addAssigneeToProject = input.addAssigneeToProject === true;
+    assertProjectAssigneeMembership(isProjectMember, addAssigneeToProject, input.actorRole || "");
 
     const employee =
         await prisma.employee.findUnique({
@@ -466,6 +480,14 @@ export async function createTask(
     const task =
         await prisma.$transaction(
             async (tx: any) => {
+                if (!isProjectMember && addAssigneeToProject) {
+                    await tx.taskProjectMember.create({
+                        data: {
+                            projectId: input.projectId,
+                            employeeId: input.assigneeId,
+                        },
+                    });
+                }
                 const created =
                     await tx.task.create({
                         data: {

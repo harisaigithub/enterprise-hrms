@@ -90,6 +90,20 @@ a { text-decoration: none; color: inherit; }
   transform: translateY(-2px);
   box-shadow: var(--shadow-lg);
 }
+.my-asset-card {
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.my-asset-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.project-summary-card {
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.project-summary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
 
 /* Badges */
 .badge {

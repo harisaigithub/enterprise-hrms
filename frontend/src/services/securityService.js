@@ -9,6 +9,7 @@ export const createCustomRole = (name) => api.post("/security/roles", { name }).
 export const setRoleMfa = (roleId, enabled, exception) => api.patch(`/security/roles/${roleId}/mfa`, { enabled, exception }).then((r) => ({ data: { role: r.data.data } }));
 export const getUsers = () => api.get("/security/users").then(data);
 export const createUser = (user) => api.post("/security/users", { name: user.name, email: user.email, roleId: user.roleIds[0] }).then(data);
+export const assignUserRole = (userId, roleId) => api.patch(`/security/users/${userId}/role`, { roleId }).then((r) => ({ data: { user: r.data.data } }));
 export const deactivateUser = (userId) => api.patch(`/security/users/${userId}/deactivate`).then((r) => ({ data: { user: r.data.data } }));
 export const forcePasswordReset = (userId) => api.patch(`/security/users/${userId}/force-password-reset`).then((r) => ({ data: { user: r.data.data } }));
 export const revokeAllSessions = (userId) => api.delete(`/security/users/${userId}/sessions`).then(data);

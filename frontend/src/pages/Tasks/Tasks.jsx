@@ -8,6 +8,7 @@ import {
   KanbanSquare,
   CalendarDays,
   FolderKanban,
+  ClipboardList,
   Plus,
   Clock,
   AlertTriangle,
@@ -15,6 +16,9 @@ import {
   History,
   ChevronLeft,
   ChevronRight,
+  CheckCircle2,
+  Play,
+  Square,
 } from "lucide-react";
 import MainLayout from "../../components/layout/MainLayout";
 import PageHeader from "../../components/shared/PageHeader";
@@ -61,6 +65,14 @@ const formatDateForInputDisplay = (value) => {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const year = date.getFullYear();
   return `${day}-${month}-${year}`;
+};
+
+const formatElapsedTime = (milliseconds) => {
+  const seconds = Math.floor(Math.max(0, milliseconds) / 1000);
+  const hours = String(Math.floor(seconds / 3600)).padStart(2, "0");
+  const minutes = String(Math.floor((seconds % 3600) / 60)).padStart(2, "0");
+  const remainder = String(seconds % 60).padStart(2, "0");
+  return `${hours}:${minutes}:${remainder}`;
 };
 
 /* ---------------------------------- shared bits ---------------------------------- */
@@ -134,7 +146,15 @@ function TabNav({ tabs, active, onChange }) {
 
 function CreateTaskModal({
   isOpen,
+  ...props
+}) {
+  if (!isOpen) return null;
+  return <CreateTaskForm key={`${props.initialProjectId || ""}:${props.currentEmployee?.id || ""}`} {...props} />;
+}
+
+function CreateTaskForm({
   onClose,
+  initialProjectId,
   projects,
   employees,
   priorities,
@@ -142,13 +162,15 @@ function CreateTaskModal({
   tasks,
   onSaved,
 }) {
-  const [projectId, setProjectId] = useState(projects[0]?.id || "");
+  const initialProject = projects.find((item) => item.id === initialProjectId) || projects[0];
+  const [projectId, setProjectId] = useState(initialProject?.id || "");
   const [milestoneId, setMilestoneId] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [assigneeId, setAssigneeId] = useState(
-    currentEmployee?.id || ""
-  );
+  const initialAssignee = currentEmployee?.id && employees.some((employee) => employee.id === currentEmployee.id && employee.isActive)
+    ? currentEmployee.id
+    : employees.find((employee) => employee.isActive)?.id || "";
+  const [assigneeId, setAssigneeId] = useState(initialAssignee);
   const [priority, setPriority] = useState("Medium");
   const [dueDate, setDueDate] = useState("");
   const [subtasksInput, setSubtasksInput] = useState("");
@@ -157,11 +179,8 @@ function CreateTaskModal({
   const [error, setError] = useState("");
 
   const project = projects.find((p) => p.id === projectId);
-  const assignableEmployees = employees.filter(
-    (e) =>
-      e.isActive &&
-      (project ? project.members.includes(e.id) : true)
-  );
+  const assignableEmployees = employees.filter((e) => e.isActive);
+  const assigneeIsProjectMember = project?.members.includes(assigneeId) ?? false;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -182,10 +201,10 @@ function CreateTaskModal({
         comments: description.trim(),
         blockerTaskIds,
         subtasks,
+        addAssigneeToProject: !assigneeIsProjectMember,
       });
       onSaved(res.data);
       onClose();
-      setTitle(""); setDescription(""); setDueDate(""); setMilestoneId(""); setPriority("Medium"); setSubtasksInput(""); setBlockerTaskIds([]);
     } catch (submitError) {
       setError(submitError.message || "Could not create the task.");
     } finally {
@@ -194,7 +213,7 @@ function CreateTaskModal({
   };
 
   return (
-    <Modal isOpen={isOpen} title="Create Task" onClose={onClose}>
+    <Modal isOpen title="Create Task" onClose={onClose}>
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           {fieldLabel("Project *")}
@@ -225,6 +244,11 @@ function CreateTaskModal({
             <select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)} style={{ ...inputStyle(), height: "38px", cursor: "pointer" }}>
               {assignableEmployees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
             </select>
+            {!assigneeIsProjectMember && assigneeId && (
+              <span role="note" style={{ fontSize: "11px", color: "var(--subtext)" }}>
+                The assignee will be added to this project's team when the task is created.
+              </span>
+            )}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
             {fieldLabel("Priority *")}
@@ -362,14 +386,18 @@ function TaskDetailModal({
   const taskId = task?.id;
   const [entries, setEntries] = useState([]);
   const [taskHistory, setTaskHistory] = useState([]);
-  const [hours, setHours] = useState("");
-  const [note, setNote] = useState("");
-  const [logging, setLogging] = useState(false);
+  const [activeTimer, setActiveTimer] = useState(null);
+  const [timerNow, setTimerNow] = useState(0);
+  const [timerNote, setTimerNote] = useState("");
+  const [timerSaving, setTimerSaving] = useState(false);
+  const [timerError, setTimerError] = useState("");
+  const [loadedTimerKey, setLoadedTimerKey] = useState("");
   const [priority, setPriority] = useState(task?.priority || "Medium");
   const [comments, setComments] = useState(task?.comments || "");
   const [subtasks, setSubtasks] = useState(task?.subtasks || []);
   const [newSubtask, setNewSubtask] = useState("");
   const [savingDetails, setSavingDetails] = useState(false);
+  const timerStorageKey = currentEmployee?.id ? `hrms-task-timer-${currentEmployee.id}` : "";
 
   useEffect(() => {
     if (!taskId) return undefined;
@@ -384,24 +412,95 @@ function TaskDetailModal({
     return () => { active = false; };
   }, [taskId]);
 
+  useEffect(() => {
+    if (!timerStorageKey) return;
+    let active = true;
+    let restoredTimer = null;
+    const storedTimer = localStorage.getItem(timerStorageKey);
+    if (storedTimer) {
+      try {
+        const parsed = JSON.parse(storedTimer);
+        if (
+          parsed?.employeeId === currentEmployee.id &&
+          typeof parsed.taskId === "string" &&
+          typeof parsed.taskTitle === "string" &&
+          Number.isFinite(parsed.startedAt)
+        ) {
+          restoredTimer = parsed;
+        } else {
+          console.error("Stored task timer is invalid and was discarded.");
+          localStorage.removeItem(timerStorageKey);
+        }
+      } catch (error) {
+        console.error("Could not restore the stored task timer:", error);
+        localStorage.removeItem(timerStorageKey);
+      }
+    }
+    queueMicrotask(() => {
+      if (!active) return;
+      setActiveTimer(restoredTimer);
+      setTimerNote(restoredTimer?.note || "");
+      setLoadedTimerKey(timerStorageKey);
+    });
+    return () => { active = false; };
+  }, [timerStorageKey, currentEmployee?.id]);
+
+  useEffect(() => {
+    if (!timerStorageKey || loadedTimerKey !== timerStorageKey) return;
+    if (activeTimer) localStorage.setItem(timerStorageKey, JSON.stringify(activeTimer));
+    else localStorage.removeItem(timerStorageKey);
+  }, [activeTimer, loadedTimerKey, timerStorageKey]);
+
+  useEffect(() => {
+    if (!activeTimer) return undefined;
+    const interval = window.setInterval(() => setTimerNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [activeTimer]);
+
   const totalHours = entries.reduce((sum, e) => sum + e.hours, 0);
 
-  const handleLogTime = async (e) => {
-    e.preventDefault();
-    if (!hours) return;
-    if (!currentEmployee) return;
-    setLogging(true);
-    const entry = await logTimeEntry({
+  const handleStartTimer = () => {
+    if (!task || !currentEmployee || !canLogTime || activeTimer) return;
+    const startedAt = Date.now();
+    setTimerError("");
+    setTimerNow(startedAt);
+    setActiveTimer({
       taskId: task.id,
+      taskTitle: task.title,
       employeeId: currentEmployee.id,
       employeeName: currentEmployee.name,
-      date: new Date().toISOString().slice(0, 10),
-      hours,
-      note: note.trim(),
+      startedAt,
+      note: timerNote.trim(),
     });
-    setEntries((prev) => [entry.data, ...prev]);
-    setLogging(false);
-    setHours(""); setNote("");
+  };
+
+  const handleStopTimer = async () => {
+    if (!activeTimer || timerSaving) return;
+    const elapsedMs = Math.min(Math.max(timerNow, activeTimer.startedAt) - activeTimer.startedAt, 24 * 60 * 60 * 1000);
+    const loggedHours = Math.round((elapsedMs / 3_600_000) * 100) / 100;
+    if (loggedHours <= 0) {
+      setTimerError("Keep the timer running for at least 18 seconds to record time.");
+      return;
+    }
+    setTimerSaving(true);
+    setTimerError("");
+    try {
+      const entry = await logTimeEntry({
+        taskId: activeTimer.taskId,
+        employeeId: activeTimer.employeeId,
+        employeeName: activeTimer.employeeName,
+        date: new Date(activeTimer.startedAt).toISOString().slice(0, 10),
+        hours: loggedHours,
+        note: activeTimer.note || "",
+      });
+      if (activeTimer.taskId === taskId) setEntries((prev) => [entry.data, ...prev]);
+      setActiveTimer(null);
+      setTimerNote("");
+    } catch (error) {
+      setTimerError(error.message || "Could not save the timed work entry. The timer is still running.");
+    } finally {
+      setTimerSaving(false);
+    }
   };
 
   const handleSaveDetails = async () => {
@@ -521,11 +620,34 @@ function TaskDetailModal({
           <h4 style={{ fontSize: "12px", fontWeight: 700, color: "var(--label)", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
             <Clock size={13} /> Log time ({totalHours}h logged)
           </h4>
-          {canLogTime && (<form onSubmit={handleLogTime} style={{ display: "flex", gap: "8px", marginBottom: "10px" }}>
-            <input type="number" step="0.5" min="0.5" placeholder="Hours" value={hours} onChange={(e) => setHours(e.target.value)} style={{ ...inputStyle(), width: "90px" }} />
-            <input placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} style={inputStyle()} />
-            <PrimaryButton type="submit" disabled={logging || !hours} style={{ padding: "9px 14px" }}>{logging ? "..." : "Log"}</PrimaryButton>
-          </form>)}
+          {canLogTime && (
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "10px", padding: "12px", marginBottom: "10px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "var(--background)" }}>
+              <div style={{ minWidth: 0, flex: "1 1 180px" }}>
+                <p style={{ fontSize: "11px", color: "var(--subtext)", margin: "0 0 3px" }}>
+                  {activeTimer
+                    ? activeTimer.taskId === taskId ? "Timer running for this task" : `Timer running: ${activeTimer.taskTitle}`
+                    : "Track work time automatically"}
+                </p>
+                {activeTimer ? (
+                  <strong aria-live="off" style={{ fontSize: "22px", fontVariantNumeric: "tabular-nums", letterSpacing: "0.04em", color: "var(--primary)" }}>
+                    {formatElapsedTime(Math.min(Math.max(timerNow, activeTimer.startedAt) - activeTimer.startedAt, 24 * 60 * 60 * 1000))}
+                  </strong>
+                ) : (
+                  <input aria-label="Timer note (optional)" value={timerNote} onChange={(event) => setTimerNote(event.target.value)} placeholder="What are you working on?" style={{ ...inputStyle(), padding: "7px 9px", fontSize: "12px" }} />
+                )}
+              </div>
+              {activeTimer ? (
+                <PrimaryButton type="button" onClick={handleStopTimer} disabled={timerSaving} style={{ display: "inline-flex", alignItems: "center", gap: "6px", whiteSpace: "nowrap" }}>
+                  <Square size={13} fill="currentColor" /> {timerSaving ? "Saving..." : "Stop & log"}
+                </PrimaryButton>
+              ) : (
+                <PrimaryButton type="button" onClick={handleStartTimer} disabled={!canLogTime} style={{ display: "inline-flex", alignItems: "center", gap: "6px", whiteSpace: "nowrap" }}>
+                  <Play size={14} fill="currentColor" /> Start timer
+                </PrimaryButton>
+              )}
+            </div>
+          )}
+          {timerError && <p role="alert" style={{ fontSize: "11.5px", color: "var(--red)", margin: "0 0 8px" }}>{timerError}</p>}
           <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "110px", overflowY: "auto" }}>
             {entries.map((e) => (
               <div key={e.id} style={{ fontSize: "12px", color: "var(--subtext)" }}>
@@ -1104,13 +1226,26 @@ function ProjectsTab({
   currentEmployee,
   onProjectAdded,
   onMilestoneAdded,
+  onAddTask,
   canWrite,
 }) {
   const [showCreate, setShowCreate] = useState(false);
   const [milestoneTarget, setMilestoneTarget] = useState(null);
+  const [projectFilter, setProjectFilter] = useState("all");
+  const [projectSearch, setProjectSearch] = useState("");
+  const filteredProjects = projects.filter((project) => {
+    const matchesSearch = `${project.name} ${project.leadName || ""}`.toLowerCase().includes(projectSearch.trim().toLowerCase());
+    const taskCount = project.taskCount ?? 0;
+    const doneCount = project.doneTaskCount ?? 0;
+    const matchesFilter = projectFilter === "all"
+      || (projectFilter === "open" && taskCount > doneCount)
+      || (projectFilter === "completed" && taskCount > 0 && doneCount >= taskCount);
+    return matchesSearch && matchesFilter;
+  });
 
   return (
     <div>
+      <ProjectDashboard projects={projects} activeFilter={projectFilter} onFilterChange={setProjectFilter} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
         <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>Projects</h2>
         {canWrite && (
@@ -1119,51 +1254,92 @@ function ProjectsTab({
           </PrimaryButton>
         )}
       </div>
+      {projects.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", flexWrap: "wrap", marginBottom: "14px" }}>
+          <input
+            type="search"
+            aria-label="Search projects"
+            value={projectSearch}
+            onChange={(event) => setProjectSearch(event.target.value)}
+            placeholder="Search projects or leads"
+            style={{ ...inputStyle(), width: "min(100%, 320px)" }}
+          />
+          <span aria-live="polite" style={{ fontSize: "11.5px", color: "var(--subtext)" }}>
+            Showing {filteredProjects.length} of {projects.length} {projects.length === 1 ? "project" : "projects"}
+          </span>
+        </div>
+      )}
       {projects.length === 0 ? (
         <EmptyState icon={FolderKanban} title="No projects yet" />
+      ) : filteredProjects.length === 0 ? (
+        <EmptyState icon={FolderKanban} title="No matching projects" subtitle="Try another search or select a different dashboard filter." />
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "14px" }}>
-          {projects.map((p) => {
+          {filteredProjects.map((p) => {
             const taskCount = p.taskCount ?? 0;
             const doneCount = p.doneTaskCount ?? 0;
             const progress = p.progress ?? 0;
             return (
-              <div key={p.id} style={{ ...cardStyle, padding: "18px 20px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
-                  <h3 style={{ fontSize: "14.5px", fontWeight: 700, color: "var(--text)", margin: 0 }}>{p.name}</h3>
-                  <span title={p.leadName ? `Lead: ${p.leadName}` : "No project lead assigned"} style={{ display: "inline-block", flexShrink: 0, maxWidth: "45%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "10px", fontWeight: 700, background: "color-mix(in srgb, var(--primary) 12%, white)", color: "var(--primary)", borderRadius: "999px", padding: "3px 7px" }}>{p.leadName ? `Lead: ${p.leadName}` : "No lead assigned"}</span>
-                </div>
-                {p.description && <p style={{ fontSize: "12px", color: "var(--subtext)", marginBottom: "8px" }}>{p.description}</p>}
-                <p style={{ fontSize: "12px", color: "var(--subtext)", marginBottom: "10px" }}>
-                  {p.members.length} member(s) • {doneCount}/{taskCount} tasks done{p.startDate || p.targetEndDate ? ` • ${p.startDate ? fmtDate(p.startDate) : "TBD"} → ${p.targetEndDate ? fmtDate(p.targetEndDate) : "TBD"}` : ""}
-                </p>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr auto", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-                  <div role="progressbar" aria-label={`${p.name} progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} style={{ height: "8px", background: "var(--background)", borderRadius: "999px", overflow: "hidden" }}>
-                    <div style={{ width: `${progress}%`, height: "100%", background: "var(--primary)", borderRadius: "inherit", transition: "width 0.2s ease" }} />
+              <div key={p.id} className="project-summary-card" style={{ ...cardStyle, position: "relative", overflow: "hidden", padding: "20px" }}>
+                <div aria-hidden="true" style={{ position: "absolute", inset: "0 0 auto", height: "3px", background: "linear-gradient(90deg, var(--primary), #5eead4)" }} />
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", marginBottom: "14px", minWidth: 0 }}>
+                  <div aria-hidden="true" style={{ width: "42px", height: "42px", flex: "0 0 42px", display: "grid", placeItems: "center", color: "var(--primary)", background: "var(--primary-light)", borderRadius: "12px" }}>
+                    <FolderKanban size={20} strokeWidth={1.8} />
                   </div>
-                  <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--subtext)" }}>{progress}%</span>
+                  <div style={{ flex: "1 1 auto", minWidth: 0 }}>
+                    <h3 title={p.name} style={{ fontSize: "15px", lineHeight: 1.35, fontWeight: 700, color: "var(--text)", margin: "0 0 7px", overflowWrap: "anywhere" }}>{p.name}</h3>
+                    <span
+                      title={p.leadName ? `Project lead: ${p.leadName}` : "No project lead assigned"}
+                      style={{ display: "inline-flex", alignItems: "center", maxWidth: "100%", fontSize: "10.5px", fontWeight: 600, color: p.leadName ? "var(--primary)" : "var(--subtext)", background: p.leadName ? "var(--primary-light)" : "var(--background)", borderRadius: "7px", padding: "4px 8px", overflowWrap: "anywhere" }}
+                    >
+                      {p.leadName ? `Lead · ${p.leadName}` : "No lead assigned"}
+                    </span>
+                  </div>
+                </div>
+                {p.description && <p style={{ fontSize: "12px", lineHeight: 1.5, color: "var(--subtext)", margin: "0 0 14px" }}>{p.description}</p>}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "7px", marginBottom: "16px" }}>
+                  <span style={{ fontSize: "11px", color: "var(--label)", background: "var(--background)", borderRadius: "7px", padding: "5px 8px" }}>{p.members.length} {p.members.length === 1 ? "member" : "members"}</span>
+                  <span style={{ fontSize: "11px", color: "var(--label)", background: "var(--background)", borderRadius: "7px", padding: "5px 8px" }}>{doneCount} of {taskCount} tasks complete</span>
+                  {(p.startDate || p.targetEndDate) && (
+                    <span style={{ fontSize: "11px", color: "var(--label)", background: "var(--background)", borderRadius: "7px", padding: "5px 8px" }}>
+                      {p.startDate ? fmtDate(p.startDate) : "Start TBD"} – {p.targetEndDate ? fmtDate(p.targetEndDate) : "End TBD"}
+                    </span>
+                  )}
+                </div>
+                <div style={{ marginBottom: p.milestones.length || canWrite ? "15px" : 0 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginBottom: "7px" }}>
+                    <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--subtext)" }}>Overall progress</span>
+                    <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--primary)" }}>{progress}%</span>
+                  </div>
+                  <div role="progressbar" aria-label={`${p.name} progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} style={{ height: "8px", background: "var(--background)", borderRadius: "999px", overflow: "hidden" }}>
+                    <div style={{ width: `${progress}%`, height: "100%", background: "linear-gradient(90deg, var(--primary), #2dd4bf)", borderRadius: "inherit", transition: "width 0.2s ease" }} />
+                  </div>
                 </div>
                 {p.milestones.length > 0 && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginBottom: "10px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: canWrite ? "12px" : 0 }}>
                     {p.milestones.map((m) => (
-                      <span key={m.id} style={{ fontSize: "11.5px", color: "var(--subtext)" }}>• {m.title} • due {fmtDate(m.dueDate)}</span>
+                      <div key={m.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "8px", borderLeft: "2px solid var(--primary)", padding: "3px 0 3px 9px" }}>
+                        <span style={{ minWidth: 0, fontSize: "11.5px", color: "var(--label)", overflowWrap: "anywhere" }}>{m.title}</span>
+                        <span style={{ flex: "0 0 auto", fontSize: "10.5px", color: "var(--subtext)" }}>Due {fmtDate(m.dueDate)}</span>
+                      </div>
                     ))}
                   </div>
                 )}
                 {canWrite && (
-                  <button
-                    onClick={() => setMilestoneTarget(p)}
-                    style={{
-                      fontSize: "12px",
-                      fontWeight: 700,
-                      color: "var(--primary)",
-                      border: "none",
-                      background: "none",
-                      cursor: "pointer"
-                    }}
-                  >
-                    + Add milestone
-                  </button>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                    <button
+                      onClick={() => onAddTask(p.id)}
+                      style={{ display: "inline-flex", alignItems: "center", gap: "6px", minHeight: "34px", fontSize: "11.5px", fontWeight: 700, color: "#fff", border: "1px solid var(--primary)", borderRadius: "var(--radius-sm)", background: "var(--primary)", padding: "0 10px", cursor: "pointer" }}
+                    >
+                      <Plus size={14} /> Add task
+                    </button>
+                    <button
+                      onClick={() => setMilestoneTarget(p)}
+                      style={{ display: "inline-flex", alignItems: "center", gap: "6px", minHeight: "34px", fontSize: "11.5px", fontWeight: 700, color: "var(--primary)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "var(--card)", padding: "0 10px", cursor: "pointer" }}
+                    >
+                      <Plus size={14} /> Add milestone
+                    </button>
+                  </div>
                 )}
               </div>
             );
@@ -1179,6 +1355,62 @@ function ProjectsTab({
       />
       <AddMilestoneModal isOpen={!!milestoneTarget} onClose={() => setMilestoneTarget(null)} project={milestoneTarget} onSaved={onMilestoneAdded} />
     </div>
+  );
+}
+
+function ProjectDashboard({ projects, activeFilter, onFilterChange }) {
+  const totalTasks = projects.reduce((total, project) => total + (project.taskCount ?? 0), 0);
+  const completedTasks = projects.reduce((total, project) => total + (project.doneTaskCount ?? 0), 0);
+  const activeProjects = projects.filter((project) => (project.taskCount ?? 0) > (project.doneTaskCount ?? 0));
+  const completedProjects = projects.filter((project) => (project.taskCount ?? 0) > 0 && (project.doneTaskCount ?? 0) >= (project.taskCount ?? 0));
+  const portfolioProgress = totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  const metrics = [
+    { label: "All projects", value: projects.length, detail: "View the full portfolio", filter: "all", color: "var(--primary)", icon: FolderKanban },
+    { label: "Open projects", value: activeProjects.length, detail: `${Math.max(totalTasks - completedTasks, 0)} tasks remaining`, filter: "open", color: "#2563eb", icon: ClipboardList },
+    { label: "Completed", value: completedProjects.length, detail: completedProjects.length === 1 ? "1 project fully delivered" : `${completedProjects.length} projects fully delivered`, filter: "completed", color: "#15803d", icon: CheckCircle2 },
+  ];
+
+  return (
+    <section aria-label="Project dashboard" style={{ marginBottom: "22px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "12px", flexWrap: "wrap", marginBottom: "12px" }}>
+        <div>
+          <h2 style={{ fontSize: "16px", fontWeight: 700, color: "var(--text)", margin: "0 0 3px" }}>Project dashboard</h2>
+          <p style={{ fontSize: "11.5px", color: "var(--subtext)", margin: 0 }}>A portfolio snapshot across the projects available to you</p>
+        </div>
+        <span style={{ fontSize: "11px", color: "var(--subtext)" }}>Progress is based on project-wide task totals</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 190px), 1fr))", gap: "12px" }}>
+        {metrics.map(({ label, value, detail, filter, color, icon: Icon }) => (
+          <button
+            key={label}
+            type="button"
+            aria-pressed={activeFilter === filter}
+            onClick={() => onFilterChange(filter)}
+            className="project-summary-card"
+            style={{ ...cardStyle, display: "flex", alignItems: "center", gap: "12px", padding: "14px 16px", width: "100%", textAlign: "left", cursor: "pointer", borderColor: activeFilter === filter ? color : "var(--border)", boxShadow: activeFilter === filter ? "var(--shadow-md)" : "var(--shadow-sm)" }}
+          >
+            <div aria-hidden="true" style={{ width: "38px", height: "38px", flex: "0 0 38px", display: "grid", placeItems: "center", color, background: `color-mix(in srgb, ${color} 10%, white)`, borderRadius: "11px" }}>
+              <Icon size={18} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <p style={{ fontSize: "11px", color: "var(--subtext)", margin: 0 }}>{label}</p>
+              <p style={{ fontSize: "20px", lineHeight: 1.2, fontWeight: 700, color, margin: "2px 0" }}>{value}</p>
+              <p style={{ fontSize: "10.5px", color: "var(--subtext)", margin: 0 }}>{detail}</p>
+            </div>
+          </button>
+        ))}
+      </div>
+      <div style={{ ...cardStyle, display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 3fr) auto", alignItems: "center", gap: "14px", padding: "13px 16px", marginTop: "12px" }}>
+        <div>
+          <p style={{ fontSize: "11px", fontWeight: 600, color: "var(--subtext)", margin: 0 }}>Overall completion</p>
+          <p style={{ fontSize: "10.5px", color: "var(--subtext)", margin: "3px 0 0" }}>{completedTasks} of {totalTasks} tasks completed</p>
+        </div>
+        <div role="progressbar" aria-label="Overall project completion" aria-valuemin={0} aria-valuemax={100} aria-valuenow={portfolioProgress} style={{ height: "9px", background: "var(--background)", borderRadius: "99px", overflow: "hidden" }}>
+          <div style={{ width: `${portfolioProgress}%`, height: "100%", background: "linear-gradient(90deg, var(--primary), #2dd4bf)", borderRadius: "inherit", transition: "width 0.2s ease" }} />
+        </div>
+        <strong style={{ fontSize: "18px", color: "var(--primary)" }}>{portfolioProgress}%</strong>
+      </div>
+    </section>
   );
 }
 
@@ -1236,6 +1468,7 @@ export default function Tasks() {
     currentEmployee: null,
   });
   const [showCreateTask, setShowCreateTask] = useState(false);
+  const [newTaskProjectId, setNewTaskProjectId] = useState("");
   const [detailTask, setDetailTask] = useState(null);
   const [blockedState, setBlockedState] = useState(null); // { task, openBlockers, openSubtasks }
 
@@ -1313,6 +1546,9 @@ export default function Tasks() {
         ? prev.map((t) => (t?.id === taskObj.id ? { ...t, ...taskObj } : t))
         : []
     );
+    getTasks()
+      .then((response) => setTasks(response.data))
+      .catch((error) => console.error("Failed to refresh task blockers after status change:", error));
     getProjects()
       .then((response) => setProjects(response.data))
       .catch((error) => console.error("Failed to refresh project progress:", error));
@@ -1351,12 +1587,14 @@ export default function Tasks() {
         <PageHeader title="Task Management" subtitle="Projects, milestones, tasks and time tracking" />
         <TabNav tabs={TABS} active={activeTab} onChange={setActiveTab} />
 
-        <OrphanedTasksBanner orphaned={orphaned} employees={taskMeta.employees} onReassigned={handleReassigned} canWrite={canManageTasks} />
+        {(activeTab === "kanban" || activeTab === "calendar") && (
+          <OrphanedTasksBanner orphaned={orphaned} employees={taskMeta.employees} onReassigned={handleReassigned} canWrite={canManageTasks} />
+        )}
 
         {canManageTasks &&
           (activeTab === "kanban" || activeTab === "calendar") && (
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "14px" }}>
-              <PrimaryButton onClick={() => setShowCreateTask(true)}>
+              <PrimaryButton onClick={() => { setNewTaskProjectId(""); setShowCreateTask(true); }}>
                 <Plus size={16} /> Create Task
               </PrimaryButton>
             </div>
@@ -1389,6 +1627,7 @@ export default function Tasks() {
             currentEmployee={taskMeta.currentEmployee}
             onProjectAdded={handleProjectAdded}
             onMilestoneAdded={handleMilestoneAdded}
+            onAddTask={(projectId) => { setNewTaskProjectId(projectId); setShowCreateTask(true); }}
             canWrite={canManageTasks}
           />
         )}
@@ -1396,6 +1635,7 @@ export default function Tasks() {
         <CreateTaskModal
           isOpen={showCreateTask}
           onClose={() => setShowCreateTask(false)}
+          initialProjectId={newTaskProjectId}
           projects={projects}
           tasks={tasks}
           employees={taskMeta.employees}
@@ -1405,6 +1645,7 @@ export default function Tasks() {
         />
 
         <TaskDetailModal 
+          key={`${taskMeta.currentEmployee?.id || "no-employee"}:${detailTask?.id || "no-task"}`}
           isOpen={!!detailTask} 
           onClose={() => setDetailTask(null)} 
           task={detailTask ? tasks.find((t) => t.id === detailTask.id) : null} 

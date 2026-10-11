@@ -53,14 +53,6 @@ export function getLicenseAlerts() {
    REQUESTS
 ========================================================= */
 
-export function getRequests(employeeId) {
-  return api.get("/assets/requests", {
-    params: {
-      employeeId,
-    },
-  });
-}
-
 export function getAllRequests() {
   return api.get("/assets/requests");
 }

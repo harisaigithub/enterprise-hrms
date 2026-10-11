@@ -1,5 +1,13 @@
 import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
+import { PrismaPg } from '@prisma/adapter-pg';
+import 'dotenv/config';
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) throw new Error('DATABASE_URL is required to seed expense policies');
+
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: databaseUrl }),
+});
 
 const policies = [
   { category: 'Travel', limitAmount: 15000, receiptThreshold: 500, submissionWindowDays: 60, isActive: true },
@@ -14,16 +22,22 @@ const policies = [
 ];
 
 async function seed() {
-  for (const p of policies) {
-    await prisma.expensePolicy.upsert({
-      where: { category: p.category },
-      create: p,
-      update: p,
-    });
-    console.log('Seeded:', p.category);
+  try {
+    for (const p of policies) {
+      await prisma.expensePolicy.upsert({
+        where: { category: p.category },
+        create: p,
+        update: p,
+      });
+      console.log('Seeded:', p.category);
+    }
+    console.log('Done!');
+  } finally {
+    await prisma.$disconnect();
   }
-  console.log('Done!');
-  await prisma.$disconnect();
 }
 
-seed().catch(console.error);
+seed().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
