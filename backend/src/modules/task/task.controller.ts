@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from "express";
-import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/errors";
 import { writeAuditLog } from "../../services/audit.service";
@@ -99,6 +98,10 @@ export async function createTask(
     next: NextFunction
 ) {
     try {
+        if (req.body.addAssigneeToProject !== undefined && typeof req.body.addAssigneeToProject !== "boolean") {
+            throw AppError.badRequest("addAssigneeToProject must be a boolean");
+        }
+
         const result =
             await taskService.createTask({
                 projectId:
@@ -113,6 +116,12 @@ export async function createTask(
 
                 assigneeId:
                     req.body.assigneeId,
+
+                addAssigneeToProject:
+                    req.body.addAssigneeToProject,
+
+                actorRole:
+                    req.auth?.role ?? "",
 
                 priority:
                     req.body.priority ??

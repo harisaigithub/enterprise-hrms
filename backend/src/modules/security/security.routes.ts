@@ -16,6 +16,7 @@ router.patch("/roles/:id/permissions", ...write, validate({ body: z.object({ per
 router.patch("/roles/:id/mfa", ...write, validate({ body: z.object({ enabled: z.boolean(), exception: z.object({ reason: z.string().optional(), approvedBy: z.string().optional() }).optional() }).strict() }), c.setRoleMfa);
 router.get("/users", requirePermission("security:read"), c.users);
 router.post("/users", ...write, validate({ body: z.object({ name: z.string().trim().min(2), email: z.string().email(), roleId: z.string().uuid() }).strict() }), c.createUser);
+router.patch("/users/:id/role", ...write, validate({ body: z.object({ roleId: z.string().uuid() }).strict() }), c.assignUserRole);
 router.patch("/users/:id/deactivate", ...write, c.deactivateUser);
 router.patch("/users/:id/force-password-reset", ...write, c.forcePasswordReset);
 router.delete("/users/:id/sessions", ...write, c.revokeSessions);

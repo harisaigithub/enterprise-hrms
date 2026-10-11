@@ -19,7 +19,7 @@ type RestoreRequest = {
   executedBy: string | null;
 };
 
-const BUILT_IN_ROLES = new Set(["ADMIN", "HR", "MANAGER", "EMPLOYEE"]);
+const BUILT_IN_ROLES = new Set(["ADMIN", "HR", "MANAGER", "FINANCE", "EMPLOYEE"]);
 const MFA_REQUIRED_ROLES = new Set(["ADMIN", "HR"]);
 
 const DEFAULT_SECURITY_CONFIG: JsonObject = {
@@ -155,6 +155,37 @@ export async function listUsers() {
     forcePasswordResetPending: Boolean(state[user.id]?.forcePasswordResetPending),
     passwordHashPlaceholder: "•••• (bcrypt, salted)",
   }));
+}
+
+export async function assignUserRole(userId: string, roleId: string, actorUserId: string) {
+  const [user, role] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, include: { role: true, employee: true } }),
+    prisma.role.findUnique({ where: { id: roleId } }),
+  ]);
+  if (!user) throw AppError.notFound("User not found");
+  if (!role) throw AppError.notFound("Role not found");
+  if (!user.employee) throw AppError.badRequest("A role can be assigned only to an account linked to an employee.");
+  if (user.roleId === roleId) return (await listUsers()).find((item) => item.id === userId)!;
+  if (userId === actorUserId) throw AppError.forbidden("You cannot change your own role.");
+  if (user.role.name.toUpperCase() === "ADMIN" && role.name.toUpperCase() !== "ADMIN") {
+    const activeAdmins = await prisma.user.count({ where: { isActive: true, role: { name: "ADMIN" } } });
+    if (activeAdmins <= 1) throw AppError.conflict("The last active Admin cannot be reassigned.");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({ where: { id: userId }, data: { roleId } });
+    await tx.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  });
+  await audit(actorUserId, "UPDATE", "User", userId, {
+    employeeCode: user.employee.employeeCode,
+    oldRole: user.role.name,
+    newRole: role.name,
+    sessionsRevoked: true,
+  });
+  return (await listUsers()).find((item) => item.id === userId)!;
 }
 
 export async function createUser(input: { name: string; email: string; roleId: string }, actorUserId: string) {
@@ -310,7 +341,8 @@ function auditDetails(entry: { newValue: unknown; oldValue: unknown }) {
 }
 
 export async function auditLog() {
-  const entries = await prisma.auditLog.findMany({ include: { actor: { include: { employee: true } } }, orderBy: { createdAt: "asc" }, take: 500 });
+  const recentEntries = await prisma.auditLog.findMany({ include: { actor: { include: { employee: true } } }, orderBy: { createdAt: "desc" }, take: 500 });
+  const entries = recentEntries.reverse();
   let previous = "0".repeat(64);
   const chained = entries.map((entry) => {
     const actor = entry.actor?.employee ? `${entry.actor.employee.firstName} ${entry.actor.employee.lastName}` : entry.actor?.email || "System";

@@ -1,6 +1,13 @@
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import "dotenv/config";
 
-const prisma = new PrismaClient();
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) throw new Error("DATABASE_URL is required to sync permissions");
+
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: databaseUrl }),
+});
 
 const ROLE_PERMISSIONS: Record<string, string[]> = {
   ADMIN: [
@@ -93,44 +100,47 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
 };
 
 async function sync() {
-  console.log("Syncing permissions in DB...");
-  const allPerms = new Set<string>();
-  Object.values(ROLE_PERMISSIONS).forEach((list) => list.forEach((p) => allPerms.add(p)));
+  try {
+    console.log("Syncing permissions in DB...");
+    const allPerms = new Set<string>();
+    Object.values(ROLE_PERMISSIONS).forEach((list) => list.forEach((p) => allPerms.add(p)));
 
-  const permMap = new Map<string, string>();
-  for (const code of allPerms) {
-    const p = await prisma.permission.upsert({
-      where: { code },
-      update: {},
-      create: { code, description: code },
-    });
-    permMap.set(code, p.id);
-  }
-
-  for (const [roleName, perms] of Object.entries(ROLE_PERMISSIONS)) {
-    const role = await prisma.role.upsert({
-      where: { name: roleName },
-      update: {},
-      create: { name: roleName, description: `${roleName} role` },
-    });
-
-    await prisma.rolePermission.deleteMany({ where: { roleId: role.id } });
-    for (const code of perms) {
-      const pid = permMap.get(code);
-      if (pid) {
-        await prisma.rolePermission.create({
-          data: { roleId: role.id, permissionId: pid },
-        });
-      }
+    const permMap = new Map<string, string>();
+    for (const code of allPerms) {
+      const p = await prisma.permission.upsert({
+        where: { code },
+        update: {},
+        create: { code, description: code },
+      });
+      permMap.set(code, p.id);
     }
-    console.log(`Updated ${roleName} with ${perms.length} permissions.`);
-  }
 
-  console.log("Done syncing permissions successfully!");
-  await prisma.$disconnect();
+    for (const [roleName, perms] of Object.entries(ROLE_PERMISSIONS)) {
+      const role = await prisma.role.upsert({
+        where: { name: roleName },
+        update: {},
+        create: { name: roleName, description: `${roleName} role` },
+      });
+
+      await prisma.rolePermission.deleteMany({ where: { roleId: role.id } });
+      for (const code of perms) {
+        const pid = permMap.get(code);
+        if (pid) {
+          await prisma.rolePermission.create({
+            data: { roleId: role.id, permissionId: pid },
+          });
+        }
+      }
+      console.log(`Updated ${roleName} with ${perms.length} permissions.`);
+    }
+
+    console.log("Done syncing permissions successfully!");
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
 sync().catch((e) => {
   console.error(e);
-  process.exit(1);
+  process.exitCode = 1;
 });

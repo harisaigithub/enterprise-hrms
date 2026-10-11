@@ -157,7 +157,7 @@ function RequestSummaryCard({ req, children }) {
         <span style={{ fontSize: "10.5px", fontWeight: 700, color: "var(--subtext)", background: "var(--background)", padding: "2px 8px", borderRadius: "99px" }}>Est. {fmtINR(req.estimatedCost)}</span>
         {req.isInternational && <span style={{ fontSize: "10.5px", fontWeight: 700, color: "#7c3aed", background: "#f5f3ff", padding: "2px 8px", borderRadius: "99px" }}>International</span>}
         {req.advance && <span style={{ fontSize: "10.5px", fontWeight: 700, color: "#16a34a", background: "#f0fdf4", padding: "2px 8px", borderRadius: "99px" }}>Advance {fmtINR(req.advance.amount)}</span>}
-        {req.booking?.reference && <span style={{ fontSize: "10.5px", fontWeight: 700, color: "var(--subtext)", background: "var(--background)", padding: "2px 8px", borderRadius: "99px" }}>{req.booking.reference}</span>}
+        {req.booking?.reference && <span style={{ fontSize: "10.5px", fontWeight: 700, color: "var(--subtext)", background: "var(--background)", padding: "2px 8px", borderRadius: "99px" }}>{req.booking.isSimulated || req.booking.mode === "api" ? "Simulation · " : ""}{req.booking.reference}</span>}
         {req.requestNumber && <span style={{ fontSize: "10.5px", fontWeight: 700, color: "var(--primary)", background: "#ecfeff", padding: "2px 8px", borderRadius: "99px" }}>{req.requestNumber}</span>}
       </div>
       {req.history?.length > 0 && <p style={{ fontSize: "10.5px", color: "var(--subtext)", margin: "0 0 10px" }}>{req.history.length} audit event{req.history.length === 1 ? "" : "s"}</p>}
@@ -215,6 +215,7 @@ function RaiseRequestModal({ isOpen, onClose, onSaved, request = null }) {
   const [passportRef, setPassportRef] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
 
   useEffect(() => {
     if (!isOpen) return;
@@ -227,6 +228,7 @@ function RaiseRequestModal({ isOpen, onClose, onSaved, request = null }) {
       setEstimatedCost(request?.estimatedCost || "");
       setIsInternational(Boolean(request?.isInternational));
       setError("");
+      setFieldErrors({});
     }, 0);
     return () => clearTimeout(timer);
   }, [isOpen, request]);
@@ -240,21 +242,22 @@ function RaiseRequestModal({ isOpen, onClose, onSaved, request = null }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const today = travelToday();
-    if (!destination.trim() || !startDate || !endDate || !purpose.trim() || !estimatedCost) {
-      setError("Complete all required fields before submitting.");
-      return;
-    }
-    if (startDate < today) {
-      setError("Start date cannot be in the past.");
-      return;
-    }
-    if (endDate < startDate) {
-      setError("End date must be on or after the start date.");
-      return;
-    }
     const cost = Number(estimatedCost);
+    const nextFieldErrors = {};
+    if (destination.trim().length < 2) nextFieldErrors.destination = "Enter a destination with at least 2 characters.";
+    else if (destination.trim().length > 160) nextFieldErrors.destination = "Destination must be 160 characters or fewer.";
+    if (!startDate) nextFieldErrors.startDate = "Choose a start date.";
+    else if (startDate < today) nextFieldErrors.startDate = "Start date cannot be in the past.";
+    if (!endDate) nextFieldErrors.endDate = "Choose an end date.";
+    else if (startDate && endDate < startDate) nextFieldErrors.endDate = "End date must be on or after the start date.";
+    if (purpose.trim().length < 10) nextFieldErrors.purpose = "Purpose must be at least 10 characters.";
+    else if (purpose.trim().length > 2000) nextFieldErrors.purpose = "Purpose must be 2,000 characters or fewer.";
     if (!Number.isFinite(cost) || cost <= 0 || cost > 10_000_000) {
-      setError("Estimated cost must be greater than zero and no more than ₹10,000,000.");
+      nextFieldErrors.estimatedCost = "Enter an amount greater than ₹0 and no more than ₹10,000,000.";
+    }
+    setFieldErrors(nextFieldErrors);
+    if (Object.keys(nextFieldErrors).length) {
+      setError("");
       return;
     }
     setError("");
@@ -273,40 +276,82 @@ function RaiseRequestModal({ isOpen, onClose, onSaved, request = null }) {
       onClose();
       setDestination(""); setStartDate(""); setEndDate(""); setPurpose(""); setEstimatedCost(""); setIsInternational(false);
     } catch (submitError) {
-      setError(submitError.message || "Could not save the travel request.");
+      const apiIssues = submitError.data?.details;
+      if (Array.isArray(apiIssues) && apiIssues.length) {
+        const fieldNames = {
+          destination: "destination",
+          startDate: "start date",
+          endDate: "end date",
+          purpose: "purpose",
+          mode: "mode",
+          estimatedCost: "estimated cost",
+          isInternational: "international travel",
+        };
+        const apiFieldErrors = {};
+        const otherIssues = [];
+        apiIssues.forEach((issue) => {
+          const field = String(issue.path || "").split(".")[0];
+          if (fieldNames[field]) apiFieldErrors[field] = `${fieldNames[field][0].toUpperCase()}${fieldNames[field].slice(1)}: ${issue.message}.`;
+          else otherIssues.push(issue.message);
+        });
+        setFieldErrors(apiFieldErrors);
+        setError(otherIssues.length ? `Please review the request: ${otherIssues.join(" ")}` : "");
+      } else {
+        setError(submitError.message === "Validation failed"
+          ? "Some request details need attention. Review the highlighted fields and try again."
+          : submitError.message || "Could not save the travel request.");
+      }
     } finally {
       setSaving(false);
     }
   };
 
+  const updateField = (field, setter) => (event) => {
+    setter(event.target.value);
+    setFieldErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+    setError("");
+  };
+  const fieldError = (field) => fieldErrors[field]
+    ? <p id={`${field}-error`} role="alert" style={{ fontSize: "11.5px", color: "var(--red)", margin: "2px 0 0" }}>{fieldErrors[field]}</p>
+    : null;
+
   return (
     <Modal isOpen={isOpen} title={request ? "Edit & Resubmit Travel Request" : "Raise Travel Request"} onClose={onClose}>
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <form noValidate onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           {fieldLabel("Destination *")}
-          <input value={destination} onChange={(e) => setDestination(e.target.value)} style={inputStyle()} />
+          <input aria-label="Destination" aria-invalid={Boolean(fieldErrors.destination)} aria-describedby={fieldErrors.destination ? "destination-error" : undefined} value={destination} onChange={updateField("destination", setDestination)} maxLength={160} style={inputStyle()} />
+          {fieldError("destination")}
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 150px), 1fr))", gap: "12px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
             {fieldLabel("Start Date *")}
-            <input type="date" min={travelToday()} value={startDate} onChange={(e) => setStartDate(e.target.value)} style={inputStyle()} required />
+            <input aria-label="Start Date" aria-invalid={Boolean(fieldErrors.startDate)} aria-describedby={fieldErrors.startDate ? "startDate-error" : undefined} type="date" min={travelToday()} value={startDate} onChange={updateField("startDate", setStartDate)} style={inputStyle()} />
+            {fieldError("startDate")}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
             {fieldLabel("End Date *")}
-            <input type="date" min={startDate || travelToday()} value={endDate} onChange={(e) => setEndDate(e.target.value)} style={inputStyle()} required />
+            <input aria-label="End Date" aria-invalid={Boolean(fieldErrors.endDate)} aria-describedby={fieldErrors.endDate ? "endDate-error" : undefined} type="date" min={startDate || travelToday()} value={endDate} onChange={updateField("endDate", setEndDate)} style={inputStyle()} />
+            {fieldError("endDate")}
           </div>
         </div>
-        <p style={{ fontSize: "11.5px", color: "var(--subtext)", margin: "-8px 0 0" }}>
+        <p style={{ fontSize: "11.5px", lineHeight: 1.5, color: "var(--subtext)", borderLeft: "2px solid var(--primary)", paddingLeft: "9px" }}>
           Policy: trips are limited to 90 days; requests above {fmtINR(travelPolicy.financeApprovalThreshold)} require Manager and Finance approval. Advances are capped at {travelPolicy.advanceMaxPercent}% of the estimate and settlement is available only after the trip ends.
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
           {fieldLabel("Purpose *")}
-          <textarea rows={2} value={purpose} onChange={(e) => setPurpose(e.target.value)} style={{ ...inputStyle(), resize: "vertical" }} />
+          <textarea aria-label="Purpose" aria-invalid={Boolean(fieldErrors.purpose)} aria-describedby={fieldErrors.purpose ? "purpose-error" : "purpose-hint"} rows={2} value={purpose} onChange={updateField("purpose", setPurpose)} maxLength={2000} style={{ ...inputStyle(), resize: "vertical" }} />
+          {fieldError("purpose") || <p id="purpose-hint" style={{ fontSize: "11px", color: "var(--subtext)" }}>Describe the business reason in at least 10 characters.</p>}
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 150px), 1fr))", gap: "12px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
             {fieldLabel("Mode *")}
-            <select value={mode} onChange={(e) => setMode(e.target.value)} style={{ ...inputStyle(), height: "38px", cursor: "pointer" }}>
+            <select aria-label="Travel mode" value={mode} onChange={updateField("mode", setMode)} style={{ ...inputStyle(), height: "38px", cursor: "pointer" }}>
               {TRAVEL_MODES.map((m) => <option key={m} value={m}>{m}</option>)}
             </select>
           </div>
@@ -314,8 +359,9 @@ function RaiseRequestModal({ isOpen, onClose, onSaved, request = null }) {
             {fieldLabel("Estimated Cost (₹) *")}
             <div style={{ display: "flex", alignItems: "center", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "var(--card)" }}>
               <span aria-hidden="true" style={{ paddingLeft: "12px", color: "var(--subtext)", fontSize: "13px" }}>₹</span>
-              <input aria-label="Estimated cost in rupees" type="number" min={1} max={10000000} step="0.01" value={estimatedCost} onChange={(e) => setEstimatedCost(e.target.value)} style={{ ...inputStyle(), border: "none" }} required />
+              <input aria-label="Estimated cost in rupees" aria-invalid={Boolean(fieldErrors.estimatedCost)} aria-describedby={fieldErrors.estimatedCost ? "estimatedCost-error" : undefined} type="number" min={0.01} max={10000000} step="0.01" value={estimatedCost} onChange={updateField("estimatedCost", setEstimatedCost)} style={{ ...inputStyle(), border: "none" }} />
             </div>
+            {fieldError("estimatedCost")}
           </div>
         </div>
         <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12.5px", color: "var(--label)", cursor: "pointer" }}>
@@ -331,10 +377,12 @@ function RaiseRequestModal({ isOpen, onClose, onSaved, request = null }) {
             {passportRef ? `Passport on file (${passportRef}) — pulled securely from your HR record at booking time.` : "No passport on file — Travel Desk will need this added to your HR record before booking."}
           </p>
         )}
-        {error && <p role="alert" style={{ fontSize: "12px", color: "var(--red)", margin: 0 }}>{error}</p>}
-        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-          <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
-          <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving..." : request?.status === "More Details Required" ? "Resubmit Request" : request ? "Save & Resubmit" : "Submit Request"}</PrimaryButton>
+        <div style={{ position: "sticky", bottom: "-24px", margin: "2px -24px -24px", padding: "12px 24px 24px", background: "var(--card)", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "10px", zIndex: 1 }}>
+          {error && <p role="alert" style={{ fontSize: "12px", color: "var(--red)", background: "var(--red-light)", borderRadius: "var(--radius-sm)", padding: "8px 10px", margin: 0 }}>{error}</p>}
+          <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+            <SecondaryButton type="button" onClick={onClose}>Cancel</SecondaryButton>
+            <PrimaryButton type="submit" disabled={saving}>{saving ? "Saving..." : request?.status === "More Details Required" ? "Resubmit Request" : request ? "Save & Resubmit" : "Submit Request"}</PrimaryButton>
+          </div>
         </div>
       </form>
     </Modal>
@@ -556,20 +604,28 @@ function MyTravelTab({ requests, onRequestAdded, onRequestUpdated, employeeId })
               {req.status === "Settlement Submitted" && req.linkedExpenseClaimId && (
                 <TravelReceiptUpload claimId={req.linkedExpenseClaimId} />
               )}
-              {["Pending Manager Approval", "Resubmitted"].includes(req.status) && (
-                <button onClick={() => setEditTarget(req)} style={{ fontSize: "12px", fontWeight: 700, color: "var(--primary)", border: "none", background: "none", cursor: "pointer" }}>
-                  Edit Request
-                </button>
-              )}
-              {req.status === "More Details Required" && (
-                <button onClick={() => setEditTarget(req)} style={{ fontSize: "12px", fontWeight: 700, color: "#d97706", border: "none", background: "none", cursor: "pointer" }}>
-                  Edit & Resubmit
-                </button>
-              )}
-              {cancellableStatuses.includes(req.status) && (
-                <SecondaryButton onClick={() => { setCancelTarget(req); setCancelReason(""); setCancelError(""); }}>
-                  Cancel Request
-                </SecondaryButton>
+              {(
+                ["Pending Manager Approval", "Resubmitted"].includes(req.status) ||
+                req.status === "More Details Required" ||
+                cancellableStatuses.includes(req.status)
+              ) && (
+                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "10px", marginTop: "4px" }}>
+                  {["Pending Manager Approval", "Resubmitted"].includes(req.status) && (
+                    <button onClick={() => setEditTarget(req)} style={{ minHeight: "36px", padding: "0 12px", fontSize: "12px", fontWeight: 700, color: "var(--primary)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "var(--card)", cursor: "pointer" }}>
+                      Edit Request
+                    </button>
+                  )}
+                  {req.status === "More Details Required" && (
+                    <button onClick={() => setEditTarget(req)} style={{ minHeight: "36px", padding: "0 12px", fontSize: "12px", fontWeight: 700, color: "#b45309", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "var(--card)", cursor: "pointer" }}>
+                      Edit & Resubmit
+                    </button>
+                  )}
+                  {cancellableStatuses.includes(req.status) && (
+                    <SecondaryButton onClick={() => { setCancelTarget(req); setCancelReason(""); setCancelError(""); }}>
+                      Cancel Request
+                    </SecondaryButton>
+                  )}
+                </div>
               )}
             </RequestSummaryCard>
           ))}
@@ -604,8 +660,8 @@ function MyTravelTab({ requests, onRequestAdded, onRequestUpdated, employeeId })
 
 /* ---------------------------------- Approvals tab ---------------------------------- */
 
-function ApprovalsTab({ requests, onRequestUpdated, role }) {
-  const pendingManager = role === "MANAGER" ? requests.filter((r) => ["Pending Manager Approval", "Resubmitted"].includes(r.status)) : [];
+function ApprovalsTab({ requests, onRequestUpdated, role, employeeId }) {
+  const pendingManager = ["MANAGER", "ADMIN"].includes(role) ? requests.filter((r) => r.employeeId !== employeeId && ["Pending Manager Approval", "Resubmitted"].includes(r.status)) : [];
   const pendingFinance = ["FINANCE", "ADMIN"].includes(role) ? requests.filter((r) => r.status === "Pending Finance Approval") : [];
 
   const handleManagerDecision = async (id, approved) => {
@@ -866,6 +922,9 @@ function TravelDeskTab({ requests, onRequestUpdated }) {
         <h2 style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)", marginBottom: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
           <Briefcase size={15} /> Bookings
         </h2>
+        <p role="note" style={{ fontSize: "12px", color: "var(--subtext)", margin: "0 0 12px", padding: "10px 12px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "var(--background)" }}>
+          API booking is a simulation only. No airline, rail, or travel provider is connected; use Confirm Manually after arranging a real booking.
+        </p>
         {needsBooking.length === 0 ? (
           <EmptyState icon={Briefcase} title="Nothing awaiting booking" />
         ) : (
@@ -887,8 +946,8 @@ function TravelDeskTab({ requests, onRequestUpdated }) {
                   )}
                 </div>
                 <div style={{ display: "flex", gap: "10px" }}>
-                  <button disabled={pastTrip} title={pastTrip ? "Past trips cannot be booked." : "Book this approved trip"} onClick={() => handleApiBooking(req)} style={{ fontSize: "12px", fontWeight: 700, color: pastTrip ? "var(--subtext)" : "var(--primary)", border: "1px solid var(--border)", borderRadius: "6px", background: pastTrip ? "var(--background)" : "var(--card)", padding: "7px 10px", cursor: pastTrip ? "not-allowed" : "pointer", opacity: pastTrip ? 0.55 : 1 }}>
-                    {req.status === "Booking In Progress" ? "Retry API Booking" : "Book via API"}
+                  <button disabled={pastTrip} title={pastTrip ? "Past trips cannot be booked." : "Record a simulated booking only; no provider is connected."} onClick={() => handleApiBooking(req)} style={{ fontSize: "12px", fontWeight: 700, color: pastTrip ? "var(--subtext)" : "var(--primary)", border: "1px solid var(--border)", borderRadius: "6px", background: pastTrip ? "var(--background)" : "var(--card)", padding: "7px 10px", cursor: pastTrip ? "not-allowed" : "pointer", opacity: pastTrip ? 0.55 : 1 }}>
+                    {req.status === "Booking In Progress" ? "Retry Simulation" : "Simulate API Booking"}
                   </button>
                   {req.status === "Booking In Progress" && (
                     <button disabled={pastTrip} title={pastTrip ? "Past trips cannot be booked." : "Confirm a manually arranged booking"} onClick={() => setManualBookingTarget(req)} style={{ fontSize: "12px", fontWeight: 700, color: "var(--subtext)", border: "1px solid var(--border)", borderRadius: "6px", background: pastTrip ? "var(--background)" : "var(--card)", padding: "7px 10px", cursor: pastTrip ? "not-allowed" : "pointer", opacity: pastTrip ? 0.55 : 1 }}>
@@ -1000,14 +1059,26 @@ export default function Travel() {
   const { user, role } = useAuth();
   const [activeTab, setActiveTab] = useState("myTravel");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [requests, setRequests] = useState([]);
   const tabs = TABS.filter((tab) => tab.key === "myTravel" || (tab.key === "approvals" && ["MANAGER", "FINANCE", "ADMIN"].includes(role)) || (tab.key === "travelDesk" && ["HR", "FINANCE", "ADMIN"].includes(role)));
 
   useEffect(() => {
+    let active = true;
     getAllRequests()
-      .then((res) => setRequests(res.data))
-      .finally(() => setLoading(false));
-  }, []);
+      .then((res) => {
+        if (active) setRequests(res.data);
+      })
+      .catch((error) => {
+        console.error("Failed to load travel requests:", error);
+        if (active) setLoadError(error.message || "Could not load travel requests. Please try again.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, [loadAttempt]);
 
   const handleRequestAdded = (req) => {
     setRequests((prev) => [req, ...prev]);
@@ -1017,10 +1088,32 @@ export default function Travel() {
     setRequests((prev) => prev.map((r) => (r.id === req.id ? req : r)));
   };
 
+  const retryLoadingRequests = () => {
+    setLoading(true);
+    setLoadError("");
+    setLoadAttempt((attempt) => attempt + 1);
+  };
+
   if (loading) {
     return (
       <MainLayout>
         <Spinner />
+      </MainLayout>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <MainLayout>
+        <div style={{ maxWidth: "1480px", margin: "0 auto" }}>
+          <PageHeader title="Travel Management" subtitle="Requests, approvals, bookings, advances and expense settlement" />
+          <div role="alert" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", padding: "16px", border: "1px solid #fecaca", borderRadius: "var(--radius-md)", background: "var(--red-light)", color: "var(--red)" }}>
+            <span>{loadError}</span>
+            <button type="button" onClick={retryLoadingRequests} style={{ border: "1px solid currentColor", borderRadius: "var(--radius-sm)", background: "var(--card)", color: "inherit", padding: "8px 12px", fontWeight: 700, cursor: "pointer" }}>
+              Retry
+            </button>
+          </div>
+        </div>
       </MainLayout>
     );
   }
@@ -1036,7 +1129,7 @@ export default function Travel() {
         )}
 
         {activeTab === "approvals" && (
-          <ApprovalsTab requests={requests} role={role} onRequestUpdated={handleRequestUpdated} />
+          <ApprovalsTab requests={requests} role={role} employeeId={user?.id} onRequestUpdated={handleRequestUpdated} />
         )}
 
         {activeTab === "travelDesk" && (

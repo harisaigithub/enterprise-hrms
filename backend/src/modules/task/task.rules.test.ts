@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assertActiveTaskAssignee, assertForceCloseAllowed, assertNoTaskDependencyCycle, assertTaskReopenAllowed, TASK_PRIORITIES, TASK_STATUSES, getTaskDoneBlockers, normalizeTaskUpdateInput, validatePriority, validateStatus } from "./task.service";
+import { assertActiveTaskAssignee, assertForceCloseAllowed, assertNoTaskDependencyCycle, assertProjectAssigneeMembership, assertTaskReopenAllowed, TASK_PRIORITIES, TASK_STATUSES, getTaskDoneBlockers, normalizeTaskUpdateInput, validatePriority, validateStatus } from "./task.service";
 
 test("task lifecycle status validation accepts the supported business states", () => {
   for (const status of TASK_STATUSES) {
@@ -69,6 +69,14 @@ test("task status changes require an active assignee", () => {
   assert.doesNotThrow(() => assertActiveTaskAssignee("Active"));
   assert.throws(() => assertActiveTaskAssignee("Inactive"), /Reassign this task/);
   assert.throws(() => assertActiveTaskAssignee(null), /Reassign this task/);
+});
+
+test("adding a task assignee to an existing project requires an explicit manager-side request", () => {
+  assert.doesNotThrow(() => assertProjectAssigneeMembership(true, false, "EMPLOYEE"));
+  assert.throws(() => assertProjectAssigneeMembership(false, false, "MANAGER"), /Assignee must be a member/);
+  assert.throws(() => assertProjectAssigneeMembership(false, true, "EMPLOYEE"), /Only HR, Admin, or a Manager/);
+  assert.doesNotThrow(() => assertProjectAssigneeMembership(false, true, "MANAGER"));
+  assert.doesNotThrow(() => assertProjectAssigneeMembership(false, true, "ADMIN"));
 });
 
 test("dependency replacement rejects a cycle where A blocks B and B blocks A", () => {

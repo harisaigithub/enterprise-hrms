@@ -17,6 +17,7 @@ export const setPermission = asyncHandler(async (req: Request, res: Response) =>
 export const setRoleMfa = asyncHandler(async (req: Request, res: Response) => sendSuccess(res, await security.setRoleMfa(req.params.id, req.body.enabled, req.body.exception ?? {}, actor(req))));
 export const users = asyncHandler(async (_req: Request, res: Response) => sendSuccess(res, await security.listUsers()));
 export const createUser = asyncHandler(async (req: Request, res: Response) => sendSuccess(res, await security.createUser(req.body, actor(req)), undefined, 201));
+export const assignUserRole = asyncHandler(async (req: Request, res: Response) => sendSuccess(res, await security.assignUserRole(req.params.id, req.body.roleId, actor(req))));
 export const deactivateUser = asyncHandler(async (req: Request, res: Response) => sendSuccess(res, await security.deactivateUser(req.params.id, actor(req))));
 export const forcePasswordReset = asyncHandler(async (req: Request, res: Response) => sendSuccess(res, await security.forcePasswordReset(req.params.id, actor(req))));
 export const revokeSessions = asyncHandler(async (req: Request, res: Response) => sendSuccess(res, await security.revokeSessions(req.params.id, actor(req))));

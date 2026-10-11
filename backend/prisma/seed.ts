@@ -1,9 +1,16 @@
 /// <reference types="node" />
 import { PrismaClient, Prisma } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import "dotenv/config";
 import { hashPassword } from "../src/lib/password";
 import { encryptPII } from "../src/lib/encryption";
 
-const prisma = new PrismaClient();
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) throw new Error("DATABASE_URL is required to seed the database");
+
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: databaseUrl }),
+});
 
 // ── Permissions (mirrors frontend/src/context/AuthContext.jsx ROLE_PERMISSIONS) ──
 

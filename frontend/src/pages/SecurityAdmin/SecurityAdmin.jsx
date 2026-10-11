@@ -34,6 +34,7 @@ import {
   setRoleMfa,
   getUsers,
   createUser,
+  assignUserRole,
   deactivateUser,
   forcePasswordReset,
   revokeAllSessions,
@@ -183,6 +184,49 @@ function CreateUserModal({ isOpen, onClose, roles, onSaved }) {
   );
 }
 
+function AssignRoleModal({ user, roles, onClose, onSaved }) {
+  const [roleId, setRoleId] = useState(user?.roleIds?.[0] || "");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (!user || !roleId) return;
+    setSaving(true);
+    setError("");
+    try {
+      const result = await assignUserRole(user.id, roleId);
+      onSaved(result.data.user);
+      onClose();
+    } catch (err) {
+      setError(err?.response?.data?.message || err?.message || "Could not update the user's role.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={!!user} title={`Change role — ${user?.name || "User"}`} onClose={onClose}>
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+          {fieldLabel("Role *")}
+          <select value={roleId} onChange={(event) => setRoleId(event.target.value)} style={{ ...inputStyle(), height: "38px", cursor: "pointer" }}>
+            {roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
+          </select>
+        </div>
+        <p style={{ fontSize: "11px", color: "var(--subtext)", margin: 0 }}>
+          Active refresh sessions will be revoked. The user must sign in again. This change is audit-logged.
+        </p>
+        {error && <p role="alert" style={{ color: "var(--red)", fontSize: "12px", margin: 0 }}>{error}</p>}
+        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+          <SecondaryButton type="button" onClick={onClose} disabled={saving}>Cancel</SecondaryButton>
+          <PrimaryButton type="submit" disabled={saving || !roleId}>{saving ? "Updating..." : "Update role"}</PrimaryButton>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 function BreakGlassModal({ isOpen, onClose, onUsed }) {
   const [justification, setJustification] = useState("");
   const [error, setError] = useState("");
@@ -229,6 +273,7 @@ function BreakGlassModal({ isOpen, onClose, onUsed }) {
 function UsersPanel({ users, roles, sessions, onUserUpdated, onUserAdded, onBreakGlassAlert }) {
   const [showCreate, setShowCreate] = useState(false);
   const [showBreakGlass, setShowBreakGlass] = useState(false);
+  const [roleTarget, setRoleTarget] = useState(null);
 
   const roleName = (roleIds) => roleIds.map((id) => roles.find((r) => r.id === id)?.name || id).join(", ");
   const sessionCount = (userId) => sessions.filter((s) => s.userId === userId).length;
@@ -279,6 +324,7 @@ function UsersPanel({ users, roles, sessions, onUserUpdated, onUserAdded, onBrea
                   <>
                     <button onClick={() => handleForceReset(u.id)} title="Force password reset" style={{ border: "none", background: "none", cursor: "pointer", color: "var(--subtext)" }}><Lock size={15} /></button>
                     <button onClick={() => handleRevokeSessions(u.id)} title="Revoke all sessions" style={{ border: "none", background: "none", cursor: "pointer", color: "var(--subtext)" }}><LogOut size={15} /></button>
+                    <button onClick={() => setRoleTarget(u)} title="Change user role" style={{ border: "none", background: "none", cursor: "pointer", color: "var(--subtext)" }}>Change role</button>
                     <button onClick={() => handleDeactivate(u.id)} title="Deactivate" style={{ border: "none", background: "none", cursor: "pointer", color: "var(--red)" }}><Trash2 size={15} /></button>
                   </>
                 )}
@@ -289,6 +335,7 @@ function UsersPanel({ users, roles, sessions, onUserUpdated, onUserAdded, onBrea
       </div>
 
       <CreateUserModal isOpen={showCreate} onClose={() => setShowCreate(false)} roles={roles} onSaved={onUserAdded} />
+      <AssignRoleModal key={roleTarget?.id || "no-role-target"} user={roleTarget} roles={roles} onClose={() => setRoleTarget(null)} onSaved={onUserUpdated} />
       <BreakGlassModal isOpen={showBreakGlass} onClose={() => setShowBreakGlass(false)} onUsed={onBreakGlassAlert} />
     </div>
   );

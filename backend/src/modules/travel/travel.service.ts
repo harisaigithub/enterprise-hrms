@@ -5,6 +5,7 @@ import { writeAuditLog } from "../../services/audit.service";
 import { createInAppForEmployee } from "../notifications/notifications.service";
 import * as workflowService from "../workflow/workflow.service";
 import { isPastTripStartDate, validateTravelDateRange } from "./travel.dates";
+import { getTravelApprovalStage } from "./travel.approval";
 import { assertNotOwnTravelAction, assertPassportOnFile, calculateTravelSettlement, createTravelAdvanceRecoverySettlement, travelAdvanceValidationError } from "./travel.settlement";
 
 const REQUEST_TYPE = "Business Travel";
@@ -314,7 +315,11 @@ export async function cancelRequest(id: string, reason: string, actor: TravelAct
     ? createTravelAdvanceRecoverySettlement(advanceGiven, `Cancelled before travel: ${cancellationReason}`)
     : undefined;
   const row = await prisma.$transaction(async (tx) => {
-    const changed = await tx.travelRequest.updateMany({ where: { id, status: existing.status }, data: {
+    const changed = await tx.travelRequest.updateMany({ where: {
+      id,
+      status: existing.status,
+      advance: { equals: existing.advance === null ? Prisma.DbNull : existing.advance as Prisma.InputJsonValue },
+    }, data: {
       status: nextStatus,
       decisionNotes: cancellationReason,
       ...(settlement ? { settlement: settlement as Prisma.InputJsonValue } : {}),
@@ -335,29 +340,29 @@ export async function decide(id: string, input: { action: "APPROVE" | "REJECT" |
   if (existing.employeeId === actor.employeeId) throw AppError.forbidden("Self-approval is not allowed");
   const role = actor.role.toUpperCase();
   const isManager = role === "MANAGER";
-  const isFinance = role === "FINANCE" || role === "ADMIN";
+  const isAdmin = role === "ADMIN";
+  const approvalStage = getTravelApprovalStage(existing.status, role);
   if (isManager && existing.employee.reportingManagerId !== actor.employeeId) throw AppError.forbidden("Managers can act only on direct-report requests");
-  if (!isManager && !isFinance) throw AppError.forbidden("Only the reporting manager, Finance, or Admin can approve travel");
+  if (!["MANAGER", "FINANCE", "ADMIN"].includes(role)) throw AppError.forbidden("Only the reporting manager, Finance, or Admin can approve travel");
   if (input.action !== "APPROVE" && !input.comment?.trim()) throw AppError.badRequest("A comment is mandatory for rejection or send-back");
 
   if (input.action === "REQUEST_MORE_DETAILS") {
-    if (!isManager || !["Pending Manager Approval", "Resubmitted"].includes(existing.status)) throw AppError.badRequest("Send-back is available only during manager review");
+    if (approvalStage !== "manager") throw AppError.badRequest("Send-back is available only during manager review");
     const row = await prisma.travelRequest.update({ where: { id }, data: { status: "More Details Required", decisionNotes: input.comment, history: { create: { actorId: actor.employeeId, action: "REQUEST_MORE_DETAILS", oldStatus: existing.status, newStatus: "More Details Required", comment: input.comment } } }, include });
     await notify(existing.employeeId, "Travel request needs more details", input.comment!);
     return { data: serialize(row) };
   }
 
-  if (isManager && !["Pending Manager Approval", "Resubmitted"].includes(existing.status)) throw AppError.badRequest("Request is not awaiting manager approval");
-  if (isFinance && existing.status !== "Pending Finance Approval") throw AppError.badRequest("Request is not awaiting Finance review");
+  if (!approvalStage) throw AppError.badRequest("Request is not awaiting an approval step for this role");
   if (!existing.workflowInstanceId) throw AppError.conflict("Travel request is not linked to a workflow instance");
   await workflowService.actOnStep(existing.workflowInstanceId, actor.employeeCode, actorName(actor), input.action === "APPROVE" ? "approve" : "reject", input.comment, {
-    bypassRoleApprover: role === "ADMIN",
+    bypassRoleApprover: isAdmin,
     actorRole: role,
   });
 
   let status: string;
   if (input.action === "REJECT") status = "Rejected";
-  else if (isManager && Number(existing.estimatedCost) > FINANCE_THRESHOLD) status = "Pending Finance Approval";
+  else if (approvalStage === "manager" && Number(existing.estimatedCost) > FINANCE_THRESHOLD) status = "Pending Finance Approval";
   else status = "Approved";
   const row = await prisma.$transaction(async (tx) => {
     const changed = await tx.travelRequest.updateMany({
@@ -365,18 +370,18 @@ export async function decide(id: string, input: { action: "APPROVE" | "REJECT" |
       data: {
         status,
         decisionNotes: input.comment || null,
-        managerApprovedAt: isManager && input.action === "APPROVE" ? new Date() : undefined,
-        financeApprovedAt: isFinance && input.action === "APPROVE" ? new Date() : undefined,
+        managerApprovedAt: approvalStage === "manager" && input.action === "APPROVE" ? new Date() : undefined,
+        financeApprovedAt: approvalStage === "finance" && input.action === "APPROVE" ? new Date() : undefined,
       },
     });
     if (!changed.count) throw AppError.conflict("This travel request was already acted on. Refresh before trying again.");
     return tx.travelRequest.update({ where: { id }, data: {
-      history: { create: { actorId: actor.employeeId, action: `${isManager ? "MANAGER" : "FINANCE"}_${input.action}`, oldStatus: existing.status, newStatus: status, comment: input.comment } },
+      history: { create: { actorId: actor.employeeId, action: `${approvalStage.toUpperCase()}_${input.action}`, oldStatus: existing.status, newStatus: status, comment: input.comment } },
     }, include });
   });
   if (status === "Pending Finance Approval") await notifyHr("Travel budget awaiting approval", `${existing.employee.firstName} ${existing.employee.lastName}'s ${row.requestNumber} requires Finance review.`);
   else await notify(existing.employeeId, `Travel request ${status.toLowerCase()}`, input.comment || `${row.requestNumber} is now ${status}.`);
-  await writeAuditLog({ actorUserId: actor.userId, action: input.action === "APPROVE" ? "APPROVE" : "REJECT", entityType: "TravelRequest", entityId: id, oldValue: { status: existing.status }, newValue: { status, comment: input.comment } });
+  await writeAuditLog({ actorUserId: actor.userId, action: input.action === "APPROVE" ? "APPROVE" : "REJECT", entityType: "TravelRequest", entityId: id, oldValue: { status: existing.status }, newValue: { status, comment: input.comment, approvalStage } });
   return { data: serialize(row) };
 }
 
@@ -411,7 +416,15 @@ export async function book(id: string, input: { mode: "api" | "manual"; referenc
   const failed = input.mode === "api" && Boolean(input.simulateFailure);
   const booking = failed
     ? { mode: "api", confirmedAt: null, reference: null, passportRefUsed: null, bookingFailed: true, failureNote: "Booking provider failed; manual booking is required." }
-    : { mode: input.mode, confirmedAt: new Date().toISOString(), reference: input.reference?.trim() || `TKT-${Date.now().toString().slice(-8)}`, passportRefUsed: existing.isInternational ? "Verified securely at booking" : null, bookingFailed: false, failureNote: null };
+    : {
+        mode: input.mode,
+        ...(input.mode === "api" ? { provider: "simulation", isSimulated: true } : {}),
+        confirmedAt: new Date().toISOString(),
+        reference: input.reference?.trim() || `SIM-TKT-${Date.now().toString().slice(-8)}`,
+        passportRefUsed: existing.isInternational ? "Verified securely at booking" : null,
+        bookingFailed: false,
+        failureNote: null,
+      };
   const status = failed ? "Booking In Progress" : "Booked";
   const row = await prisma.$transaction(async (tx) => {
     const changed = await tx.travelRequest.updateMany({
