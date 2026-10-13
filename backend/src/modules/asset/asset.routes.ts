@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import {
     getInventory,
+    getInventoryStats,
     addInventoryItem,
     updateInventoryItem,
     assignInventoryItem,
@@ -35,6 +36,7 @@ import {
     raiseRequestSchema,
     returnAssetSchema,
     updateInventorySchema,
+    listInventoryQuerySchema,
 } from "./asset.validation";
 
 const router = Router();
@@ -46,11 +48,22 @@ router.use(authenticate);
 ========================================================= */
 
 // Inventory exposes organization-wide asset and holder details.
+// MANAGER can already create / assign / retire assets and fulfil requests,
+// so the read gate matches the rest of the module (ADMIN / HR / MANAGER).
 router.get(
     "/inventory",
     requirePermission("assets:read"),
-    requireRole("ADMIN", "HR"),
+    requireRole("ADMIN", "HR", "MANAGER"),
+    validate({ query: listInventoryQuerySchema }),
     getInventory
+);
+
+// Aggregated inventory KPIs (counts, expiry watchlists, book value).
+router.get(
+    "/inventory/stats",
+    requirePermission("assets:read"),
+    requireRole("ADMIN", "HR", "MANAGER"),
+    getInventoryStats
 );
 
 // Only ADMIN / HR / MANAGER

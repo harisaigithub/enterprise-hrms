@@ -18,6 +18,9 @@ import {
   AlertTriangle,
   ShieldAlert,
   History,
+  Download,
+  X,
+  Eye,
 } from "lucide-react";
 
 import MainLayout from "../../components/layout/MainLayout";
@@ -29,6 +32,7 @@ import Modal from "../../components/shared/Modal";
 
 import {
   getInventory,
+  getInventoryStats,
   addInventoryItem,
   getLicenseAlerts,
   getAllRequests,
@@ -283,6 +287,100 @@ const formatApproverName = (value) => {
   }
 
   return trimmed;
+};
+
+const INVENTORY_SORT_OPTIONS = [
+  { value: "newest", label: "Newest first" },
+  { value: "oldest", label: "Oldest first" },
+  { value: "category", label: "Category A–Z" },
+  { value: "status", label: "Status" },
+  { value: "warranty", label: "Warranty (soonest)" },
+];
+
+const sortInventory = (rows, sortKey) => {
+  const sorted = [...rows];
+
+  const byText = (a, b, field) =>
+    String(a?.[field] || "").localeCompare(String(b?.[field] || ""));
+
+  switch (sortKey) {
+    case "oldest":
+      sorted.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+      break;
+    case "category":
+      sorted.sort((a, b) => byText(a, b, "category") || byText(a, b, "serial"));
+      break;
+    case "status":
+      sorted.sort((a, b) => byText(a, b, "status") || byText(a, b, "category"));
+      break;
+    case "warranty":
+      sorted.sort((a, b) => {
+        const left = a.warrantyExpiry ? new Date(a.warrantyExpiry).getTime() : Number.MAX_SAFE_INTEGER;
+        const right = b.warrantyExpiry ? new Date(b.warrantyExpiry).getTime() : Number.MAX_SAFE_INTEGER;
+        return left - right;
+      });
+      break;
+    default:
+      sorted.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }
+
+  return sorted;
+};
+
+const csvCell = (value) => {
+  const text = value == null ? "" : String(value);
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+};
+
+const exportInventoryCsv = (rows, fileName = "asset-inventory.csv") => {
+  const headers = [
+    "Serial",
+    "Category",
+    "Make",
+    "Model",
+    "Status",
+    "Holder",
+    "Location",
+    "Purchase date",
+    "Purchase cost",
+    "Warranty expiry",
+    "Vendor",
+    "Condition notes",
+  ];
+
+  const lines = [
+    headers.join(","),
+    ...rows.map((item) =>
+      [
+        item.serial,
+        item.category,
+        item.make,
+        item.model,
+        normalizeStatus(item.status),
+        [item.currentHolder?.firstName, item.currentHolder?.lastName].filter(Boolean).join(" ") ||
+          item.currentHolder?.employeeCode ||
+          "",
+        item.location,
+        item.purchaseDate ? fmtDate(item.purchaseDate) : "",
+        item.purchaseCost ?? "",
+        item.warrantyExpiry ? fmtDate(item.warrantyExpiry) : "",
+        item.vendor,
+        item.conditionNotes,
+      ]
+        .map(csvCell)
+        .join(",")
+    ),
+  ];
+
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 };
 
 /* =========================================================
@@ -1084,6 +1182,7 @@ function RepairAssetModal({ asset, isOpen, onClose, onSaved }) {
 function InventoryTab({
   inventory,
   licenseAlerts,
+  stats,
   onItemAdded,
   onItemChanged,
   canManage,
@@ -1101,15 +1200,47 @@ function InventoryTab({
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
+  const [sortKey, setSortKey] = useState("newest");
   const categories = [...new Set(inventory.map((item) => item.category))].sort();
-  const filteredInventory = inventory.filter((item) => {
-    const query = search.trim().toLowerCase();
-    const matchesQuery = !query || [item.make, item.model, item.category, item.serial, item.currentHolderName]
-      .some((value) => String(value || "").toLowerCase().includes(query));
-    return matchesQuery &&
-      (statusFilter === "ALL" || normalizeStatus(item.status) === statusFilter) &&
-      (categoryFilter === "ALL" || item.category === categoryFilter);
-  });
+  const filteredInventory = sortInventory(
+    inventory.filter((item) => {
+      const query = search.trim().toLowerCase();
+      const matchesQuery = !query || [item.make, item.model, item.category, item.serial, item.currentHolderName]
+        .some((value) => String(value || "").toLowerCase().includes(query));
+      return matchesQuery &&
+        (statusFilter === "ALL" || normalizeStatus(item.status) === statusFilter) &&
+        (categoryFilter === "ALL" || item.category === categoryFilter);
+    }),
+    sortKey
+  );
+
+  const hasActiveFilters =
+    Boolean(search.trim()) || statusFilter !== "ALL" || categoryFilter !== "ALL";
+
+  const clearFilters = () => {
+    setSearch("");
+    setStatusFilter("ALL");
+    setCategoryFilter("ALL");
+  };
+
+  const expiryWindow = stats?.expiryWindowDays || 30;
+
+  const kpis = stats
+    ? [
+        { key: "total", label: "Total assets", value: stats.total },
+        { key: "inStock", label: "In stock", value: stats.inStock, statusFilter: "IN_STOCK" },
+        { key: "assigned", label: "Assigned", value: stats.assigned, statusFilter: "ASSIGNED" },
+        { key: "maintenance", label: "In maintenance", value: stats.maintenance, statusFilter: "MAINTENANCE" },
+        { key: "unacknowledged", label: "Awaiting acknowledgement", value: stats.unacknowledged },
+        { key: "warranty", label: `Warranty expiring (${expiryWindow}d)`, value: stats.warrantyExpiringSoon },
+        { key: "license", label: `Licenses expiring (${expiryWindow}d)`, value: stats.licenseExpiringSoon },
+        {
+          key: "value",
+          label: "Book value",
+          value: `₹${Number(stats.totalPurchaseValue || 0).toLocaleString("en-IN")}`,
+        },
+      ]
+    : [];
 
   const openAssign = async (item) => {
     setEmployeeError("");
@@ -1185,6 +1316,50 @@ function InventoryTab({
         </div>
       )}
 
+      {kpis.length > 0 && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+            gap: "12px",
+            marginBottom: "16px",
+          }}
+        >
+          {kpis.map((kpi) => {
+            const isActive = kpi.statusFilter && statusFilter === kpi.statusFilter;
+
+            return (
+              <button
+                key={kpi.key}
+                type="button"
+                aria-pressed={kpi.statusFilter ? isActive : undefined}
+                disabled={!kpi.statusFilter}
+                onClick={() => {
+                  if (!kpi.statusFilter) return;
+                  setStatusFilter((current) => (current === kpi.statusFilter ? "ALL" : kpi.statusFilter));
+                }}
+                title={kpi.statusFilter ? `Filter inventory by ${kpi.label.toLowerCase()}` : undefined}
+                style={{
+                  ...cardStyle,
+                  padding: "12px 14px",
+                  textAlign: "left",
+                  cursor: kpi.statusFilter ? "pointer" : "default",
+                  border: isActive ? "1px solid var(--primary)" : cardStyle.border,
+                  background: isActive ? "var(--primary-light, #eef2ff)" : cardStyle.background,
+                }}
+              >
+                <p style={{ margin: 0, fontSize: "11px", fontWeight: 700, color: "var(--label)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  {kpi.label}
+                </p>
+                <p style={{ margin: "6px 0 0", fontSize: "22px", fontWeight: 800, color: "var(--text)" }}>
+                  {kpi.value ?? 0}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div
         style={{
           display: "flex",
@@ -1203,17 +1378,32 @@ function InventoryTab({
           Inventory
         </h2>
 
-        {canManage && (
-          <PrimaryButton
-            onClick={() => setShowAdd(true)}
-          >
-            <Plus size={16} />
-            Add Item
-          </PrimaryButton>
-        )}
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          {canManage && (
+            <SecondaryButton
+              type="button"
+              onClick={() => exportInventoryCsv(filteredInventory)}
+              disabled={filteredInventory.length === 0}
+              title="Export the currently filtered inventory as CSV"
+              style={{ padding: "8px 12px", fontSize: "12px" }}
+            >
+              <Download size={14} />
+              Export CSV
+            </SecondaryButton>
+          )}
+
+          {canManage && (
+            <PrimaryButton
+              onClick={() => setShowAdd(true)}
+            >
+              <Plus size={16} />
+              Add Item
+            </PrimaryButton>
+          )}
+        </div>
       </div>
 
-      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "14px" }}>
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "10px", alignItems: "center" }}>
         <input aria-label="Search inventory" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, serial or holder" style={{ ...inputStyle(), flex: "1 1 220px" }} />
         <select aria-label="Filter inventory by status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={{ ...inputStyle(), width: "auto", minWidth: "145px" }}>
           <option value="ALL">All statuses</option>
@@ -1223,7 +1413,20 @@ function InventoryTab({
           <option value="ALL">All categories</option>
           {categories.map((category) => <option key={category} value={category}>{category}</option>)}
         </select>
+        <select aria-label="Sort inventory" value={sortKey} onChange={(event) => setSortKey(event.target.value)} style={{ ...inputStyle(), width: "auto", minWidth: "155px" }}>
+          {INVENTORY_SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+        {hasActiveFilters && (
+          <SecondaryButton type="button" onClick={clearFilters} style={{ padding: "8px 12px", fontSize: "12px" }}>
+            <X size={14} />
+            Clear filters
+          </SecondaryButton>
+        )}
       </div>
+
+      <p aria-live="polite" style={{ margin: "0 0 12px", fontSize: "11.5px", color: "var(--subtext)" }}>
+        Showing {filteredInventory.length} of {inventory.length} assets
+      </p>
 
       {inventory.length === 0 ? (
         <EmptyState
@@ -1263,7 +1466,6 @@ function InventoryTab({
                   }}
                 >
                   <h3
-                    title={assetDisplayName(item)}
                     aria-label={assetDisplayName(item)}
                     style={{
                       fontSize: "14px",
@@ -1541,6 +1743,157 @@ function FulfillModal({
    REQUESTS TAB
 ========================================================= */
 
+function queryAvailableInventory(inventory, req) {
+  return inventory.filter(
+    (item) =>
+      item.category === req.category &&
+      normalizeStatus(item.status) === ASSET_STATUS.IN_STOCK &&
+      (item.category !== "Software License" ||
+        (item.seats != null && (item.seatsUsed || 0) < item.seats))
+  );
+}
+
+function buildRequestViewModel(r, ctx) {
+  const {
+    inventory,
+    canManage,
+    currentActorCode,
+    currentRole,
+    canOverrideRoleStep,
+    fulfillmentAssetByRequest,
+  } = ctx;
+
+  const normalizedStatus = normalizeStatus(r.status);
+  const meta = getRequestStatusMeta(r.status);
+  const needsApproval = requiresRequestApproval(r.category, r.estimatedCost);
+
+  const availableUnits = queryAvailableInventory(inventory, r);
+  const fulfillmentAsset = fulfillmentAssetByRequest.get(r.id);
+  const inventoryAvailable = Boolean(fulfillmentAsset);
+  const stockReserved = availableUnits.length > 0 && !inventoryAvailable && [REQUEST_STATUS.APPROVED, REQUEST_STATUS.PENDING_PROCUREMENT].includes(normalizedStatus);
+  const awaitingStock = !inventoryAvailable && [REQUEST_STATUS.APPROVED, REQUEST_STATUS.PENDING_PROCUREMENT].includes(normalizedStatus);
+  const daysUntilNeeded = daysUntil(r.neededBy);
+  const approvalComplete =
+    !needsApproval ||
+    normalizedStatus !==
+    REQUEST_STATUS.PENDING_APPROVAL;
+  const fulfillDisabled =
+    !canManage ||
+    !approvalComplete ||
+    !inventoryAvailable;
+  const pendingStep = r.workflowInstance?.steps?.find((step) => step.status === "Pending");
+  const namedRoleStep = pendingStep?.approverId?.startsWith("role-");
+  const requiredRole = pendingStep?.approverId === "role-finance"
+    ? "FINANCE"
+    : pendingStep?.approverId === "role-hr"
+      ? "HR"
+      : null;
+  const actorCanApprove = Boolean(pendingStep) && (
+    pendingStep.approverId === currentActorCode ||
+    pendingStep.escalatedTo === currentActorCode ||
+    (requiredRole && currentRole === requiredRole) ||
+    (namedRoleStep && currentRole === "ADMIN" && canOverrideRoleStep)
+  );
+  const isRequester = r.employee?.employeeCode === currentActorCode;
+  const showApprovalActions = canManage && normalizedStatus === REQUEST_STATUS.PENDING_APPROVAL && actorCanApprove && !isRequester;
+  const autoApproved = normalizedStatus === REQUEST_STATUS.APPROVED && !needsApproval;
+  const autoApprovalText = CATEGORIES_REQUIRING_APPROVAL.includes(r.category)
+    ? "Auto-approved by ₹25,000 threshold"
+    : "Auto-approved by category policy";
+  const workflowHistory = (r.workflowInstance?.steps || [])
+    .filter((step) => step.actedAt)
+    .map((step) => ({
+      label: step.name,
+      time: step.actedAt,
+      detail: step.status === "Rejected"
+        ? `${step.actedByName || step.approverName || "Approver"} rejected: ${step.rejectionReason || "No reason recorded"}`
+        : `${step.actedByName || step.approverName || "Approver"} approved${step.roleApproverOverride ? " (Admin override)" : ""}`,
+    }));
+
+  const requestHistory = [
+    {
+      label: "Raised",
+      time: r.raisedAt,
+      detail: "Request created",
+    },
+    ...workflowHistory,
+    ...(r.approvedAt && workflowHistory.length === 0
+      ? [{
+          label: "Approved",
+          time: r.approvedAt,
+          detail: autoApproved
+            ? autoApprovalText
+            : r.approvedBy
+            ? `Approved by ${formatApproverName(r.approvedBy)}`
+            : "Approved",
+        }]
+      : []),
+    ...(autoApproved && !r.approvedAt
+      ? [{ label: "Auto-approved", time: r.raisedAt, detail: "At or below the approval threshold" }]
+      : []),
+    ...(normalizedStatus ===
+      REQUEST_STATUS.PENDING_PROCUREMENT ||
+      normalizedStatus ===
+      REQUEST_STATUS.FULFILLED
+      ? [{
+          label: normalizedStatus ===
+            REQUEST_STATUS.FULFILLED
+            ? "Fulfilled"
+            : "Procurement",
+          time: r.fulfilledAt || r.approvedAt || r.raisedAt,
+          detail:
+            normalizedStatus ===
+            REQUEST_STATUS.FULFILLED
+              ? "Asset assigned to employee"
+              : "Awaiting stock to fulfill",
+        }]
+      : []),
+  ]
+    .filter((entry) => entry.time)
+    .sort((a, b) => new Date(b.time) - new Date(a.time));
+
+  const pendingStage = pendingStep
+    ? `Pending — ${pendingStep.approverId === "role-finance" ? "Finance" : pendingStep.approverId === "role-hr" ? "HR" : "Manager"}`
+    : null;
+  const statusText =
+    normalizedStatus ===
+    REQUEST_STATUS.PENDING_APPROVAL
+      ? pendingStage || "Pending approval"
+      : autoApproved
+        ? !inventoryAvailable
+          ? `${autoApprovalText} — waiting for stock`
+          : autoApprovalText
+      : normalizedStatus ===
+        REQUEST_STATUS.APPROVED &&
+        !inventoryAvailable
+        ? "Approved — waiting for stock"
+        : meta.label;
+
+  return {
+    normalizedStatus,
+    meta,
+    needsApproval,
+    availableUnits,
+    fulfillmentAsset,
+    inventoryAvailable,
+    stockReserved,
+    awaitingStock,
+    daysUntilNeeded,
+    approvalComplete,
+    fulfillDisabled,
+    pendingStep,
+    actorCanApprove,
+    isRequester,
+    showApprovalActions,
+    autoApproved,
+    autoApprovalText,
+    workflowHistory,
+    requestHistory,
+    pendingStage,
+    statusText,
+  };
+}
+
 function RequestsTab({
   requests,
   inventory,
@@ -1559,6 +1912,7 @@ function RequestsTab({
   const [rejectSaving, setRejectSaving] = useState(false);
   const [requestSearch, setRequestSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [detailTargetId, setDetailTargetId] = useState(null);
 
   const handleApprove = async (id) => {
     try {
@@ -1595,13 +1949,7 @@ function RequestsTab({
   };
 
   const getAvailableInventoryForRequest = (req) => {
-    return inventory.filter(
-      (item) =>
-        item.category === req.category &&
-        normalizeStatus(item.status) === ASSET_STATUS.IN_STOCK &&
-        (item.category !== "Software License" ||
-          (item.seats != null && (item.seatsUsed || 0) < item.seats))
-    );
+    return queryAvailableInventory(inventory, req);
   };
 
   const fulfillmentAssetByRequest = new Map();
@@ -1621,6 +1969,19 @@ function RequestsTab({
         reservedUnitsByAsset.set(unit.id, (reservedUnitsByAsset.get(unit.id) || 0) + 1);
       }
     });
+
+  const requestViewModelContext = {
+    inventory,
+    canManage,
+    currentActorCode,
+    currentRole,
+    canOverrideRoleStep,
+    fulfillmentAssetByRequest,
+  };
+
+  const detailRequest = detailTargetId
+    ? requests.find((request) => request.id === detailTargetId) || null
+    : null;
 
   const normalizedSearch = requestSearch.trim().toLowerCase();
   const visibleRequests = requests.filter((request) => {
@@ -1685,116 +2046,23 @@ function RequestsTab({
         }}
       >
         {visibleRequests.map((r) => {
-          const normalizedStatus =
-            normalizeStatus(r.status);
-
-          const meta =
-            getRequestStatusMeta(r.status);
-
-          const needsApproval = requiresRequestApproval(r.category, r.estimatedCost);
-
-          const availableUnits =
-            getAvailableInventoryForRequest(r);
-          const fulfillmentAsset = fulfillmentAssetByRequest.get(r.id);
-          const inventoryAvailable = Boolean(fulfillmentAsset);
-          const stockReserved = availableUnits.length > 0 && !inventoryAvailable && [REQUEST_STATUS.APPROVED, REQUEST_STATUS.PENDING_PROCUREMENT].includes(normalizedStatus);
-          const awaitingStock = !inventoryAvailable && [REQUEST_STATUS.APPROVED, REQUEST_STATUS.PENDING_PROCUREMENT].includes(normalizedStatus);
-          const daysUntilNeeded = daysUntil(r.neededBy);
-          const approvalComplete =
-            !needsApproval ||
-            normalizedStatus !==
-            REQUEST_STATUS.PENDING_APPROVAL;
-          const fulfillDisabled =
-            !canManage ||
-            !approvalComplete ||
-            !inventoryAvailable;
-          const pendingStep = r.workflowInstance?.steps?.find((step) => step.status === "Pending");
-          const namedRoleStep = pendingStep?.approverId?.startsWith("role-");
-          const requiredRole = pendingStep?.approverId === "role-finance"
-            ? "FINANCE"
-            : pendingStep?.approverId === "role-hr"
-              ? "HR"
-              : null;
-          const actorCanApprove = Boolean(pendingStep) && (
-            pendingStep.approverId === currentActorCode ||
-            pendingStep.escalatedTo === currentActorCode ||
-            (requiredRole && currentRole === requiredRole) ||
-            (namedRoleStep && currentRole === "ADMIN" && canOverrideRoleStep)
-          );
-          const isRequester = r.employee?.employeeCode === currentActorCode;
-          const showApprovalActions = canManage && normalizedStatus === REQUEST_STATUS.PENDING_APPROVAL && actorCanApprove && !isRequester;
-          const autoApproved = normalizedStatus === REQUEST_STATUS.APPROVED && !needsApproval;
-          const autoApprovalText = CATEGORIES_REQUIRING_APPROVAL.includes(r.category)
-            ? "Auto-approved by ₹25,000 threshold"
-            : "Auto-approved by category policy";
-          const workflowHistory = (r.workflowInstance?.steps || [])
-            .filter((step) => step.actedAt)
-            .map((step) => ({
-              label: step.name,
-              time: step.actedAt,
-              detail: step.status === "Rejected"
-                ? `${step.actedByName || step.approverName || "Approver"} rejected: ${step.rejectionReason || "No reason recorded"}`
-                : `${step.actedByName || step.approverName || "Approver"} approved${step.roleApproverOverride ? " (Admin override)" : ""}`,
-            }));
-
-          const requestHistory = [
-            {
-              label: "Raised",
-              time: r.raisedAt,
-              detail: "Request created",
-            },
-            ...workflowHistory,
-            ...(r.approvedAt && workflowHistory.length === 0
-              ? [{
-                  label: "Approved",
-                  time: r.approvedAt,
-                  detail: autoApproved
-                    ? autoApprovalText
-                    : r.approvedBy
-                    ? `Approved by ${formatApproverName(r.approvedBy)}`
-                    : "Approved",
-                }]
-              : []),
-            ...(autoApproved && !r.approvedAt
-              ? [{ label: "Auto-approved", time: r.raisedAt, detail: "At or below the approval threshold" }]
-              : []),
-            ...(normalizedStatus ===
-              REQUEST_STATUS.PENDING_PROCUREMENT ||
-              normalizedStatus ===
-              REQUEST_STATUS.FULFILLED
-              ? [{
-                  label: normalizedStatus ===
-                    REQUEST_STATUS.FULFILLED
-                    ? "Fulfilled"
-                    : "Procurement",
-                  time: r.fulfilledAt || r.approvedAt || r.raisedAt,
-                  detail:
-                    normalizedStatus ===
-                    REQUEST_STATUS.FULFILLED
-                      ? "Asset assigned to employee"
-                      : "Awaiting stock to fulfill",
-                }]
-              : []),
-          ]
-            .filter((entry) => entry.time)
-            .sort((a, b) => new Date(b.time) - new Date(a.time));
-
-          const pendingStage = pendingStep
-            ? `Pending — ${pendingStep.approverId === "role-finance" ? "Finance" : pendingStep.approverId === "role-hr" ? "HR" : "Manager"}`
-            : null;
-          const statusText =
-            normalizedStatus ===
-            REQUEST_STATUS.PENDING_APPROVAL
-              ? pendingStage || "Pending approval"
-              : autoApproved
-                ? !inventoryAvailable
-                  ? `${autoApprovalText} — waiting for stock`
-                  : autoApprovalText
-              : normalizedStatus ===
-                REQUEST_STATUS.APPROVED &&
-                !inventoryAvailable
-                ? "Approved — waiting for stock"
-                : meta.label;
+          const {
+            normalizedStatus,
+            meta,
+            inventoryAvailable,
+            stockReserved,
+            awaitingStock,
+            daysUntilNeeded,
+            approvalComplete,
+            fulfillDisabled,
+            showApprovalActions,
+            autoApproved,
+            autoApprovalText,
+            workflowHistory,
+            requestHistory,
+            pendingStage,
+            statusText,
+          } = buildRequestViewModel(r, requestViewModelContext);
 
           return (
             <div
@@ -1963,6 +2231,15 @@ function RequestsTab({
                     flexWrap: "wrap",
                   }}
                 >
+                  <SecondaryButton
+                    type="button"
+                    onClick={() => setDetailTargetId(r.id)}
+                    style={{ padding: "7px 11px", fontSize: "12px" }}
+                  >
+                    <Eye size={14} />
+                    Details
+                  </SecondaryButton>
+
                   {!approvalComplete && pendingStage && (
                     <span
                       style={{
@@ -2101,6 +2378,19 @@ function RequestsTab({
         onSaved={onRequestUpdated}
       />
 
+      <RequestDetailPanel
+        request={detailRequest}
+        viewModel={detailRequest ? buildRequestViewModel(detailRequest, requestViewModelContext) : null}
+        onClose={() => setDetailTargetId(null)}
+        onApprove={handleApprove}
+        onReject={(request) => {
+          setRejectTarget(request);
+          setRejectReason("");
+          setRejectError("");
+        }}
+        onFulfill={setFulfillTarget}
+      />
+
       <Modal isOpen={!!rejectTarget} title={`Reject ${rejectTarget?.category || "asset"} request`} onClose={() => !rejectSaving && setRejectTarget(null)}>
         <form onSubmit={(event) => { event.preventDefault(); void handleReject(); }} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
           <label style={{ display: "flex", flexDirection: "column", gap: "5px", fontSize: "12px", fontWeight: 600, color: "var(--label)" }}>
@@ -2114,6 +2404,268 @@ function RequestsTab({
           </div>
         </form>
       </Modal>
+    </div>
+  );
+}
+
+/* =========================================================
+   REQUEST DETAIL SIDE PANEL
+========================================================= */
+
+function RequestDetailPanel({ request, viewModel, onClose, onApprove, onReject, onFulfill }) {
+  useEffect(() => {
+    if (!request) return undefined;
+
+    const handler = (event) => {
+      if (event.key === "Escape") onClose?.();
+    };
+
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [request, onClose]);
+
+  if (!request || !viewModel) return null;
+
+  const {
+    meta,
+    normalizedStatus,
+    statusText,
+    approvalComplete,
+    pendingStage,
+    awaitingStock,
+    stockReserved,
+    inventoryAvailable,
+    fulfillDisabled,
+    showApprovalActions,
+    daysUntilNeeded,
+    autoApproved,
+    autoApprovalText,
+    requestHistory,
+  } = viewModel;
+
+  const employeeName =
+    request.employeeName ||
+    request.employee?.name ||
+    [request.employee?.firstName, request.employee?.lastName].filter(Boolean).join(" ") ||
+    request.employee?.employeeCode ||
+    "Employee";
+
+  const approverSummary = pendingStage ||
+    (autoApproved
+      ? autoApprovalText
+      : requestHistory.length
+        ? [...requestHistory].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()).map((step) => step.detail).join(" → ")
+        : formatApproverName(request.approvedBy) ||
+          (normalizedStatus === REQUEST_STATUS.FULFILLED ? "Fulfilled — no approval workflow recorded" : "—"));
+
+  const detailRow = (label, value) =>
+    value ? (
+      <div key={label} style={{ display: "flex", flexDirection: "column", gap: "2px", minWidth: 0 }}>
+        <span style={{ fontSize: "10.5px", fontWeight: 700, color: "var(--label)", textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</span>
+        <span style={{ fontSize: "12.5px", color: "var(--text)", wordBreak: "break-word" }}>{value}</span>
+      </div>
+    ) : null;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Asset request details"
+      onClick={(event) => { if (event.target === event.currentTarget) onClose?.(); }}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 950,
+        background: "rgba(15,23,42,0.45)",
+        backdropFilter: "blur(3px)",
+        display: "flex",
+        justifyContent: "flex-end",
+      }}
+    >
+      <aside
+        style={{
+          width: "min(500px, 100%)",
+          height: "100%",
+          background: "var(--card)",
+          boxShadow: "var(--shadow-lg)",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <header
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: "10px",
+            padding: "18px 20px",
+            borderBottom: "1px solid var(--border)",
+            flexShrink: 0,
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                padding: "3px 8px",
+                borderRadius: "999px",
+                fontSize: "11px",
+                fontWeight: 700,
+                color: "var(--primary)",
+                background: "#eef2ff",
+                marginBottom: "6px",
+              }}
+            >
+              {request.category}
+            </span>
+            <h2 style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "var(--text)" }}>
+              {request.assetType || request.model || request.category}
+            </h2>
+            <p style={{ margin: "4px 0 0", fontSize: "11.5px", color: "var(--subtext)" }}>
+              Request ID {request.id.slice(0, 8)} · {employeeName}
+            </p>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+            <StatusBadge label={statusText} color={meta.color} bg={meta.bg} />
+            <button
+              type="button"
+              aria-label="Close request details"
+              onClick={onClose}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--subtext)", padding: "4px", borderRadius: "6px", display: "flex" }}
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </header>
+
+        <div style={{ padding: "18px 20px", overflowY: "auto", flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "12px" }}>
+            {detailRow("Quantity", request.quantity ?? 1)}
+            {detailRow("Estimated cost", request.estimatedCost == null ? null : `₹${Number(request.estimatedCost).toLocaleString("en-IN")}`)}
+            {detailRow("Request type", request.requestType)}
+            {detailRow("Needed by", request.neededBy ? fmtDate(request.neededBy) : null)}
+            {detailRow("Delivery location", request.deliveryLocation)}
+            {detailRow("Cost centre", request.costCenter)}
+            {detailRow("Raised", fmtDateTime(request.raisedAt))}
+            {detailRow("Assigned asset", request.asset?.serial)}
+            {detailRow("Approver trail", approverSummary)}
+          </div>
+
+          <div>
+            <h3 style={{ margin: "0 0 4px", fontSize: "12px", fontWeight: 700, color: "var(--label)" }}>Justification</h3>
+            <p style={{ margin: 0, fontSize: "12.5px", color: "var(--subtext)", lineHeight: 1.55 }}>{request.justification}</p>
+          </div>
+
+          {awaitingStock && daysUntilNeeded !== null && daysUntilNeeded >= 0 && daysUntilNeeded <= 7 && (
+            <p role="status" style={{ margin: 0, padding: "8px 10px", background: "#fef3c7", color: "#b45309", borderRadius: "6px", fontSize: "12px", fontWeight: 700 }}>
+              Needed {daysUntilNeeded === 0 ? "today" : `in ${daysUntilNeeded} ${daysUntilNeeded === 1 ? "day" : "days"}`} — no stock available
+            </p>
+          )}
+
+          {awaitingStock && approvalComplete && (
+            <p style={{ margin: 0, padding: "8px 10px", background: "#ede9fe", color: "#6d28d9", borderRadius: "6px", fontSize: "12px", fontWeight: 700 }}>
+              {stockReserved ? "Available stock is reserved for an earlier request." : "Approved and awaiting stock."}
+            </p>
+          )}
+
+          {request.rejectionReason && (
+            <p style={{ margin: 0, padding: "8px 10px", background: "#fef2f2", color: "#991b1b", borderRadius: "6px", fontSize: "12px" }}>
+              Rejection reason: {request.rejectionReason}
+            </p>
+          )}
+
+          <div>
+            <h3 style={{ margin: "0 0 8px", fontSize: "12px", fontWeight: 700, color: "var(--label)" }}>
+              Lifecycle timeline ({requestHistory.length})
+            </h3>
+
+            {requestHistory.length === 0 ? (
+              <p style={{ margin: 0, fontSize: "12px", color: "var(--subtext)" }}>No timeline events recorded yet.</p>
+            ) : (
+              <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "10px" }}>
+                {requestHistory.map((entry, index) => (
+                  <li key={`${entry.label}-${entry.time || index}`} style={{ display: "flex", gap: "10px" }}>
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        marginTop: "4px",
+                        width: "9px",
+                        height: "9px",
+                        borderRadius: "999px",
+                        background: index === 0 ? meta.color : "var(--border)",
+                        flexShrink: 0,
+                      }}
+                    />
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ margin: 0, fontSize: "12px", fontWeight: 700, color: "var(--text)" }}>
+                        {entry.label}
+                        <span style={{ marginLeft: "6px", fontWeight: 500, color: "var(--subtext)" }}>{fmtDateTime(entry.time)}</span>
+                      </p>
+                      <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--subtext)" }}>{entry.detail}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+        </div>
+
+        {(showApprovalActions || (normalizedStatus === REQUEST_STATUS.APPROVED || normalizedStatus === REQUEST_STATUS.PENDING_PROCUREMENT)) && (
+          <footer
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: "8px",
+              padding: "14px 20px",
+              borderTop: "1px solid var(--border)",
+              flexShrink: 0,
+              flexWrap: "wrap",
+            }}
+          >
+            {showApprovalActions && (
+              <>
+                <SecondaryButton
+                  type="button"
+                  onClick={() => onReject?.(request)}
+                  style={{ padding: "8px 12px", fontSize: "12px", color: "var(--red)" }}
+                >
+                  Reject
+                </SecondaryButton>
+                <PrimaryButton
+                  type="button"
+                  onClick={() => onApprove?.(request.id)}
+                  style={{ padding: "8px 12px", fontSize: "12px" }}
+                >
+                  Approve
+                </PrimaryButton>
+              </>
+            )}
+
+            {!showApprovalActions &&
+              [REQUEST_STATUS.APPROVED, REQUEST_STATUS.PENDING_PROCUREMENT].includes(normalizedStatus) && (
+                <PrimaryButton
+                  type="button"
+                  disabled={fulfillDisabled}
+                  onClick={() => onFulfill?.(request)}
+                  title={
+                    !approvalComplete
+                      ? "Manager approval must be completed before fulfillment."
+                      : stockReserved
+                        ? "Available stock is reserved for an earlier request."
+                        : !inventoryAvailable
+                          ? "No stock is currently available for this asset type."
+                          : "Ready to fulfill"
+                  }
+                  style={{ padding: "8px 12px", fontSize: "12px", opacity: fulfillDisabled ? 0.6 : 1 }}
+                >
+                  Fulfill request
+                </PrimaryButton>
+              )}
+          </footer>
+        )}
+      </aside>
     </div>
   );
 }
@@ -2930,7 +3482,7 @@ export default function Assets() {
 
   const canRead = can("assets:read");
   const canWrite = can("assets:write");
-  const canViewInventory = ["ADMIN", "HR"].includes(role?.toUpperCase());
+  const canViewInventory = ["ADMIN", "HR", "MANAGER"].includes(role?.toUpperCase());
 
   const isEmployee = role?.toUpperCase() === "EMPLOYEE";
 
@@ -2948,6 +3500,9 @@ export default function Assets() {
 
   const [inventory, setInventory] =
     useState([]);
+
+  const [inventoryStats, setInventoryStats] =
+    useState(null);
 
   const [licenseAlerts, setLicenseAlerts] =
     useState([]);
@@ -2969,6 +3524,7 @@ export default function Assets() {
 
         const [
           inventoryRes,
+          statsRes,
           alertsRes,
           requestsRes,
           myAssetsRes,
@@ -2976,6 +3532,9 @@ export default function Assets() {
           canViewInventory
             ? getInventory()
             : Promise.resolve({ data: [] }),
+          canViewInventory
+            ? getInventoryStats()
+            : Promise.resolve({ data: null }),
           canManageAssets
             ? getLicenseAlerts()
             : Promise.resolve({ data: [] }),
@@ -2985,6 +3544,10 @@ export default function Assets() {
 
         setInventory(
           inventoryRes?.data || []
+        );
+
+        setInventoryStats(
+          statsRes?.data || null
         );
 
         setLicenseAlerts(
@@ -3032,6 +3595,21 @@ export default function Assets() {
   }
 
   /* =====================================================
+     INVENTORY STATS REFRESH
+  ===================================================== */
+
+  const refreshStats = async () => {
+    if (!canViewInventory) return;
+
+    try {
+      const res = await getInventoryStats();
+      setInventoryStats(res?.data || null);
+    } catch (err) {
+      console.error("Asset stats refresh error:", err);
+    }
+  };
+
+  /* =====================================================
      INVENTORY CHANGE
   ===================================================== */
 
@@ -3051,6 +3629,8 @@ export default function Assets() {
 
       return [item, ...prev];
     });
+
+    refreshStats();
   };
 
   /* =====================================================
@@ -3171,6 +3751,7 @@ export default function Assets() {
           <InventoryTab
             inventory={inventory}
             licenseAlerts={licenseAlerts}
+            stats={inventoryStats}
             onItemAdded={handleInventoryChange}
             onItemChanged={handleInventoryChange}
             canManage={canManageAssets}

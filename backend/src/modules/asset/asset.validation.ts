@@ -81,6 +81,28 @@ export const acknowledgeSchema =
     employeeId: z.string().min(1),
   });
 
+export const INVENTORY_SORT_FIELDS = [
+  "createdAt",
+  "category",
+  "serial",
+  "status",
+  "warrantyExpiry",
+] as const;
+
+export const listInventoryQuerySchema = z.object({
+  search: z.string().trim().max(120).optional(),
+  status: z
+    .enum(["IN_STOCK", "ASSIGNED", "MAINTENANCE", "RETIRED", "LOST", "DAMAGED"])
+    .optional(),
+  category: z.string().trim().max(80).optional(),
+  sort: z.enum(INVENTORY_SORT_FIELDS).optional(),
+  order: z.enum(["asc", "desc"]).optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+});
+
+export type ListInventoryQuery = z.infer<typeof listInventoryQuerySchema>;
+
 export const returnAssetSchema =
   z.object({
     condition: z.enum(["Good", "Damaged"]),

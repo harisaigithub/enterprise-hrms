@@ -5,10 +5,18 @@ import {
     AssetRequestStatus,
     AssetReturnCondition,
 } from "@prisma/client";
+import {
+    buildInventoryOrderBy,
+    buildInventoryWhere,
+    INVENTORY_INCLUDE,
+} from "./asset.inventory";
+import type { InventoryFilters } from "./asset.inventory";
 import { countActiveLicenseAllocations, licenseAllocationKey } from "./asset.allocations";
 import type { AccessTokenPayload } from "../../lib/jwt";
 import * as workflowService from "../workflow/workflow.service";
 import { requiresAssetApproval } from "./asset.approval";
+
+export type { InventoryFilters };
 
 function normalizeApproverName(value?: string | null) {
     const raw = String(value ?? "").trim();
@@ -31,22 +39,98 @@ function normalizeApproverName(value?: string | null) {
    INVENTORY
 ========================================================= */
 
-export async function getInventory() {
-    return prisma.asset.findMany({
-        include: {
-            currentHolder: {
-                select: {
-                    id: true,
-                    employeeCode: true,
-                    firstName: true,
-                    lastName: true,
+export async function getInventory(filters: InventoryFilters = {}) {
+    const where = buildInventoryWhere(filters);
+    const paginated = filters.page !== undefined || filters.limit !== undefined;
+
+    if (!paginated) {
+        return prisma.asset.findMany({
+            where,
+            include: INVENTORY_INCLUDE,
+            orderBy: buildInventoryOrderBy(filters),
+        });
+    }
+
+    const page = Math.max(1, filters.page ?? 1);
+    const limit = Math.min(200, Math.max(1, filters.limit ?? 50));
+
+    const [rows, total] = await prisma.$transaction([
+        prisma.asset.findMany({
+            where,
+            include: INVENTORY_INCLUDE,
+            orderBy: buildInventoryOrderBy(filters),
+            skip: (page - 1) * limit,
+            take: limit,
+        }),
+        prisma.asset.count({ where }),
+    ]);
+
+    return {
+        data: rows,
+        total,
+        page,
+        limit,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+    };
+}
+
+/* =========================================================
+   INVENTORY STATS
+========================================================= */
+
+const EXPIRY_WINDOW_DAYS = 30;
+
+export async function getInventoryStats() {
+    const now = new Date();
+    const horizon = new Date(now.getTime() + EXPIRY_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
+    const [byStatusRows, byCategoryRows, total, withHolder, unacknowledged, warrantyExpiringSoon, licenseExpiringSoon, purchaseValue] =
+        await prisma.$transaction([
+            prisma.asset.groupBy({ by: ["status"], _count: { _all: true } }),
+            prisma.asset.groupBy({ by: ["category"], _count: { _all: true }, orderBy: { _count: { category: "desc" } } }),
+            prisma.asset.count(),
+            prisma.asset.count({ where: { currentHolderId: { not: null } } }),
+            prisma.asset.count({ where: { acknowledged: false, currentHolderId: { not: null } } }),
+            prisma.asset.count({
+                where: {
+                    status: { notIn: [AssetStatus.RETIRED] },
+                    warrantyExpiry: { gte: now, lte: horizon },
                 },
-            },
-        },
-        orderBy: {
-            createdAt: "desc",
-        },
-    });
+            }),
+            prisma.asset.count({
+                where: { licenseExpiry: { gte: now, lte: horizon } },
+            }),
+            prisma.asset.aggregate({ _sum: { purchaseCost: true } }),
+        ]);
+
+    const statusCounts = Object.fromEntries(
+        Object.values(AssetStatus).map((status) => [status, 0])
+    ) as Record<AssetStatus, number>;
+
+    for (const row of byStatusRows) {
+        statusCounts[row.status] = row._count._all;
+    }
+
+    return {
+        total,
+        byStatus: statusCounts,
+        byCategory: byCategoryRows.map((row) => ({
+            category: row.category,
+            count: row._count._all,
+        })),
+        inStock: statusCounts[AssetStatus.IN_STOCK],
+        assigned: statusCounts[AssetStatus.ASSIGNED],
+        maintenance: statusCounts[AssetStatus.MAINTENANCE],
+        retired: statusCounts[AssetStatus.RETIRED],
+        lost: statusCounts[AssetStatus.LOST],
+        damaged: statusCounts[AssetStatus.DAMAGED],
+        withHolder,
+        unacknowledged,
+        warrantyExpiringSoon,
+        licenseExpiringSoon,
+        expiryWindowDays: EXPIRY_WINDOW_DAYS,
+        totalPurchaseValue: Number(purchaseValue._sum.purchaseCost ?? 0),
+    };
 }
 
 /* =========================================================

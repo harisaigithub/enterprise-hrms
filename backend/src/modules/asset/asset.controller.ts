@@ -13,7 +13,9 @@ export async function getInventory(
 ) {
     try {
         const data =
-            await assetService.getInventory();
+            await assetService.getInventory(
+                req.query as assetService.InventoryFilters
+            );
 
         res.json(data);
     } catch (error) {
@@ -21,6 +23,23 @@ export async function getInventory(
 
         res.status(500).json({
             message: "Failed to fetch inventory",
+        });
+    }
+}
+
+export async function getInventoryStats(
+    _req: Request,
+    res: Response
+) {
+    try {
+        const data = await assetService.getInventoryStats();
+
+        res.json(data);
+    } catch (error) {
+        console.error(error);
+
+        res.status(500).json({
+            message: "Failed to fetch inventory stats",
         });
     }
 }

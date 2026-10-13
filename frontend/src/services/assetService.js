@@ -9,8 +9,12 @@ import api from "./api";
    INVENTORY
 ========================================================= */
 
-export function getInventory() {
-  return api.get("/assets/inventory");
+export function getInventory(params) {
+  return api.get("/assets/inventory", { params });
+}
+
+export function getInventoryStats() {
+  return api.get("/assets/inventory/stats");
 }
 
 export function addInventoryItem(item) {
