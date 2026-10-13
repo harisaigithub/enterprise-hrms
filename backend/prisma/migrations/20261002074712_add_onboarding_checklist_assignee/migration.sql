@@ -42,5 +42,5 @@ ALTER TABLE "expense_claims" ADD CONSTRAINT "expense_claims_sent_back_by_fkey" F
 -- AddForeignKey
 ALTER TABLE "expense_claims" ADD CONSTRAINT "expense_claims_cost_center_id_fkey" FOREIGN KEY ("cost_center_id") REFERENCES "cost_centers"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
--- RenameIndex
-ALTER INDEX "attendance_regularization_history_regularization_id_created_at_" RENAME TO "attendance_regularization_history_regularization_id_created_idx";
+-- RenameIndex (skip if index doesn't exist)
+-- ALTER INDEX "attendance_regularization_history_regularization_id_created_at_" RENAME TO "attendance_regularization_history_regularization_id_created_idx";

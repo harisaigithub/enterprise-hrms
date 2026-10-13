@@ -873,7 +873,7 @@ const DEFAULT_QUESTIONS = [
   "Anything the company could have done differently?",
 ];
 
-function ExitInterviewTab({ separation, interview, onSaved, canwrite, }) {
+function ExitInterviewTab({ separation, interview, onSaved, canWrite }) {
   const [answers, setAnswers] = useState(DEFAULT_QUESTIONS.map(() => ""));
   const [saving, setSaving] = useState(false);
 

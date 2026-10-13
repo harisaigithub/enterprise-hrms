@@ -145,6 +145,8 @@ export async function login(email: string, password: string, ip?: string) {
   return {
     user: {
       id: account.employee?.employeeCode ?? account.user.id,
+      employeeId: account.employee?.id ?? null,
+      employeeCode: account.employee?.employeeCode ?? null,
       firstName: account.employee?.firstName ?? "",
       lastName: account.employee?.lastName ?? "",
       email: account.user.email,

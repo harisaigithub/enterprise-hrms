@@ -5,7 +5,7 @@
  * and in-modal approver review workflow.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Plus,
   AlertTriangle,
@@ -20,14 +20,19 @@ import {
   Send,
   Trash2,
   Edit,
+  Clock,
+  CheckCircle2,
+  Wallet,
+  Search,
+  RefreshCw,
 } from "lucide-react";
 
 import MainLayout from "../../components/layout/MainLayout";
 import PageHeader from "../../components/shared/PageHeader";
 import StatusBadge from "../../components/shared/StatusBadge";
-import Spinner from "../../components/shared/Spinner";
 import EmptyState from "../../components/shared/EmptyState";
 import Modal from "../../components/shared/Modal";
+import ConfirmDialog from "../../components/shared/ConfirmDialog";
 
 import {
   getMyExpenseClaims,
@@ -116,6 +121,526 @@ const getViolationMessage = (violation) => {
 const getApiErrorMessage = (error, fallback) =>
   error?.response?.data?.message || error?.message || fallback;
 
+/* Currency-aware money formatting. Defaults to Indian Rupee (en-IN grouping). */
+const fmtMoney = (claim) => {
+  const amount = Number(claim?.amount) || 0;
+  const currency = claim?.currency || "INR";
+
+  if (currency === "INR") return `₹${amount.toLocaleString("en-IN")}`;
+
+  try {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    return `${currency} ${amount.toLocaleString("en-IN")}`;
+  }
+};
+
+/* Short, readable receipt label — keeps the extension, drops long hash prefixes. */
+const shortFileName = (name, max = 26) => {
+  if (!name) return "";
+  const text = String(name);
+  if (text.length <= max) return text;
+
+  const dot = text.lastIndexOf(".");
+  const ext = dot > 0 && text.length - dot <= 6 ? text.slice(dot) : "";
+  const base = ext ? text.slice(0, dot) : text;
+
+  return `${base.slice(0, max - ext.length - 1)}…${ext}`;
+};
+
+/* Employee code is far more readable than the raw UUID. */
+const getEmployeeCode = (claim) =>
+  claim?.employee?.employeeCode ||
+  claim?.employeeCode ||
+  (claim?.employeeId ? String(claim.employeeId).slice(0, 8) : "—");
+
+/* Status groupings used by the summary cards. */
+const PENDING_STATUSES = [
+  "Submitted",
+  "Manager Pending",
+  "Pending Manager Approval",
+  "Finance Pending",
+  "Pending Finance Approval",
+];
+
+const APPROVED_STATUSES = [
+  "Approved",
+  "Approved for Reimbursement",
+  "Queued for Payroll",
+  "Paid",
+];
+
+/* <input type="date"> only accepts a bare YYYY-MM-DD value, but the API
+   returns an ISO timestamp (2026-10-01T00:00:00.000Z). Without this the
+   date control renders empty when editing a draft. The calendar date is
+   taken from the UTC part so the browser timezone cannot shift the day. */
+const toDateInputValue = (value) => {
+  if (!value) return "";
+
+  const text = String(value);
+  const iso = text.match(/^(\d{4}-\d{2}-\d{2})T/);
+  if (iso) return iso[1];
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const isDraftClaim = (claim) =>
+  Boolean(claim?.isDraft) || claim?.status === "Draft";
+
+/*
+ * Page styles are scoped to .exp-page so this module never leaks rules into
+ * the rest of the app. All colours, radii and shadows come from
+ * src/styles/variables.css.
+ */
+const EXPENSES_PAGE_CSS = `
+.exp-page button:focus-visible,
+.exp-page input:focus-visible,
+.exp-page select:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+.exp-page .visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Feedback banners ─────────────────────────────────────────────────── */
+.exp-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font-size: 13px;
+  animation: slideDown 0.2s ease;
+}
+.exp-banner > span { flex: 1; overflow-wrap: anywhere; }
+.exp-banner-success {
+  background: var(--green-light);
+  border-color: rgba(5, 150, 105, 0.28);
+  color: var(--green);
+}
+.exp-banner-error {
+  background: var(--red-light);
+  border-color: rgba(220, 38, 38, 0.28);
+  color: var(--red);
+}
+.exp-banner-dismiss,
+.exp-banner-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+  color: inherit;
+}
+.exp-banner-dismiss:hover { background: rgba(0, 0, 0, 0.05); }
+.exp-banner-retry { border-color: currentColor; }
+
+/* ── Summary cards ────────────────────────────────────────────────────── */
+.exp-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.exp-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  text-align: left;
+  padding: 15px 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.exp-summary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.exp-summary-card.is-active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary) inset, var(--shadow-md);
+}
+.exp-summary-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius);
+  flex-shrink: 0;
+}
+.exp-summary-body { display: flex; flex-direction: column; min-width: 0; }
+.exp-summary-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--subtext);
+}
+.exp-summary-value {
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+.exp-summary-hint {
+  font-size: 11.5px;
+  color: var(--subtext);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Toolbar ──────────────────────────────────────────────────────────── */
+.exp-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.exp-tabs {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+  padding: 4px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.exp-tab {
+  padding: 7px 14px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--subtext);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+.exp-tab:hover { color: var(--text); }
+.exp-tab.is-active {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+.exp-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.exp-search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  min-width: 200px;
+  padding: 0 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--subtext);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.exp-search:focus-within {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+}
+.exp-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+  color: var(--text);
+}
+.exp-select select {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  max-width: 200px;
+}
+.exp-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 34px;
+  padding: 0 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--label);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.exp-clear:hover { border-color: var(--primary); color: var(--primary); }
+
+/* ── Claims panel ─────────────────────────────────────────────────────── */
+.exp-panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.exp-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.exp-panel-title { font-size: 14px; font-weight: 700; color: var(--text); }
+.exp-panel-sub { font-size: 12.5px; color: var(--subtext); margin-top: 2px; }
+
+.exp-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+}
+.exp-skeleton-row { height: 42px; width: 100%; }
+
+.exp-error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 56px 24px;
+  text-align: center;
+  color: var(--red);
+}
+.exp-error-title { font-size: 14px; font-weight: 700; color: var(--text); }
+.exp-error-text { font-size: 13px; color: var(--subtext); max-width: 420px; }
+
+/* ── Claims table ─────────────────────────────────────────────────────── */
+.exp-table-wrap { overflow-x: auto; }
+.exp-table {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: collapse;
+}
+.exp-table thead th {
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--subtext);
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.exp-table tbody tr {
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.exp-table tbody tr:last-child { border-bottom: none; }
+.exp-table tbody tr:hover { background: var(--background); }
+.exp-table tbody td {
+  padding: 12px;
+  vertical-align: top;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.exp-claim-id {
+  display: inline-block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: var(--primary);
+  background: var(--primary-light);
+  border: 1px solid rgba(15, 118, 110, 0.18);
+  border-radius: var(--radius-xs);
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+.exp-emp-name {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.exp-emp-code {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: var(--subtext);
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.exp-category {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--label);
+  white-space: nowrap;
+}
+.exp-table td.exp-num { text-align: right; white-space: nowrap; }
+.exp-table th.exp-num { text-align: right; }
+.exp-amount {
+  font-size: 13.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.exp-currency {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--subtext);
+}
+.exp-date { font-size: 12.5px; color: var(--subtext); white-space: nowrap; }
+.exp-purpose { min-width: 150px; max-width: 240px; }
+.exp-purpose-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.exp-reject-reason {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--red);
+  margin-top: 5px;
+  max-width: 160px;
+}
+.exp-receipt {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 128px;
+  padding: 3px 7px;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  color: var(--label);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.exp-receipt:hover { border-color: var(--primary); color: var(--primary); }
+.exp-receipt > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.exp-muted { color: var(--subtext); }
+
+/* ── Row actions ──────────────────────────────────────────────────────── */
+.exp-table td.exp-actions { text-align: right; white-space: nowrap; }
+.exp-table th.exp-actions { text-align: right; }
+.exp-action-group { display: inline-flex; gap: 5px; justify-content: flex-end; }
+.exp-btn-sm {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 27px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.exp-btn-sm:disabled { cursor: not-allowed; opacity: 0.55; }
+.exp-btn-sm.tone-ghost {
+  background: var(--card);
+  border-color: var(--border);
+  color: var(--text);
+}
+.exp-btn-sm.tone-ghost:hover { border-color: var(--primary); color: var(--primary); }
+.exp-btn-sm.tone-warn { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+.exp-btn-sm.tone-warn:hover:not(:disabled) { background: #ffedd5; }
+.exp-btn-sm.tone-success { background: var(--green-light); color: var(--green); }
+.exp-btn-sm.tone-success:hover:not(:disabled) { background: #d1fae5; }
+.exp-btn-sm.tone-danger { background: var(--red-light); color: var(--red); }
+.exp-btn-sm.tone-danger:hover:not(:disabled) { background: #fee2e2; }
+.exp-btn-sm.tone-danger-ghost { padding: 0 7px; }
+.exp-btn-sm.tone-primary { background: var(--primary); color: #fff; }
+.exp-btn-sm.tone-primary:hover:not(:disabled) { background: var(--primary-hover); }
+.exp-btn-sm.tone-edit { background: var(--blue-light); color: var(--blue); border-color: rgba(37, 99, 235, 0.2); }
+.exp-btn-sm.tone-edit:hover:not(:disabled) { background: #dbeafe; }
+
+/* ── Responsive ───────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .exp-toolbar { align-items: stretch; }
+  .exp-filters { width: 100%; }
+  .exp-search { flex: 1 1 180px; }
+  .exp-select select { max-width: none; width: 100%; }
+  .exp-select { flex: 1 1 160px; }
+}
+@media (max-width: 640px) {
+  .exp-summary { grid-template-columns: 1fr; }
+  .exp-summary-card { padding: 13px 14px; }
+  .exp-summary-value { font-size: 19px; }
+  .exp-tabs { width: 100%; }
+}
+`;
+
 const calculateFileHash = async (file) => {
   if (!file) return "";
 
@@ -187,7 +712,7 @@ function ExpenseDetailModal({
       isOpen={isOpen}
       title={`Expense Claim Inspection — ${getClaimDisplayId(claim)}`}
       onClose={onClose}
-      maxWidth="680px"
+      width="680px"
     >
       <div
         style={{
@@ -803,7 +1328,7 @@ function SubmitClaimModal({
     category: initialDraft?.category || "",
     amount: initialDraft?.amount ? String(initialDraft.amount) : "",
     currency: initialDraft?.currency || "INR",
-    expenseDate: initialDraft?.expenseDate || "",
+    expenseDate: toDateInputValue(initialDraft?.expenseDate) || "",
     businessPurpose: initialDraft?.businessPurpose || "",
     merchantName: initialDraft?.merchantName || "",
     paymentMethod: initialDraft?.paymentMethod || "",
@@ -955,7 +1480,7 @@ function SubmitClaimModal({
         }
       }
 
-      onSubmitted();
+      onSubmitted({ action: isEditing ? "updated" : "saved" });
       onClose();
 
       setForm({
@@ -1059,7 +1584,7 @@ function SubmitClaimModal({
 
       await submitExpenseClaim(draft.id);
 
-      onSubmitted();
+      onSubmitted({ action: "submitted" });
       onClose();
 
       setForm({
@@ -1927,11 +2452,13 @@ function ViolationFlags({ claim }) {
 
   return (
     <div
+      role="status"
+      aria-live="polite"
       style={{
         display: "flex",
         flexDirection: "column",
         gap: "3px",
-        marginTop: "4px",
+        marginTop: "6px",
       }}
     >
       {violations.map((violation, index) => (
@@ -1939,14 +2466,26 @@ function ViolationFlags({ claim }) {
           key={index}
           style={{
             display: "flex",
-            alignItems: "center",
-            gap: "5px",
-            fontSize: "11.5px",
+            alignItems: "flex-start",
+            gap: "4px",
+            fontSize: "10.5px",
+            lineHeight: 1.4,
             color: "var(--amber)",
+            background: "var(--amber-light)",
+            borderRadius: "var(--radius-xs)",
+            padding: "2px 5px",
+            width: "fit-content",
+            maxWidth: "100%",
           }}
         >
-          <AlertTriangle size={11} />
-          {getViolationMessage(violation)}
+          <AlertTriangle
+            size={10}
+            aria-hidden="true"
+            style={{ flexShrink: 0, marginTop: "2px" }}
+          />
+          <span style={{ overflowWrap: "anywhere" }}>
+            {getViolationMessage(violation)}
+          </span>
         </span>
       ))}
 
@@ -1955,14 +2494,21 @@ function ViolationFlags({ claim }) {
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "5px",
-            fontSize: "11.5px",
+            gap: "4px",
+            fontSize: "10.5px",
+            lineHeight: 1.4,
             color: "var(--red)",
+            background: "var(--red-light)",
+            borderRadius: "var(--radius-xs)",
+            padding: "2px 5px",
+            width: "fit-content",
+            maxWidth: "100%",
           }}
         >
-          <Copy size={11} />
-          Possible duplicate of{" "}
-          {possibleDuplicateOf}
+          <Copy size={10} aria-hidden="true" style={{ flexShrink: 0 }} />
+          <span style={{ overflowWrap: "anywhere" }}>
+            Possible duplicate of {possibleDuplicateOf}
+          </span>
         </span>
       )}
     </div>
@@ -2330,6 +2876,12 @@ export default function Expenses() {
 
   const [loading, setLoading] = useState(true);
 
+  const [loadError, setLoadError] = useState(null);
+  const [notice, setNotice] = useState(null);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
   const [showSubmit, setShowSubmit] =
     useState(false);
 
@@ -2354,6 +2906,7 @@ export default function Expenses() {
 
   const loadAll = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
 
     try {
       /*
@@ -2432,6 +2985,13 @@ export default function Expenses() {
         err
       );
 
+      setLoadError(
+        getApiErrorMessage(
+          err,
+          "Unable to load expense claims. Check your connection and try again."
+        )
+      );
+
       setMyClaims([]);
       setApprovals([]);
       setTeamClaims([]);
@@ -2464,6 +3024,14 @@ export default function Expenses() {
     return undefined;
   }, [canApprove, canManageTeam, canFinanceReview, tab]);
 
+  /* Success feedback is informational — clear it on its own. */
+  useEffect(() => {
+    if (!notice) return undefined;
+
+    const timeoutId = window.setTimeout(() => setNotice(null), 6000);
+    return () => window.clearTimeout(timeoutId);
+  }, [notice]);
+
   /* handleSendBack removed - not used (SendBackModal handles it) */
 
   /* ---------------------------------------------------------------------- */
@@ -2490,22 +3058,28 @@ export default function Expenses() {
   /* Delete Draft                                                              */
   /* ---------------------------------------------------------------------- */
 
-  const handleDeleteDraft = async (claim) => {
+  const handleDeleteDraft = (claim) => {
     if (!claim?.id || !claim.isDraft) return;
 
-    const confirmed = window.confirm(
-      `Delete draft ${getClaimDisplayId(claim)}? This cannot be undone.`
-    );
-    if (!confirmed) return;
+    setDeleteTarget(claim);
+  };
+
+  const confirmDeleteDraft = async () => {
+    const claim = deleteTarget;
+    if (!claim?.id) return;
 
     setActionClaimId(claim.id);
+
     try {
       await deleteDraft(claim.id);
       setSelectedClaim(null);
+      setDeleteTarget(null);
+      setNotice(`Draft ${getClaimDisplayId(claim)} was deleted.`);
       await loadAll();
     } catch (err) {
       console.error("Failed to delete expense draft:", err);
       alert(getApiErrorMessage(err, "Failed to delete expense draft."));
+      setDeleteTarget(null);
     } finally {
       setActionClaimId(null);
     }
@@ -2565,7 +3139,9 @@ export default function Expenses() {
         claim.approvalStage
       );
 
-await loadAll();
+      setNotice(`Claim ${getClaimDisplayId(claim)} approved.`);
+
+      await loadAll();
     } catch (err) {
       console.error(
         "Failed to approve claim:",
@@ -2632,781 +3208,553 @@ await loadAll();
       : financeClaims;
 
   /* ---------------------------------------------------------------------- */
+  /* Summary + client-side filtering                                         */
+  /* ---------------------------------------------------------------------- */
+
+  /*
+   * Every figure below is derived from the claims the API already returned —
+   * no demo data, no extra requests.
+   */
+  const summary = useMemo(() => {
+    const list = Array.isArray(myClaims) ? myClaims : [];
+
+    const drafts = list.filter(isDraftClaim);
+    const pending = list.filter((c) => PENDING_STATUSES.includes(c.status));
+    const approved = list.filter((c) => APPROVED_STATUSES.includes(c.status));
+
+    const total = list.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+
+    return [
+      {
+        id: "draft",
+        icon: FileText,
+        label: "Drafts",
+        value: String(drafts.length),
+        hint: drafts.length ? "Editable before submission" : "Nothing in progress",
+        color: "var(--blue)",
+        bg: "var(--blue-light)",
+      },
+      {
+        id: "pending",
+        icon: Clock,
+        label: "Pending Approval",
+        value: String(pending.length),
+        hint: pending.length ? "With manager or finance" : "No claims in review",
+        color: "var(--amber)",
+        bg: "var(--amber-light)",
+      },
+      {
+        id: "approved",
+        icon: CheckCircle2,
+        label: "Approved",
+        value: String(approved.length),
+        hint: approved.length ? "Approved for reimbursement" : "Nothing approved yet",
+        color: "var(--green)",
+        bg: "var(--green-light)",
+      },
+      {
+        id: "total",
+        icon: Wallet,
+        label: "Total Claimed",
+        value: `₹${total.toLocaleString("en-IN")}`,
+        hint: `${list.length} claim${list.length === 1 ? "" : "s"} submitted to date`,
+        color: "var(--primary)",
+        bg: "var(--primary-light)",
+      },
+    ];
+  }, [myClaims]);
+
+  /* Only offer status values that actually exist in the current list. */
+  const statusOptions = useMemo(() => {
+    const seen = new Set();
+    rows.forEach((claim) => {
+      if (claim?.status) seen.add(claim.status);
+    });
+    return Array.from(seen).sort();
+  }, [rows]);
+
+  const SUMMARY_FILTERS = {
+    draft: "Drafts",
+    pending: "Pending Approval",
+    approved: "Approved",
+  };
+
+  const statusSelectOptions = [
+    { value: "all", label: "All statuses" },
+    ...(SUMMARY_FILTERS[statusFilter]
+      ? [{ value: statusFilter, label: SUMMARY_FILTERS[statusFilter] }]
+      : []),
+    ...statusOptions.map((status) => ({ value: status, label: status })),
+  ];
+
+  const hasActiveFilters = statusFilter !== "all" || query.trim().length > 0;
+
+  const hasEmployeeColumn = ["team", "finance", "approvals"].includes(tab);
+
+  const visibleRows = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+
+    return rows.filter((claim) => {
+      if (statusFilter === "draft") return isDraftClaim(claim);
+      if (statusFilter === "pending") return PENDING_STATUSES.includes(claim.status);
+      if (statusFilter === "approved") return APPROVED_STATUSES.includes(claim.status);
+      if (statusFilter !== "all" && claim.status !== statusFilter) return false;
+
+      if (!needle) return true;
+
+      return [
+        getClaimDisplayId(claim),
+        claim.category,
+        claim.businessPurpose,
+        claim.merchantName,
+        getEmployeeName(claim),
+        getEmployeeCode(claim),
+      ]
+        .filter(Boolean)
+        .some((field) => String(field).toLowerCase().includes(needle));
+    });
+  }, [rows, statusFilter, query]);
+
+  const handleSummarySelect = (id) => {
+    if (id === "total") {
+      setStatusFilter("all");
+      setQuery("");
+      return;
+    }
+
+    setStatusFilter((current) => (current === id ? "all" : id));
+  };
+
+  const activeTabLabel = tabs.find((item) => item.id === tab)?.label || "Claims";
+
+  /* ---------------------------------------------------------------------- */
   /* Render                                                                  */
   /* ---------------------------------------------------------------------- */
 
   return (
     <MainLayout>
-      <div
-        style={{
-          maxWidth: "1480px",
-          margin: "0 auto",
-        }}
-      >
+      <div className="exp-page" style={{ maxWidth: "1480px", margin: "0 auto" }}>
+        <style>{EXPENSES_PAGE_CSS}</style>
+
         <PageHeader
           title="Expense Management"
-          subtitle="Submit reimbursements, review GST receipts, and authorize claims"
+          subtitle="Create reimbursement claims, attach GST receipts, and follow every approval stage."
         >
           <button
             id="submit-claim-trigger-btn"
             type="button"
-            onClick={() =>
-              setShowSubmit(true)
-            }
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "9px 16px",
-              background: "var(--primary)",
-              color: "#fff",
-              border: "none",
-              borderRadius:
-                "var(--radius-sm)",
-              fontWeight: 600,
-              fontSize: "13px",
-              cursor: "pointer",
-            }}
+            className="btn btn-primary"
+            onClick={() => setShowSubmit(true)}
           >
-            <Plus size={16} />
-            Submit Claim
+            <Plus size={16} aria-hidden="true" />
+            New Expense Claim
           </button>
         </PageHeader>
 
-        {/* Tabs */}
-        <div
-          style={{
-            display: "flex",
-            gap: "4px",
-            marginBottom: "16px",
-            borderBottom:
-              "1px solid var(--border)",
-          }}
-        >
-          {tabs.map((tabItem) => (
+        {notice && (
+          <div className="exp-banner exp-banner-success" role="status">
+            <CheckCircle2 size={16} aria-hidden="true" />
+            <span>{notice}</span>
             <button
-              key={tabItem.id}
               type="button"
-              onClick={() =>
-                setTab(tabItem.id)
-              }
-              style={{
-                padding: "10px 18px",
-                background: "none",
-                border: "none",
-                borderBottom:
-                  tab === tabItem.id
-                    ? "2px solid var(--primary)"
-                    : "2px solid transparent",
-                color:
-                  tab === tabItem.id
-                    ? "var(--primary)"
-                    : "var(--subtext)",
-                fontWeight:
-                  tab === tabItem.id
-                    ? 700
-                    : 500,
-                fontSize: "13.5px",
-                cursor: "pointer",
-                marginBottom: "-1px",
-              }}
+              className="exp-banner-dismiss"
+              aria-label="Dismiss notification"
+              onClick={() => setNotice(null)}
             >
-              {tabItem.label}
+              <X size={14} aria-hidden="true" />
             </button>
-          ))}
+          </div>
+        )}
+
+        {loadError && (
+          <div className="exp-banner exp-banner-error" role="alert">
+            <AlertTriangle size={16} aria-hidden="true" />
+            <span>{loadError}</span>
+            <button type="button" className="exp-banner-retry" onClick={() => loadAll()}>
+              <RefreshCw size={13} aria-hidden="true" />
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* Summary — every figure is derived from claims returned by the API */}
+        <div className="exp-summary" aria-label="Your claim summary">
+          {summary.map((card) => {
+            const Icon = card.icon;
+            const active = statusFilter === card.id;
+
+            return (
+              <button
+                key={card.id}
+                type="button"
+                className={`exp-summary-card${active ? " is-active" : ""}`}
+                aria-pressed={active}
+                onClick={() => handleSummarySelect(card.id)}
+              >
+                <span
+                  className="exp-summary-icon"
+                  style={{ background: card.bg, color: card.color }}
+                >
+                  <Icon size={20} aria-hidden="true" />
+                </span>
+
+                <span className="exp-summary-body">
+                  <span className="exp-summary-label">{card.label}</span>
+                  <span className="exp-summary-value">{card.value}</span>
+                  <span className="exp-summary-hint">{card.hint}</span>
+                </span>
+              </button>
+            );
+          })}
         </div>
 
-        {/* Claims container */}
-        <div
-          style={{
-            background: "var(--card)",
-            borderRadius:
-              "var(--radius-lg)",
-            border:
-              "1px solid var(--border)",
-            boxShadow:
-              "var(--shadow-sm)",
-            overflow: "hidden",
-          }}
+        {/* Navigation + filters */}
+        <div className="exp-toolbar">
+          <div className="exp-tabs" role="tablist" aria-label="Claim views">
+            {tabs.map((tabItem) => (
+              <button
+                key={tabItem.id}
+                type="button"
+                role="tab"
+                aria-selected={tab === tabItem.id}
+                aria-controls="exp-claims-panel"
+                className={`exp-tab${tab === tabItem.id ? " is-active" : ""}`}
+                onClick={() => setTab(tabItem.id)}
+              >
+                {tabItem.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="exp-filters">
+            <label className="exp-search">
+              <Search size={14} aria-hidden="true" />
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search claims"
+                aria-label={`Search ${activeTabLabel}`}
+              />
+            </label>
+
+            <label className="exp-select">
+              <span className="visually-hidden">Filter by status</span>
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+              >
+                {statusSelectOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {hasActiveFilters && (
+              <button
+                type="button"
+                className="exp-clear"
+                onClick={() => {
+                  setStatusFilter("all");
+                  setQuery("");
+                }}
+              >
+                <X size={13} aria-hidden="true" />
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Claims */}
+        <section
+          className="exp-panel"
+          id="exp-claims-panel"
+          aria-labelledby="exp-claims-title"
         >
-          {loading ? (
-            <div
-              style={{
-                minHeight: "220px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Spinner />
+          <header className="exp-panel-head">
+            <div>
+              <h2 className="exp-panel-title" id="exp-claims-title">
+                {activeTabLabel}
+              </h2>
+              <p className="exp-panel-sub">
+                {loading
+                  ? "Loading claims…"
+                  : `${visibleRows.length} of ${rows.length} claim${
+                      rows.length === 1 ? "" : "s"
+                    }`}
+                {!loading && hasActiveFilters ? " · filtered" : ""}
+              </p>
             </div>
-          ) : rows.length === 0 ? (
+          </header>
+
+          {loading ? (
+            <div className="exp-skeleton" role="status" aria-live="polite">
+              <span className="visually-hidden">Loading expense claims</span>
+              {[0, 1, 2, 3, 4].map((row) => (
+                <div key={row} className="exp-skeleton-row skeleton" />
+              ))}
+            </div>
+          ) : loadError && rows.length === 0 ? (
+            <div className="exp-error-state" role="alert">
+              <AlertTriangle size={22} aria-hidden="true" />
+              <p className="exp-error-title">Claims could not be loaded</p>
+              <p className="exp-error-text">{loadError}</p>
+              <button type="button" className="btn btn-ghost" onClick={() => loadAll()}>
+                <RefreshCw size={14} aria-hidden="true" />
+                Try again
+              </button>
+            </div>
+          ) : visibleRows.length === 0 && rows.length > 0 ? (
             <EmptyState
-              title={
-                tab === "mine"
-                  ? "No expense claims yet"
-                  : "Nothing pending approval"
-              }
+              icon={Search}
+              title="No claims match your filters"
+              subtitle="Try a different status or clear the search to see the full list."
+            />
+          ) : visibleRows.length === 0 ? (
+            <EmptyState
+              icon={FileText}
+              title={tab === "mine" ? "No expense claims yet" : "Nothing pending approval"}
               subtitle={
                 tab === "mine"
-                  ? "Submit a claim using the button above."
+                  ? "Create your first claim with New Expense Claim. You can save it as a draft and edit it any time before submitting."
                   : "You're all caught up."
               }
             />
           ) : (
-            <div
-              style={{
-                overflowX: "auto",
-              }}
-            >
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse:
-                    "collapse",
-                }}
-              >
+            <div className="exp-table-wrap">
+              <table className="exp-table">
                 <thead>
-                  <tr
-                    style={{
-                      background:
-                        "var(--background)",
-                      borderBottom:
-                        "1px solid var(--border)",
-                    }}
-                  >
-                    {[
-                      "Claim ID",
-                      ["team", "finance", "approvals"].includes(tab)
-                        ? "Employee & ID"
-                        : null,
-                      "Category",
-                      "Amount",
-                      "Expense Date",
-                      "Purpose",
-                      "Status",
-                      ["team", "finance", "approvals"].includes(tab)
-                        ? "Actions"
-                        : "Receipt / Actions",
-                    ]
-                      .filter(Boolean)
-                      .map((header) => (
-                        <th
-                          key={header}
-                          style={{
-                            padding:
-                              "11px 16px",
-                            textAlign:
-                              "left",
-                            fontSize:
-                              "11px",
-                            fontWeight: 700,
-                            color:
-                              "var(--subtext)",
-                            textTransform:
-                              "uppercase",
-                            letterSpacing:
-                              "0.5px",
-                            whiteSpace:
-                              "nowrap",
-                          }}
-                        >
-                          {header}
-                        </th>
-                      ))}
+                  <tr>
+                    <th scope="col">Claim ID</th>
+                    {hasEmployeeColumn && <th scope="col">Employee</th>}
+                    <th scope="col">Category</th>
+                    <th scope="col" className="exp-num">
+                      Amount
+                    </th>
+                    <th scope="col">Expense Date</th>
+                    <th scope="col">Purpose</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Receipt</th>
+                    <th scope="col" className="exp-actions">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
 
                 <tbody>
-                  {rows.map(
-                    (claim, index) => {
-                      const meta =
-                        expenseStatusMeta[
-                          claim.status
-                        ] ||
-                        expenseStatusMeta.Draft;
+                  {visibleRows.map((claim, index) => {
+                    const meta = expenseStatusMeta[claim.status] || expenseStatusMeta.Draft;
+                    const locked = LOCKED_STATUSES.includes(claim.status);
+                    const receipt = claim?.receipts?.[0] || null;
+                    const receiptLabel = claim?.receiptFileName || receipt?.fileName || "";
+                    const receiptAttached =
+                      Boolean(claim?.receiptAttached) ||
+                      Boolean(claim?.receiptPending === false) ||
+                      Boolean(claim?.receipts?.length);
+                    const canManageDraft = Boolean(claim?.isDraft) && isOwnClaim(claim);
 
-                      const locked =
-                        LOCKED_STATUSES.includes(
-                          claim.status
-                        );
+                    return (
+                      <tr
+                        key={claim.id || claim.claimNumber || index}
+                        onClick={() => setSelectedClaim(claim)}
+                      >
+                        <td>
+                          <span className="exp-claim-id" title={claim.id || ""}>
+                            {getClaimDisplayId(claim)}
+                          </span>
+                        </td>
 
-                      const receiptAttached =
-                        Boolean(
-                          claim.receiptAttached
-                        ) ||
-                        Boolean(
-                          claim.receiptPending ===
-                            false
-                        ) ||
-                        Boolean(
-                          claim.receipts?.length
-                        );
-
-                      return (
-                        <tr
-                          key={
-                            claim.id ||
-                            claim.claimNumber ||
-                            index
-                          }
-                          onClick={() =>
-                            setSelectedClaim(
-                              claim
-                            )
-                          }
-                          style={{
-                            borderBottom:
-                              index <
-                              rows.length - 1
-                                ? "1px solid var(--border)"
-                                : "none",
-                            cursor:
-                              "pointer",
-                            transition:
-                              "background 0.12s",
-                          }}
-                          onMouseEnter={(
-                            event
-                          ) => {
-                            event.currentTarget.style.background =
-                              "var(--background)";
-                          }}
-                          onMouseLeave={(
-                            event
-                          ) => {
-                            event.currentTarget.style.background =
-                              "none";
-                          }}
-                        >
-                          {/* Claim ID */}
-                          <td
-                            style={{
-                              padding:
-                                "13px 16px",
-                              whiteSpace:
-                                "nowrap",
-                            }}
-                          >
-                            <span
-                              style={{
-                                fontFamily:
-                                  "monospace",
-                                fontWeight: 700,
-                                fontSize:
-                                  "12px",
-                                color:
-                                  "var(--primary)",
-                                background:
-                                  "var(--primary-light)",
-                                padding:
-                                  "3px 8px",
-                                borderRadius:
-                                  "4px",
-                              }}
-                            >
-                              {getClaimDisplayId(
-                                claim
-                              )}
-                            </span>
+                        {hasEmployeeColumn && (
+                          <td>
+                            <span className="exp-emp-name">{getEmployeeName(claim)}</span>
+                            <span className="exp-emp-code">{getEmployeeCode(claim)}</span>
                           </td>
+                        )}
 
-                          {/* Employee */}
-                          {["team", "finance", "approvals"].includes(tab) && (
-                            <td
-                              style={{
-                                padding:
-                                  "13px 16px",
-                                whiteSpace:
-                                  "nowrap",
-                              }}
-                            >
-                              <p
-                                style={{
-                                  margin: 0,
-                                  fontSize:
-                                    "13.5px",
-                                  color:
-                                    "var(--text)",
-                                  fontWeight: 600,
-                                }}
-                              >
-                                {getEmployeeName(claim)}
-                              </p>
+                        <td>
+                          <span className="exp-category">{claim.category || "—"}</span>
+                        </td>
 
-                              <span
-                                style={{
-                                  fontSize:
-                                    "11px",
-                                  fontFamily:
-                                    "monospace",
-                                  color:
-                                    "var(--subtext)",
-                                }}
-                              >
-                                {claim.employeeId ||
-                                  "—"}
-                              </span>
-                            </td>
+                        <td className="exp-num">
+                          <span className="exp-amount">{fmtMoney(claim)}</span>
+                          {claim.currency && claim.currency !== "INR" && (
+                            <span className="exp-currency">{claim.currency}</span>
                           )}
+                        </td>
 
-                          {/* Category */}
-                          <td
-                            style={{
-                              padding:
-                                "13px 16px",
-                              fontSize:
-                                "13.5px",
-                              color:
-                                "var(--text)",
-                            }}
-                          >
-                            {claim.category ||
-                              "—"}
-                          </td>
+                        <td className="exp-date">{fmtDate(claim.expenseDate)}</td>
 
-                          {/* Amount */}
-                          <td
-                            style={{
-                              padding:
-                                "13px 16px",
-                              fontSize:
-                                "13.5px",
-                              color:
-                                "var(--text)",
-                              fontWeight: 700,
-                              whiteSpace:
-                                "nowrap",
-                            }}
-                          >
-                            {fmtAmount(
-                              claim.amount
+                        <td className="exp-purpose">
+                          <span className="exp-purpose-text" title={claim.businessPurpose || ""}>
+                            {claim.businessPurpose || "—"}
+                          </span>
+                          <ViolationFlags claim={claim} />
+                        </td>
+
+                        <td>
+                          <StatusBadge label={meta.label} color={meta.color} bg={meta.bg} />
+
+                          {tab === "mine" &&
+                            claim.status === "Rejected" &&
+                            claim.rejectionReason && (
+                              <p className="exp-reject-reason">{claim.rejectionReason}</p>
                             )}
-                          </td>
+                        </td>
 
-                          {/* Date */}
-                          <td
-                            style={{
-                              padding:
-                                "13px 16px",
-                              fontSize:
-                                "12.5px",
-                              color:
-                                "var(--subtext)",
-                              whiteSpace:
-                                "nowrap",
-                            }}
-                          >
-                            {fmtDate(
-                              claim.expenseDate
-                            )}
-                          </td>
-
-                          {/* Purpose */}
-                          <td
-                            style={{
-                              padding:
-                                "13px 16px",
-                              fontSize:
-                                "13px",
-                              color:
-                                "var(--subtext)",
-                              maxWidth:
-                                "220px",
-                            }}
-                          >
-                            <div
-                              style={{
-                                overflow:
-                                  "hidden",
-                                textOverflow:
-                                  "ellipsis",
-                                display:
-                                  "-webkit-box",
-                                WebkitLineClamp: 2,
-                                WebkitBoxOrient:
-                                  "vertical",
-                              }}
+                        <td onClick={(event) => event.stopPropagation()}>
+                          {receiptAttached ? (
+                            <button
+                              type="button"
+                              className="exp-receipt"
+                              title={receiptLabel || "Receipt attached"}
+                              aria-label={
+                                receiptLabel ? `Open receipt ${receiptLabel}` : "Open receipt"
+                              }
+                              onClick={() => handleViewReceipt(claim)}
                             >
-                              {claim.businessPurpose ||
-                                "—"}
-                            </div>
+                              <Paperclip size={12} aria-hidden="true" />
+                              <span>{shortFileName(receiptLabel) || "Receipt attached"}</span>
+                            </button>
+                          ) : (
+                            <span className="exp-muted">—</span>
+                          )}
+                        </td>
 
-                            <ViolationFlags
-                              claim={claim}
-                            />
-                          </td>
-
-                          {/* Status */}
-                          <td
-                            style={{
-                              padding:
-                                "13px 16px",
-                            }}
-                          >
-                            <StatusBadge
-                              label={
-                                meta.label
-                              }
-                              color={
-                                meta.color
-                              }
-                              bg={meta.bg}
-                            />
-
-                            {tab ===
-                              "mine" &&
-                              claim.status ===
-                                "Rejected" &&
-                              claim.rejectionReason && (
-                                <p
-                                  style={{
-                                    fontSize:
-                                      "11px",
-                                    color:
-                                      "var(--red)",
-                                    marginTop:
-                                      "4px",
-                                    maxWidth:
-                                      "220px",
-                                  }}
-                                >
-                                  {
-                                    claim.rejectionReason
-                                  }
-                                </p>
-                              )}
-                          </td>
-
-                          {/* Actions / Receipt */}
-                          {["team", "finance", "approvals"].includes(tab) ? (
-                            <td
-                              style={{
-                                padding:
-                                  "13px 16px",
-                                whiteSpace:
-                                  "nowrap",
-                              }}
-                              onClick={(event) =>
-                                event.stopPropagation()
-                              }
-                            >
-                              <div
-                                style={{
-                                  display:
-                                    "flex",
-                                  gap: "6px",
-                                }}
+                        <td
+                          className="exp-actions"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          {hasEmployeeColumn ? (
+                            <div className="exp-action-group">
+                              <button
+                                type="button"
+                                className="exp-btn-sm tone-ghost"
+                                onClick={() => setSelectedClaim(claim)}
+                                title="Inspect claim details"
                               >
+                                <Eye size={12} aria-hidden="true" />
+                                Review
+                              </button>
+
+                              {canApprove && SEND_BACKABLE_STATUSES.includes(claim.status) && (
                                 <button
                                   type="button"
-                                  onClick={() =>
-                                    setSelectedClaim(
-                                      claim
-                                    )
-                                  }
-                                  title="Inspect Claim Details"
-                                  style={{
-                                    display:
-                                      "flex",
-                                    alignItems:
-                                      "center",
-                                    gap: "4px",
-                                    padding:
-                                      "6px 10px",
-                                    background:
-                                      "none",
-                                    border:
-                                      "1px solid var(--border)",
-                                    borderRadius:
-                                      "var(--radius-sm)",
-                                    fontWeight: 600,
-                                    fontSize:
-                                      "12px",
-                                    color:
-                                      "var(--text)",
-                                    cursor:
-                                      "pointer",
-                                  }}
+                                  id={`sendback-${claim.id}-btn`}
+                                  className="exp-btn-sm tone-warn"
+                                  onClick={() => setSendBackTarget(claim)}
+                                  disabled={locked}
                                 >
-                                  <Eye
-                                    size={12}
-                                  />
-                                  Review
+                                  <Send size={12} aria-hidden="true" />
+                                  Send Back
                                 </button>
+                              )}
 
-                                {canApprove && SEND_BACKABLE_STATUSES.includes(claim.status) && (
+                              {canApprove && (tab === "approvals" || tab === "finance") && (
+                                <>
                                   <button
                                     type="button"
-                                    id={`sendback-${claim.id}-btn`}
-                                    onClick={() =>
-                                      setSendBackTarget(
-                                        claim
-                                      )
-                                    }
-                                    disabled={
-                                      locked
-                                    }
-                                    style={{
-                                      display:
-                                        "flex",
-                                      alignItems:
-                                        "center",
-                                      gap: "4px",
-                                      padding:
-                                        "6px 12px",
-                                      background:
-                                        "#fff7ed",
-                                      color:
-                                        "#f97316",
-                                      border:
-                                        "1px solid #fed7aa",
-                                      borderRadius:
-                                        "var(--radius-sm)",
-                                      fontWeight: 600,
-                                      fontSize:
-                                        "12px",
-                                      cursor:
-                                        locked
-                                          ? "not-allowed"
-                                          : "pointer",
-                                    }}
+                                    id={`approve-${claim.id}-btn`}
+                                    className="exp-btn-sm tone-success"
+                                    onClick={() => handleApprove(claim)}
+                                    disabled={locked}
                                   >
-                                    <Send
-                                      size={13}
-                                    />
-                                    Send Back
+                                    <Check size={13} aria-hidden="true" />
+                                    Approve
                                   </button>
-                                )}
 
-                                {canApprove && (tab === "approvals" || tab === "finance") && (
-                                  <>
-                                    <button
-                                      type="button"
-                                      id={`approve-${claim.id}-btn`}
-                                      onClick={() =>
-                                        handleApprove(
-                                          claim
-                                        )
-                                      }
-                                      disabled={
-                                        locked
-                                      }
-                                      style={{
-                                        display:
-                                          "flex",
-                                        alignItems:
-                                          "center",
-                                        gap: "4px",
-                                        padding:
-                                          "6px 12px",
-                                        background:
-                                          "var(--green-light)",
-                                        color:
-                                          "var(--green)",
-                                        border:
-                                          "none",
-                                        borderRadius:
-                                          "var(--radius-sm)",
-                                        fontWeight: 600,
-                                        fontSize:
-                                          "12px",
-                                        cursor:
-                                          locked
-                                            ? "not-allowed"
-                                            : "pointer",
-                                      }}
-                                    >
-                                      <Check
-                                        size={13}
-                                      />
-                                      Approve
-                                    </button>
+                                  <button
+                                    type="button"
+                                    id={`reject-${claim.id}-btn`}
+                                    className="exp-btn-sm tone-danger"
+                                    onClick={() => setRejectTarget(claim)}
+                                    disabled={locked}
+                                  >
+                                    <X size={13} aria-hidden="true" />
+                                    Reject
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          ) : canManageDraft ? (
+                            <div className="exp-action-group">
+                              <button
+                                type="button"
+                                className="exp-btn-sm tone-edit"
+                                onClick={() => handleEditDraft(claim)}
+                                disabled={actionClaimId === claim.id}
+                                title="Edit draft"
+                              >
+                                <Edit size={12} aria-hidden="true" />
+                                Edit
+                              </button>
 
-                                    <button
-                                      type="button"
-                                      id={`reject-${claim.id}-btn`}
-                                      onClick={() =>
-                                        setRejectTarget(
-                                          claim
-                                        )
-                                      }
-                                      disabled={
-                                        locked
-                                      }
-                                      style={{
-                                        display:
-                                          "flex",
-                                        alignItems:
-                                          "center",
-                                        gap: "4px",
-                                        padding:
-                                          "6px 12px",
-                                        background:
-                                          "var(--red-light)",
-                                        color:
-                                          "var(--red)",
-                                        border:
-                                          "none",
-                                        borderRadius:
-                                          "var(--radius-sm)",
-                                        fontWeight: 600,
-                                        fontSize:
-                                          "12px",
-                                        cursor:
-                                          locked
-                                            ? "not-allowed"
-                                            : "pointer",
-                                      }}
-                                    >
-                                      <X
-                                        size={13}
-                                      />
-                                      Reject
-                                    </button>
-                                  </>
-                                )}
-                              </div>
-                            </td>
+                              <button
+                                type="button"
+                                className="exp-btn-sm tone-primary"
+                                onClick={() => handleSubmitDraft(claim)}
+                                disabled={actionClaimId === claim.id}
+                                title="Submit draft for approval"
+                              >
+                                <Send size={12} aria-hidden="true" />
+                                Submit
+                              </button>
+
+                              <button
+                                type="button"
+                                className="exp-btn-sm tone-danger tone-danger-ghost"
+                                onClick={() => handleDeleteDraft(claim)}
+                                disabled={actionClaimId === claim.id}
+                                title="Delete draft"
+                                aria-label={`Delete draft ${getClaimDisplayId(claim)}`}
+                              >
+                                <Trash2 size={12} aria-hidden="true" />
+                              </button>
+                            </div>
                           ) : (
-                            <td
-                              style={{
-                                padding:
-                                  "13px 16px",
-                              }}
-                            >
-                              {receiptAttached ? (
-                                <span
-                                  style={{
-                                    display:
-                                      "flex",
-                                    alignItems:
-                                      "center",
-                                    gap: "5px",
-                                    fontSize:
-                                      "12px",
-                                    color:
-                                      "var(--primary)",
-                                    fontWeight: 500,
-                                  }}
-                                >
-                                  <Paperclip
-                                    size={12}
-                                  />
-
-                                  {claim.receiptFileName ||
-                                    claim
-                                      .receipts?.[0]
-                                      ?.fileName ||
-                                    "Receipt attached"}
-                                </span>
-                              ) : (
-                                <span
-                                  style={{
-                                    fontSize:
-                                      "12px",
-                                    color:
-                                      "var(--subtext)",
-                                  }}
-                                >
-                                  —
-                                </span>
-                              )}
-
-                              {claim.isDraft && isOwnClaim(claim) && (
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    gap: "6px",
-                                    marginTop: "8px",
-                                  }}
-                                >
-                                  <button
-                                    type="button"
-                                    onClick={() => handleEditDraft(claim)}
-                                    disabled={actionClaimId === claim.id}
-                                    title="Edit draft"
-                                    style={{
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      gap: "4px",
-                                      padding: "6px 10px",
-                                      background: "var(--blue-light)",
-                                      color: "var(--blue)",
-                                      border: "none",
-                                      borderRadius: "var(--radius-sm)",
-                                      fontWeight: 600,
-                                      fontSize: "12px",
-                                      cursor: actionClaimId === claim.id ? "not-allowed" : "pointer",
-                                    }}
-                                  >
-                                    <Edit size={12} /> Edit
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSubmitDraft(claim)}
-                                    disabled={actionClaimId === claim.id}
-                                    style={{
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      gap: "4px",
-                                      padding: "6px 10px",
-                                      background: "var(--primary)",
-                                      color: "#fff",
-                                      border: "none",
-                                      borderRadius: "var(--radius-sm)",
-                                      fontWeight: 600,
-                                      fontSize: "12px",
-                                      cursor: actionClaimId === claim.id ? "not-allowed" : "pointer",
-                                    }}
-                                  >
-                                    <Send size={12} /> Submit
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteDraft(claim)}
-                                    disabled={actionClaimId === claim.id}
-                                    title="Delete draft"
-                                    style={{
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      padding: "6px 8px",
-                                      background: "var(--red-light)",
-                                      color: "var(--red)",
-                                      border: "none",
-                                      borderRadius: "var(--radius-sm)",
-                                      cursor: actionClaimId === claim.id ? "not-allowed" : "pointer",
-                                    }}
-                                  >
-                                    <Trash2 size={12} />
-                                  </button>
-                                </div>
-                              )}
-                            </td>
+                            <span className="exp-muted">—</span>
                           )}
-                        </tr>
-                      );
-                    }
-                  )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
-        </div>
+        </section>
       </div>
 
       {/* Submit Modal */}
       <SubmitClaimModal
+        key={editingDraft?.id ?? "new"}
         isOpen={showSubmit}
         onClose={() => {
           setShowSubmit(false);
           setEditingDraft(null);
         }}
-        onSubmitted={() => {
+        onSubmitted={(result) => {
+          const wasEditing = Boolean(editingDraft);
+
           loadAll();
           setEditingDraft(null);
+
+          if (result?.action === "submitted") {
+            setNotice(
+              wasEditing
+                ? "Draft updated and submitted. It is now with the approver."
+                : "Claim submitted for approval."
+            );
+            return;
+          }
+
+          setNotice(
+            wasEditing
+              ? "Draft updated. It stays editable until you submit it."
+              : "Draft saved — it is in My Claims and you can edit it any time before submitting."
+          );
         }}
         initialDraft={editingDraft}
         currentEmployee={{
@@ -3454,6 +3802,17 @@ await loadAll();
           canApprove &&
           tab === "approvals"
         }
+      />
+
+      {/* Delete draft confirmation */}
+      <ConfirmDialog
+        isOpen={Boolean(deleteTarget)}
+        title={`Delete draft ${deleteTarget ? getClaimDisplayId(deleteTarget) : ""}?`}
+        message="This removes the draft permanently. Receipts already attached will be discarded. This cannot be undone."
+        confirmLabel="Delete draft"
+        danger
+        onConfirm={confirmDeleteDraft}
+        onCancel={() => setDeleteTarget(null)}
       />
     </MainLayout>
   );
