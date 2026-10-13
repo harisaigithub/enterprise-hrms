@@ -218,6 +218,7 @@ model User {
   notificationPreferences      NotificationPreference[]
   notificationTemplatesCreated NotificationTemplate[]   @relation("NotificationTemplateCreator")
   notificationDeliveries       NotificationDelivery[]
+  dashboardPreference         UserDashboardPreference?
 
   @@index([roleId])
   @@map("users")
@@ -932,6 +933,21 @@ model NotificationPreference {
   @@unique([userId, category])
   @@index([userId])
   @@map("notification_preferences")
+}
+
+// Per-user dashboard layout preferences (widget ids + sizes only — never
+// business data). Validated server-side against the dashboard widget catalog
+// and the user's real role/permissions on every save and every restore.
+model UserDashboardPreference {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @unique @map("user_id") @db.Uuid
+  layout    Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_dashboard_preferences")
 }
 
 model NotificationTemplate {

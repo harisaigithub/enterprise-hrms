@@ -1,13 +1,28 @@
 /**
  * Admin dashboard service.
  *
- * Uses only the live, ADMIN-protected backend endpoint. API failures are
- * intentionally propagated so dashboard widgets display their error state rather than
- * displaying stale demo metrics as if they were current organization data.
+ * Single in-flight request shared by every admin widget (org KPIs, charts,
+ * insights…) so one dashboard render triggers exactly one API call.
+ * Failures are propagated so widgets show their error state — never stale
+ * fabricated metrics.
  */
 import api from "./api";
 
-export const getAnalyticsSnapshot = async () => {
-  const response = await api.get("/dashboard/admin");
-  return response.data;
+let request = null;
+
+export function clearAdminDashboardCache() {
+  request = null;
+}
+
+export const getAnalyticsSnapshot = () => {
+  if (!request) {
+    request = api
+      .get("/dashboard/admin")
+      .then((response) => response.data)
+      .catch((error) => {
+        request = null;
+        throw error;
+      });
+  }
+  return request;
 };

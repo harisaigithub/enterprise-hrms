@@ -81,30 +81,41 @@ export async function employeeDashboard(userId: string) {
 }
 
 export async function adminDashboard() {
-  const [headcount, openPositionsAgg, appStages, departments, recentRuns, tasksTotal, tasksDone] = await Promise.all([
-    prisma.employee.count({ where: { status: "Active" } }).catch(() => 15),
+  const now = new Date();
+  const yearStart = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+  const [headcount, openPositionsAgg, appStages, departments, recentRuns, tasksTotal, tasksDone, overdueTasks, exitsYtd, pendingLeave, pendingExpenses] = await Promise.all([
+    prisma.employee.count({ where: { status: "Active", isSoftDeleted: false } }),
     prisma.jobRequisition.aggregate({
       where: { status: { in: ["Open", "Approved"] } },
       _sum: { openings: true },
-    }).catch(() => ({ _sum: { openings: 10 } })),
+    }),
     prisma.application.groupBy({
       by: ["stage"],
       _count: { id: true },
-    }).catch(() => []),
-    prisma.department.findMany({
-      select: {
-        name: true,
-        _count: { select: { employees: true } },
-      },
-      take: 6,
+    }),
+    prisma.employee.groupBy({
+      by: ["departmentId"],
+      where: { status: "Active", isSoftDeleted: false, departmentId: { not: null } },
+      _count: { id: true },
     }).catch(() => []),
     prisma.payrollRun.findMany({
       orderBy: [{ year: "desc" }, { month: "desc" }],
-      take: 5,
-    }).catch(() => []),
-    prisma.task.count().catch(() => 50),
-    prisma.task.count({ where: { status: "Done" } }).catch(() => 42),
+      take: 6,
+    }),
+    prisma.task.count(),
+    prisma.task.count({ where: { status: "Done" } }),
+    prisma.task.count({ where: { status: { not: "Done" }, dueDate: { lt: now } } }),
+    prisma.separation.count({ where: { lastWorkingDay: { gte: yearStart, lte: now } } }),
+    prisma.leaveRequest.count({ where: { status: "Pending" } }),
+    prisma.expenseClaim.count({ where: { status: { in: ["Submitted", "Manager Pending", "Finance Pending"] } } }),
   ]);
+
+  const departmentNames = await prisma.department.findMany({ select: { id: true, name: true } });
+  const nameById = new Map(departmentNames.map((d) => [d.id, d.name]));
+  const departmentHeadcount = departments
+    .map((row) => ({ department: nameById.get(row.departmentId as string) || "Unassigned", headcount: row._count.id }))
+    .filter((row) => row.department !== "Unassigned")
+    .sort((a, b) => b.headcount - a.headcount);
 
   const stageCounts: Record<string, number> = {};
   for (const item of appStages) {
@@ -112,66 +123,43 @@ export async function adminDashboard() {
   }
 
   const hiringFunnel = {
-    applied: stageCounts["applied"] || 158,
-    screening: stageCounts["screening"] || 58,
-    interview: stageCounts["interview"] || 38,
-    offer: stageCounts["offer"] || 12,
-    hired: stageCounts["hired"] || 5,
+    applied: stageCounts["applied"] || 0,
+    screening: stageCounts["screening"] || 0,
+    interview: stageCounts["interview"] || 0,
+    offer: stageCounts["offer"] || 0,
+    hired: stageCounts["hired"] || 0,
   };
 
-  const openPositions = openPositionsAgg._sum.openings ?? 9;
-
-  const defaultRatings: Record<string, number> = {
-    Engineering: 4.2,
-    Product: 4.4,
-    Design: 4.3,
-    Analytics: 4.1,
-    "Human Resources": 4.5,
-    Finance: 4.0,
-    Marketing: 4.2,
-  };
-
-  const departmentPerformance = departments.length > 0 
-    ? departments.map((dept) => ({
-        department: dept.name,
-        avgRating: defaultRatings[dept.name] || 4.2,
-        employeeCount: dept._count.employees,
-      }))
-    : [
-        { department: "Engineering", avgRating: 4.2, employeeCount: 8 },
-        { department: "Product", avgRating: 4.4, employeeCount: 3 },
-        { department: "Design", avgRating: 4.3, employeeCount: 2 },
-        { department: "Finance", avgRating: 4.0, employeeCount: 2 },
-      ];
+  const openPositions = openPositionsAgg._sum.openings ?? 0;
+  const attritionYtdPct = headcount > 0 ? Math.round((exitsYtd / headcount) * 1000) / 10 : 0;
 
   const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const payrollCostTrend = recentRuns.length > 0
-    ? [...recentRuns].reverse().map((run) => ({
-        month: MONTH_NAMES[(run.month - 1) % 12] || `M${run.month}`,
-        cost: Number((Number(run.grossPayroll) / 10000000).toFixed(2)) || 4.3,
-      }))
-    : [
-        { month: "May", cost: 4.1 },
-        { month: "Jun", cost: 4.2 },
-        { month: "Jul", cost: 4.3 },
-        { month: "Aug", cost: 4.35 },
-        { month: "Sep", cost: 4.4 },
-      ];
+  const payrollCostTrend = [...recentRuns].reverse().map((run) => ({
+    month: MONTH_NAMES[(run.month - 1) % 12] || `M${run.month}`,
+    cost: Math.round((Number(run.grossPayroll) / 10000000) * 100) / 100,
+  }));
 
-  const tasksCompletedRate = tasksTotal > 0 ? Math.round((tasksDone / tasksTotal) * 100) : 88;
+  const taskCompletionPct = tasksTotal > 0 ? Math.round((tasksDone / tasksTotal) * 100) : 0;
+
+  const insights: Array<{ id: string; severity: "info" | "warning"; message: string; link: string }> = [];
+  if (pendingLeave > 0) insights.push({ id: "leave-backlog", severity: pendingLeave >= 5 ? "warning" : "info", message: `${pendingLeave} leave request${pendingLeave === 1 ? "" : "s"} pending approval`, link: "/leave" });
+  if (pendingExpenses > 0) insights.push({ id: "expense-backlog", severity: "info", message: `${pendingExpenses} expense claim${pendingExpenses === 1 ? "" : "s"} awaiting approval`, link: "/expenses" });
+  if (overdueTasks > 0) insights.push({ id: "overdue-tasks", severity: "warning", message: `${overdueTasks} task${overdueTasks === 1 ? "" : "s"} past their due date`, link: "/tasks" });
+  if (openPositions > 0) insights.push({ id: "open-positions", severity: "info", message: `${openPositions} open position${openPositions === 1 ? "" : "s"} across active requisitions`, link: "/recruitment" });
 
   return {
     asOf: new Date().toISOString(),
     orgKpis: {
-      headcount: headcount || 18,
-      attritionRateYtd: 4.2,
-      openPositions: openPositions || 9,
+      headcount,
+      openPositions,
+      attritionYtdPct,
+      exitsYtd,
     },
-    departmentPerformance,
+    departmentHeadcount,
     hiringFunnel,
     payrollCostTrend,
-    satisfactionScore: { score: 4.3, scale: 5, surveyName: "Q2 Pulse Survey" },
-    productivity: { tasksCompletedRate, avgCycleTimeDays: 3.2 },
+    taskProgress: { total: tasksTotal, done: tasksDone, overdue: overdueTasks, completionPct: taskCompletionPct },
+    insights,
   };
 }
 
@@ -204,6 +192,13 @@ export async function hrDashboard() {
       { title: "Offer Extended", value: String(stageCount(["offer"])), growth: "Live", color: "#059669" },
       { title: "Onboarded", value: String(stageCount(["hired"])), growth: "Live", color: "#0284c7" },
     ] },
+    hiringFunnel: {
+      applied: stageCount(["applied"]),
+      screening: stageCount(["screening"]),
+      interview: stageCount(["interview"]),
+      offer: stageCount(["offer"]),
+      hired: stageCount(["hired"]),
+    },
     payroll: { title: "Payroll", totalPayroll: formatLakhs(payroll), description: "Total Payroll This Month", changePct: `${payrollChange >= 0 ? "+" : ""}${payrollChange.toFixed(1)}%`, changeLabel: "vs last month", buttonText: "Run Payroll" },
     people: { total: activeCount, list: people.map((person) => ({ name: `${person.firstName} ${person.lastName}`.trim(), img: person.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(`${person.firstName} ${person.lastName}`)}` })) },
     quickActions: { actions: [
@@ -319,6 +314,60 @@ export async function managerDashboard(userId: string, employeeId?: string, _rol
     take: 10,
   });
 
+  // 14-day attendance trend for direct reports (real punches + approved leaves).
+  const trendStart = new Date(today);
+  trendStart.setUTCDate(trendStart.getUTCDate() - 13);
+  const [trendPunches, trendLeaves, pendingTeamExpenses] = await Promise.all([
+    prisma.attendancePunch.findMany({
+      where: { employeeId: { in: reportIds }, punchDate: { gte: trendStart, lte: today } },
+      select: { employeeId: true, punchDate: true, punchIn: true, status: true },
+    }),
+    prisma.leaveRequest.findMany({
+      where: {
+        employeeId: { in: reportIds },
+        status: "Approved",
+        startDate: { lte: today },
+        endDate: { gte: trendStart },
+      },
+      select: { employeeId: true, startDate: true, endDate: true },
+    }),
+    prisma.expenseClaim.count({
+      where: { employeeId: { in: reportIds }, status: { in: ["Submitted", "Manager Pending"] } },
+    }),
+  ]);
+
+  const presentByDate = new Map<string, Set<string>>();
+  for (const punch of trendPunches) {
+    if (!punch.punchIn) continue;
+    const key = punch.punchDate.toISOString().slice(0, 10);
+    if (!presentByDate.has(key)) presentByDate.set(key, new Set());
+    presentByDate.get(key)!.add(punch.employeeId);
+  }
+  const leaveByDate = new Map<string, Set<string>>();
+  for (const leave of trendLeaves) {
+    const cursor = new Date(Math.max(leave.startDate.getTime(), trendStart.getTime()));
+    while (cursor <= leave.endDate && cursor <= today) {
+      const key = cursor.toISOString().slice(0, 10);
+      if (!leaveByDate.has(key)) leaveByDate.set(key, new Set());
+      leaveByDate.get(key)!.add(leave.employeeId);
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+  }
+  const attendanceTrend: Array<{ date: string; present: number; onLeave: number; notCheckedIn: number }> = [];
+  for (let i = 0; i < 14; i++) {
+    const date = new Date(trendStart);
+    date.setUTCDate(date.getUTCDate() + i);
+    const key = date.toISOString().slice(0, 10);
+    const present = presentByDate.get(key)?.size ?? 0;
+    const onLeave = leaveByDate.get(key)?.size ?? 0;
+    attendanceTrend.push({
+      date: key,
+      present,
+      onLeave,
+      notCheckedIn: Math.max(0, directReports.length - present - onLeave),
+    });
+  }
+
   let presentCount = 0;
   let onLeaveCount = 0;
 
@@ -358,7 +407,7 @@ export async function managerDashboard(userId: string, employeeId?: string, _rol
 
   const breakdown = [
     { type: "Leave", count: pendingCount },
-    { type: "Expense", count: 0 },
+    { type: "Expense", count: pendingTeamExpenses },
   ];
 
   return {
@@ -374,8 +423,9 @@ export async function managerDashboard(userId: string, employeeId?: string, _rol
     onLeaveToday: onLeaveCount,
     notCheckedInToday: notCheckedInCount,
     attendanceRate: teamSize > 0 ? Math.round((presentCount / teamSize) * 100) : 0,
+    attendanceTrend,
     pendingApprovals: {
-      pendingCount,
+      pendingCount: pendingCount + pendingTeamExpenses,
       breakdown,
       recentRequests: pendingLeaveRequests.map((req) => ({
         id: req.id,
@@ -389,6 +439,63 @@ export async function managerDashboard(userId: string, employeeId?: string, _rol
       })),
     },
     directReports: directReportsWithStatus,
+  };
+}
+
+/** Finance workspace — organization-wide expense approval backlog (real data). */
+export async function financeDashboard() {
+  const pendingStatuses = ["Submitted", "Manager Pending", "Finance Pending"];
+  const [backlog, byCategory, recentClaims] = await Promise.all([
+    prisma.expenseClaim.aggregate({
+      where: { status: { in: pendingStatuses } },
+      _count: { id: true },
+      _sum: { amount: true },
+    }),
+    prisma.expenseClaim.groupBy({
+      by: ["category"],
+      where: { status: { in: pendingStatuses } },
+      _count: { id: true },
+      _sum: { amount: true },
+    }),
+    prisma.expenseClaim.findMany({
+      where: { status: { in: pendingStatuses } },
+      orderBy: { submittedAt: "desc" },
+      take: 8,
+      select: {
+        id: true,
+        claimNumber: true,
+        category: true,
+        amount: true,
+        status: true,
+        submittedAt: true,
+        employee: { select: { firstName: true, lastName: true, employeeCode: true } },
+      },
+    }),
+  ]);
+
+  return {
+    asOf: new Date().toISOString(),
+    backlog: {
+      pendingCount: backlog._count.id,
+      totalAmount: Number(backlog._sum.amount ?? 0),
+    },
+    byCategory: byCategory
+      .map((row) => ({
+        category: row.category,
+        count: row._count.id,
+        amount: Number(row._sum.amount ?? 0),
+      }))
+      .sort((a, b) => b.amount - a.amount),
+    recentClaims: recentClaims.map((claim) => ({
+      id: claim.id,
+      claimNumber: claim.claimNumber,
+      category: claim.category,
+      amount: Number(claim.amount),
+      status: claim.status,
+      submittedAt: claim.submittedAt?.toISOString() ?? null,
+      employeeName: `${claim.employee.firstName} ${claim.employee.lastName}`.trim(),
+      employeeCode: claim.employee.employeeCode,
+    })),
   };
 }
 
