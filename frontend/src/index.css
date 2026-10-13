@@ -155,7 +155,7 @@ a { text-decoration: none; color: inherit; }
 }
 .btn-danger:hover {
   background: var(--red);
-  color: #fff;
+  color: var(--primary-text);
 }
 
 /* Skeleton shimmer */

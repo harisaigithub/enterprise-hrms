@@ -620,7 +620,7 @@ const EXPENSES_PAGE_CSS = `
 .exp-btn-sm.tone-danger { background: var(--red-light); color: var(--red); }
 .exp-btn-sm.tone-danger:hover:not(:disabled) { background: #fee2e2; }
 .exp-btn-sm.tone-danger-ghost { padding: 0 7px; }
-.exp-btn-sm.tone-primary { background: var(--primary); color: #fff; }
+.exp-btn-sm.tone-primary { background: var(--primary); color: var(--primary-text); }
 .exp-btn-sm.tone-primary:hover:not(:disabled) { background: var(--primary-hover); }
 .exp-btn-sm.tone-edit { background: var(--blue-light); color: var(--blue); border-color: rgba(37, 99, 235, 0.2); }
 .exp-btn-sm.tone-edit:hover:not(:disabled) { background: #dbeafe; }
@@ -1179,7 +1179,7 @@ function ExpenseDetailModal({
                     gap: "6px",
                     padding: "8px 18px",
                     background: "var(--blue)",
-                    color: "#fff",
+                    color: "var(--primary-text)",
                     border: "none",
                     borderRadius: "var(--radius-sm)",
                     fontWeight: 600,
@@ -1202,7 +1202,7 @@ function ExpenseDetailModal({
                     gap: "6px",
                     padding: "8px 18px",
                     background: "var(--primary)",
-                    color: "#fff",
+                    color: "var(--primary-text)",
                     border: "none",
                     borderRadius: "var(--radius-sm)",
                     fontWeight: 600,
@@ -1252,7 +1252,7 @@ function ExpenseDetailModal({
                     gap: "6px",
                     padding: "8px 18px",
                     background: "var(--green)",
-                    color: "#fff",
+                    color: "var(--primary-text)",
                     border: "none",
                     borderRadius: "var(--radius-sm)",
                     fontWeight: 600,
@@ -2406,7 +2406,7 @@ function SubmitClaimModal({
               border: "none",
               borderRadius: "var(--radius-sm)",
               background: "var(--primary)",
-              color: "#fff",
+              color: "var(--primary-text)",
               fontWeight: 600,
               fontSize: "13px",
               cursor: saving
@@ -2643,7 +2643,7 @@ function RejectModal({
               border: "none",
               borderRadius: "var(--radius-sm)",
               background: "var(--red)",
-              color: "#fff",
+              color: "var(--primary-text)",
               fontWeight: 600,
               fontSize: "13px",
               cursor: saving

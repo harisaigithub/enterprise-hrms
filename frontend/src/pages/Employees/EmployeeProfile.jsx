@@ -431,7 +431,7 @@ export default function EmployeeProfile() {
             onClick={() => navigate("/employees")}
             style={{
               marginTop: "16px", padding: "9px 20px", background: "var(--primary)",
-              color: "#fff", border: "none", borderRadius: "var(--radius-sm)",
+              color: "var(--primary-text)", border: "none", borderRadius: "var(--radius-sm)",
               cursor: "pointer", fontWeight: 600,
             }}
           >
@@ -526,7 +526,7 @@ export default function EmployeeProfile() {
                     height: "32px",
                     borderRadius: "50%",
                     background: "var(--primary)",
-                    color: "#fff",
+                    color: "var(--primary-text)",
                     border: "2px solid #fff",
                     display: "flex",
                     alignItems: "center",
@@ -801,7 +801,7 @@ export default function EmployeeProfile() {
                       style={{
                         display: "flex", alignItems: "center", gap: "6px",
                         padding: "7px 14px", background: "var(--primary)",
-                        color: "#fff", border: "none", borderRadius: "var(--radius-sm)",
+                        color: "var(--primary-text)", border: "none", borderRadius: "var(--radius-sm)",
                         fontSize: "12.5px", fontWeight: 600, cursor: "pointer",
                       }}
                     >
@@ -911,7 +911,7 @@ export default function EmployeeProfile() {
                     style={{
                       display: "flex", alignItems: "center", gap: "6px",
                       padding: "8px 16px", background: "var(--primary)",
-                      color: "#fff", border: "none", borderRadius: "var(--radius-sm)",
+                      color: "var(--primary-text)", border: "none", borderRadius: "var(--radius-sm)",
                       fontWeight: 600, fontSize: "13px", cursor: "pointer",
                     }}
                   >
@@ -1173,7 +1173,7 @@ export default function EmployeeProfile() {
                   onClick={() => navigate("/leave")}
                   style={{
                     padding: "7px 14px", background: "var(--primary)",
-                    color: "#fff", border: "none", borderRadius: "var(--radius-sm)",
+                    color: "var(--primary-text)", border: "none", borderRadius: "var(--radius-sm)",
                     fontSize: "12.5px", fontWeight: 600, cursor: "pointer",
                   }}
                 >
@@ -1453,7 +1453,7 @@ export default function EmployeeProfile() {
                     style={{
                       display: "flex", alignItems: "center", gap: "6px",
                       padding: "7px 14px", background: "var(--primary)",
-                      color: "#fff", border: "none", borderRadius: "var(--radius-sm)",
+                      color: "var(--primary-text)", border: "none", borderRadius: "var(--radius-sm)",
                       fontSize: "12.5px", fontWeight: 600, cursor: "pointer",
                     }}
                   >
@@ -1592,7 +1592,7 @@ export default function EmployeeProfile() {
                   style={{
                     display: "flex", alignItems: "center", gap: "6px",
                     padding: "8px 18px", background: "var(--primary)",
-                    color: "#fff", border: "none", borderRadius: "var(--radius-sm)",
+                    color: "var(--primary-text)", border: "none", borderRadius: "var(--radius-sm)",
                     fontWeight: 600, fontSize: "13px", cursor: "pointer",
                   }}
                 >
@@ -1718,7 +1718,7 @@ export default function EmployeeProfile() {
                 style={{
                   padding: "9px 22px", border: "none",
                   borderRadius: "var(--radius-sm)", background: "var(--primary)",
-                  color: "#fff", fontWeight: 600, fontSize: "13px",
+                  color: "var(--primary-text)", fontWeight: 600, fontSize: "13px",
                   cursor: uploadingDoc ? "not-allowed" : "pointer",
                   opacity: uploadingDoc || !docFile ? 0.6 : 1,
                 }}
@@ -1797,7 +1797,7 @@ export default function EmployeeProfile() {
                 onClick={handleVerifyDecision}
                 style={{
                   padding: "8px 20px", background: verificationDecision === "Verified" ? "var(--green)" : "var(--red)",
-                  color: "#fff", border: "none", borderRadius: "var(--radius-sm)",
+                  color: "var(--primary-text)", border: "none", borderRadius: "var(--radius-sm)",
                   fontSize: "13px", fontWeight: 700, cursor: "pointer",
                 }}
               >
@@ -1894,7 +1894,7 @@ export default function EmployeeProfile() {
               <button
                 type="submit"
                 disabled={savingContact}
-                style={{ padding: "8px 20px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
+                style={{ padding: "8px 20px", background: "var(--primary)", color: "var(--primary-text)", border: "none", borderRadius: "var(--radius-sm)", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
               >
                 {savingContact ? "Saving…" : "Save Contact"}
               </button>
@@ -2015,7 +2015,7 @@ export default function EmployeeProfile() {
               <button
                 type="submit"
                 disabled={submittingRequest}
-                style={{ padding: "8px 20px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
+                style={{ padding: "8px 20px", background: "var(--primary)", color: "var(--primary-text)", border: "none", borderRadius: "var(--radius-sm)", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
               >
                 {submittingRequest ? "Submitting…" : "Submit Request"}
               </button>

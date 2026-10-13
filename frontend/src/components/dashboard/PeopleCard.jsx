@@ -1,4 +1,4 @@
-﻿import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Users } from "lucide-react";
 import DashboardWidgetCard from "./DashboardWidgetCard";
 import { useDashboardWidget } from "../../hooks/useDashboardWidget";
@@ -48,7 +48,7 @@ export default function PeopleCard() {
             id="see-all-people-btn"
             onClick={(e) => { e.stopPropagation(); navigate("/employees"); }}
             style={{
-              width: "100%", padding: "9px", background: "var(--primary)", color: "#fff",
+              width: "100%", padding: "9px", background: "var(--primary)", color: "var(--primary-text)",
               border: "none", borderRadius: "var(--radius-sm)", fontSize: "12.5px", fontWeight: 600,
               cursor: "pointer", transition: "background 0.15s ease",
             }}

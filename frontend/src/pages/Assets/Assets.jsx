@@ -444,7 +444,7 @@ function PrimaryButton({ children, ...props }) {
         gap: "6px",
         padding: "9px 16px",
         background: "var(--primary)",
-        color: "#fff",
+        color: "var(--primary-text)",
         border: "none",
         borderRadius: "var(--radius-sm)",
         fontWeight: 600,

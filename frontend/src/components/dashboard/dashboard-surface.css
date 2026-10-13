@@ -2,7 +2,7 @@
 
 .dash-surface { max-width: 1480px; margin: 0 auto; }
 .dash-surface-loading { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 48px 0; color: var(--subtext); font-size: 13px; }
-.dash-surface-error { display: flex; align-items: center; gap: 14px; padding: 18px 20px; border: 1px solid #fecaca; border-radius: var(--radius); background: var(--red-light); color: var(--text); }
+.dash-surface-error { display: flex; align-items: center; gap: 14px; padding: 18px 20px; border: 1px solid var(--red); border-radius: var(--radius); background: var(--red-light); color: var(--text); }
 .dash-surface-error svg { color: var(--red); flex-shrink: 0; }
 
 .dash-surface-bar { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin: 4px 0 16px; flex-wrap: wrap; }
@@ -14,7 +14,7 @@
 
 /* Buttons */
 .dash-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 13px; border-radius: 10px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-size: 12.5px; font-weight: 700; cursor: pointer; transition: background 0.15s, border-color 0.15s, box-shadow 0.15s; }
-.dash-btn:hover:not(:disabled) { background: var(--card-hover); border-color: #b7dcd8; }
+.dash-btn:hover:not(:disabled) { background: var(--card-hover); border-color: var(--primary); }
 .dash-btn:focus-visible, .dash-icon-btn:focus-visible, .dash-size-btn:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 .dash-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .dash-btn-primary { background: var(--primary); border-color: var(--primary); color: var(--primary-text); }
@@ -44,14 +44,14 @@
 .dash-cell-edit:hover { box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.45); }
 .dash-dragging { opacity: 0.55; }
 
-.dash-cell-editbar { display: flex; align-items: center; gap: 8px; padding: 6px 8px; margin-bottom: 8px; border-radius: 10px; background: var(--primary-light); border: 1px solid #99f6e4; }
+.dash-cell-editbar { display: flex; align-items: center; gap: 8px; padding: 6px 8px; margin-bottom: 8px; border-radius: 10px; background: var(--primary-light); border: 1px solid var(--primary); }
 .dash-drag-handle { display: inline-flex; color: var(--primary); cursor: grab; }
 .dash-cell-title { flex: 1; min-width: 0; font-size: 12px; font-weight: 800; color: var(--primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dash-cell-controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .dash-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); cursor: pointer; }
-.dash-icon-btn:hover:not(:disabled) { background: var(--card-hover); border-color: #b7dcd8; }
+.dash-icon-btn:hover:not(:disabled) { background: var(--card-hover); border-color: var(--primary); }
 .dash-icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.dash-remove-btn:hover:not(:disabled) { background: var(--red-light); border-color: #fecaca; color: var(--red); }
+.dash-remove-btn:hover:not(:disabled) { background: var(--red-light); border-color: var(--red); color: var(--red); }
 
 .dash-size-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .dash-size-btn { padding: 4px 8px; border: 0; background: var(--card); color: var(--subtext); font-size: 10.5px; font-weight: 700; cursor: pointer; }

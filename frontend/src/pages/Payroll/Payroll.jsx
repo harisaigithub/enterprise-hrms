@@ -970,19 +970,19 @@ export default function Payroll() {
                                   getPayrollRuns().then((res) => setPayrollRunsList(res.data || []));
                                 } catch (e) { alert(e.message || "Failed to process"); }
                               }}
-                              style={{ padding: "6px 12px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
+                              style={{ padding: "6px 12px", background: "var(--primary)", color: "var(--primary-text)", border: "none", borderRadius: "var(--radius-sm)", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}
                             >
                               Process Run
                             </button>
                           ) : run.status === "Processing" && canApprovePayroll ? (
                             <div style={{ display: "inline-flex", gap: "6px" }}>
-                              <button onClick={async () => { try { await approvePayrollRun(run.id); getPayrollRuns().then((res) => setPayrollRunsList(res.data || [])); } catch (e) { alert(e.message || "Failed to approve"); } }} style={{ padding: "6px 12px", background: "var(--green)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Approve Run</button>
+                              <button onClick={async () => { try { await approvePayrollRun(run.id); getPayrollRuns().then((res) => setPayrollRunsList(res.data || [])); } catch (e) { alert(e.message || "Failed to approve"); } }} style={{ padding: "6px 12px", background: "var(--green)", color: "var(--primary-text)", border: "none", borderRadius: "var(--radius-sm)", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Approve Run</button>
                               <button onClick={async () => { const reason = window.prompt("Rejection reason (minimum 10 characters)"); if (!reason) return; try { await rejectPayrollRun(run.id, reason); getPayrollRuns().then((res) => setPayrollRunsList(res.data || [])); } catch (e) { alert(e.message || "Failed to reject"); } }} style={{ padding: "6px 12px", background: "none", color: "var(--red)", border: "1px solid var(--red)", borderRadius: "var(--radius-sm)", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Reject</button>
                             </div>
                           ) : run.status === "Processing" ? (
                             <span style={{ fontSize: "12px", color: "var(--subtext)", fontWeight: 600 }}>Awaiting Admin Approval</span>
                           ) : run.status === "Approved" && canReleasePayroll ? (
-                            <button onClick={async () => { if (!window.confirm(`Release payroll ${run.id} for payment?`)) return; try { await releasePayrollRun(run.id); getPayrollRuns().then((res) => setPayrollRunsList(res.data || [])); } catch (e) { alert(e.message || "Failed to release"); } }} style={{ padding: "6px 12px", background: "var(--green)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Release Payment</button>
+                            <button onClick={async () => { if (!window.confirm(`Release payroll ${run.id} for payment?`)) return; try { await releasePayrollRun(run.id); getPayrollRuns().then((res) => setPayrollRunsList(res.data || [])); } catch (e) { alert(e.message || "Failed to release"); } }} style={{ padding: "6px 12px", background: "var(--green)", color: "var(--primary-text)", border: "none", borderRadius: "var(--radius-sm)", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Release Payment</button>
                           ) : run.status === "Approved" ? (
                             <span style={{ fontSize: "12px", color: "var(--subtext)", fontWeight: 600 }}>Awaiting Admin Release</span>
                           ) : run.status === "Paid" && canReleasePayroll ? (

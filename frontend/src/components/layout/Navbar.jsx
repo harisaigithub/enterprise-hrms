@@ -281,7 +281,7 @@ export default function Navbar({ onToggleSidebar, sidebarOpen }) {
             {unreadCount > 0 && (
               <span style={{
                 position: "absolute", top: "4px", right: "4px",
-                background: "var(--red)", color: "#fff",
+                background: "var(--red)", color: "var(--primary-text)",
                 borderRadius: "99px", fontSize: "9px", fontWeight: 800,
                 minWidth: "16px", height: "16px",
                 display: "flex", alignItems: "center", justifyContent: "center",

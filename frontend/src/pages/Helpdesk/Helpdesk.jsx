@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Helpdesk Page - Module 17
  * Tabs: My Tickets (raise + track), Agent Queue (resolve).
  * SLA escalation and reopen-window auto-close are computed live by the
@@ -115,7 +115,7 @@ function RaiseTicketModal({ isOpen, onClose, onRaised }) {
 
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <button type="button" onClick={onClose} style={{ padding: "9px 20px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "none", color: "var(--label)", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>Cancel</button>
-          <button id="raise-ticket-btn" type="submit" disabled={saving} style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "#fff", fontWeight: 600, fontSize: "13px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
+          <button id="raise-ticket-btn" type="submit" disabled={saving} style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "var(--primary-text)", fontWeight: 600, fontSize: "13px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
             {saving ? "Raising..." : "Raise Ticket"}
           </button>
         </div>
@@ -159,7 +159,7 @@ function ResolveModal({ ticket, onClose, onResolved }) {
         </div>
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <button onClick={onClose} style={{ padding: "9px 20px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "none", color: "var(--label)", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>Cancel</button>
-          <button onClick={handleResolve} disabled={saving} style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--green)", color: "#fff", fontWeight: 600, fontSize: "13px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
+          <button onClick={handleResolve} disabled={saving} style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--green)", color: "var(--primary-text)", fontWeight: 600, fontSize: "13px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
             {saving ? "Resolving..." : "Mark Resolved"}
           </button>
         </div>
@@ -203,7 +203,7 @@ function ReopenModal({ ticket, onClose, onReopened }) {
         {error && <span style={{ fontSize: "11px", color: "var(--red)" }}>{error}</span>}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
           <button onClick={onClose} style={{ padding: "8px 16px", border: "1px solid var(--border)", background: "var(--card)", borderRadius: "var(--radius-sm)" }}>Cancel</button>
-          <button onClick={submit} disabled={saving} style={{ padding: "8px 16px", border: 0, background: "var(--red)", color: "#fff", borderRadius: "var(--radius-sm)", fontWeight: 700 }}>{saving ? "Reopening..." : "Reopen Ticket"}</button>
+          <button onClick={submit} disabled={saving} style={{ padding: "8px 16px", border: 0, background: "var(--red)", color: "var(--primary-text)", borderRadius: "var(--radius-sm)", fontWeight: 700 }}>{saving ? "Reopening..." : "Reopen Ticket"}</button>
         </div>
       </div>
     </Modal>
@@ -244,7 +244,7 @@ function TicketDetailModal({ ticket, onClose, onChanged, canManageQueue }) {
           <textarea rows={3} value={message} onChange={(e) => { setMessage(e.target.value); setError(""); }} placeholder="Write a reply..." style={{ width: "100%", padding: "10px", border: `1px solid ${error ? "var(--red)" : "var(--border)"}`, borderRadius: "var(--radius-sm)", resize: "vertical", fontFamily: "inherit" }} />
           {canManageQueue && <label style={{ display: "flex", gap: "7px", alignItems: "center", marginTop: "7px", fontSize: "12px" }}><input type="checkbox" checked={internal} onChange={(e) => setInternal(e.target.checked)} /> Internal note (hidden from employee)</label>}
           {error && <div style={{ color: "var(--red)", fontSize: "11px", marginTop: "4px" }}>{error}</div>}
-          <button onClick={submitComment} disabled={saving} style={{ marginTop: "8px", padding: "8px 16px", border: 0, background: "var(--primary)", color: "#fff", borderRadius: "var(--radius-sm)", fontWeight: 700 }}>{saving ? "Sending..." : "Send Reply"}</button>
+          <button onClick={submitComment} disabled={saving} style={{ marginTop: "8px", padding: "8px 16px", border: 0, background: "var(--primary)", color: "var(--primary-text)", borderRadius: "var(--radius-sm)", fontWeight: 700 }}>{saving ? "Sending..." : "Send Reply"}</button>
         </div>}
       </div>
     </Modal>
@@ -304,7 +304,7 @@ export default function Helpdesk() {
       <div style={{ maxWidth: "1480px", margin: "0 auto" }}>
         <PageHeader title="Helpdesk" subtitle="IT, HR, Finance, and Asset support tickets">
           <button id="raise-ticket-btn-header" onClick={() => setShowRaise(true)}
-            style={{ display: "flex", alignItems: "center", gap: "6px", padding: "9px 16px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>
+            style={{ display: "flex", alignItems: "center", gap: "6px", padding: "9px 16px", background: "var(--primary)", color: "var(--primary-text)", border: "none", borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>
             <Plus size={16} /> Raise Ticket
           </button>
         </PageHeader>

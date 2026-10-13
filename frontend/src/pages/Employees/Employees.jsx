@@ -315,7 +315,7 @@ function EmployeeDetailModal({ employee, isOpen, onClose, onEdit, onToggleStatus
                   style={{
                     position: "absolute", bottom: "-2px", right: "-2px",
                     width: "24px", height: "24px", borderRadius: "50%",
-                    background: "var(--primary)", color: "#fff", border: "2px solid #fff",
+                    background: "var(--primary)", color: "var(--primary-text)", border: "2px solid #fff",
                     display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
                   }}
                   title="Change photo"
@@ -554,7 +554,7 @@ function EmployeeDetailModal({ employee, isOpen, onClose, onEdit, onToggleStatus
                   style={{
                     display: "flex", alignItems: "center", gap: "6px",
                     padding: "8px 16px",
-                    background: "var(--primary)", color: "#fff",
+                    background: "var(--primary)", color: "var(--primary-text)",
                     border: "none", borderRadius: "var(--radius-sm)",
                     fontWeight: 600, fontSize: "13px", cursor: "pointer",
                   }}
@@ -664,7 +664,7 @@ function EmployeeDetailModal({ employee, isOpen, onClose, onEdit, onToggleStatus
                   onClick={() => { setDocError(""); setShowUploadDoc(true); }}
                   style={{
                     display: "flex", alignItems: "center", gap: "6px",
-                    padding: "6px 14px", background: "var(--primary)", color: "#fff",
+                    padding: "6px 14px", background: "var(--primary)", color: "var(--primary-text)",
                     border: "none", borderRadius: "var(--radius-sm)",
                     fontWeight: 600, fontSize: "12.5px", cursor: "pointer",
                   }}
@@ -782,7 +782,7 @@ function EmployeeDetailModal({ employee, isOpen, onClose, onEdit, onToggleStatus
                   gap: "6px",
                   padding: "8px 18px",
                   background: "var(--primary)",
-                  color: "#fff",
+                  color: "var(--primary-text)",
                   border: "none",
                   borderRadius: "var(--radius-sm)",
                   fontWeight: 600,
@@ -827,7 +827,7 @@ function EmployeeDetailModal({ employee, isOpen, onClose, onEdit, onToggleStatus
                 <button
                   type="button"
                   onClick={() => { setShowPhotoModal(false); detailAvatarInputRef.current?.click(); }}
-                  style={{ padding: "6px 14px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
+                  style={{ padding: "6px 14px", background: "var(--primary)", color: "var(--primary-text)", border: "none", borderRadius: "var(--radius-sm)", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
                 >
                   Change Photo
                 </button>
@@ -901,7 +901,7 @@ function EmployeeDetailModal({ employee, isOpen, onClose, onEdit, onToggleStatus
               <button
                 type="submit"
                 disabled={uploadingDoc || !docFile}
-                style={{ padding: "7px 18px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "#fff", fontSize: "12.5px", fontWeight: 600, cursor: "pointer" }}
+                style={{ padding: "7px 18px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "var(--primary-text)", fontSize: "12.5px", fontWeight: 600, cursor: "pointer" }}
               >
                 {uploadingDoc ? "Uploading…" : "Upload"}
               </button>
@@ -1007,7 +1007,7 @@ function EditPayrollModal({ employee, isOpen, onClose, onSaved }) {
             Cancel
           </button>
           <button type="submit" disabled={saving}
-            style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "#fff", fontWeight: 600, fontSize: "13px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
+            style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "var(--primary-text)", fontWeight: 600, fontSize: "13px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
             {saving ? "Saving…" : "Save Salary Structure"}
           </button>
         </div>
@@ -1116,7 +1116,7 @@ function OffboardEmployeeModal({ employee, isOpen, onClose, onConfirmed }) {
             Cancel
           </button>
           <button type="submit" disabled={processing}
-            style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--red)", color: "#fff", fontWeight: 600, fontSize: "13px", cursor: processing ? "not-allowed" : "pointer", opacity: processing ? 0.7 : 1 }}>
+            style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--red)", color: "var(--primary-text)", fontWeight: 600, fontSize: "13px", cursor: processing ? "not-allowed" : "pointer", opacity: processing ? 0.7 : 1 }}>
             {processing ? "Removing…" : "Confirm Removal"}
           </button>
         </div>
@@ -1356,7 +1356,7 @@ Aarav,Sharma,aarav.sharma@example.com,+91 98765 43210,Senior Software Engineer,E
               alignItems: "center",
               gap: "6px",
               padding: "7px 14px",
-              background: "#fff",
+              background: "var(--card)",
               border: "1px solid var(--border)",
               borderRadius: "var(--radius-sm)",
               fontSize: "12.5px",
@@ -1571,7 +1571,7 @@ Aarav,Sharma,aarav.sharma@example.com,+91 98765 43210,Senior Software Engineer,E
                 gap: "6px",
                 padding: "8px 20px",
                 background: "var(--primary)",
-                color: "#fff",
+                color: "var(--primary-text)",
                 border: "none",
                 borderRadius: "var(--radius-sm)",
                 fontSize: "13px",
@@ -1590,7 +1590,7 @@ Aarav,Sharma,aarav.sharma@example.com,+91 98765 43210,Senior Software Engineer,E
               style={{
                 padding: "8px 18px",
                 background: "var(--primary)",
-                color: "#fff",
+                color: "var(--primary-text)",
                 border: "none",
                 borderRadius: "var(--radius-sm)",
                 fontSize: "13px",
@@ -2007,7 +2007,7 @@ function AddEmployeeModal({ isOpen, onClose, onCreated, employees = [] }) {
               Cancel
             </button>
             <button type="submit"
-              style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "#fff", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>
+              style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "var(--primary-text)", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>
               Next: Payroll →
             </button>
           </div>
@@ -2036,7 +2036,7 @@ function AddEmployeeModal({ isOpen, onClose, onCreated, employees = [] }) {
                 Skip & Save
               </button>
               <button type="submit" disabled={saving}
-                style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "#fff", fontWeight: 600, fontSize: "13px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
+                style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "var(--primary-text)", fontWeight: 600, fontSize: "13px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
                 {saving ? "Saving…" : "Save Employee + Payroll"}
               </button>
             </div>
@@ -2408,7 +2408,7 @@ function EditEmployeeModal({ employee, isOpen, onClose, onUpdated, employees = [
             Cancel
           </button>
           <button type="submit" disabled={saving}
-            style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "#fff", fontWeight: 600, fontSize: "13px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
+            style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "var(--primary-text)", fontWeight: 600, fontSize: "13px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
             {saving ? "Saving…" : "Save Changes"}
           </button>
         </div>
@@ -2512,7 +2512,7 @@ export default function Employees() {
                   gap: "6px",
                   padding: "9px 16px",
                   background: "var(--primary)",
-                  color: "#fff",
+                  color: "var(--primary-text)",
                   border: "none",
                   borderRadius: "var(--radius-sm)",
                   fontWeight: 600,

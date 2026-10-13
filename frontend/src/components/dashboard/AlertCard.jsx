@@ -19,7 +19,7 @@ function AlertRow({ alert, onDismiss }) {
   return (
     <div style={{
       display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px",
-      background: "#fff", border: "1px solid var(--border)", borderRadius: "var(--radius)",
+      background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius)",
       padding: "12px 16px", position: "relative",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
@@ -38,7 +38,7 @@ function AlertRow({ alert, onDismiss }) {
         <button
           onClick={() => navigate(alert.buttonPath)}
           style={{
-            padding: "8px 16px", background: style.buttonBg, color: "#fff", border: "none",
+            padding: "8px 16px", background: style.buttonBg, color: "var(--primary-text)", border: "none",
             borderRadius: "10px", fontSize: "12px", fontWeight: 600, cursor: "pointer",
             whiteSpace: "nowrap",
           }}
@@ -61,7 +61,7 @@ function AlertRow({ alert, onDismiss }) {
 
           {menuOpen && (
             <div style={{
-              position: "absolute", right: 0, top: "32px", background: "#fff",
+              position: "absolute", right: 0, top: "32px", background: "var(--card)",
               border: "1px solid var(--border)", borderRadius: "var(--radius-sm)",
               boxShadow: "0 4px 12px rgba(0,0,0,0.08)", zIndex: 10, minWidth: "120px",
             }}>
@@ -103,7 +103,7 @@ export default function AlertCard() {
     return (
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px",
-        background: "#fff", border: "1px solid var(--border)", borderRadius: "var(--radius)", marginBottom: "20px",
+        background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", marginBottom: "20px",
       }}>
         <span style={{ fontSize: "12.5px", color: "var(--subtext)" }}>Couldn't load alerts.</span>
         <button onClick={retry} style={{ fontSize: "12px", fontWeight: 600, color: "var(--primary)", background: "transparent", border: "none", cursor: "pointer" }}>

@@ -124,7 +124,7 @@ export default function Login() {
         alignItems: "center",
         justifyContent: "center",
         padding: "40px 24px",
-        background: "#f0f4f8",
+        background: "var(--background)",
         overflowY: "auto",
       }}>
         <div style={{
@@ -134,17 +134,17 @@ export default function Login() {
         }}>
           {/* Card */}
           <div style={{
-            background: "#fff",
+            background: "var(--card)",
             borderRadius: "20px",
             boxShadow: "0 4px 32px rgba(13,27,42,0.10), 0 1px 6px rgba(13,27,42,0.06)",
             padding: "40px 36px",
-            border: "1px solid rgba(13,27,42,0.06)",
+            border: "1px solid var(--border)",
           }}>
             <div style={{ marginBottom: "28px" }}>
-              <h2 style={{ fontSize: "24px", fontWeight: 800, color: "#0e1e2c", letterSpacing: "-0.3px" }}>
+              <h2 style={{ fontSize: "24px", fontWeight: 800, color: "var(--text)", letterSpacing: "-0.3px" }}>
                 Welcome back
               </h2>
-              <p style={{ fontSize: "13.5px", color: "#5a7a8e", marginTop: "6px" }}>
+              <p style={{ fontSize: "13.5px", color: "var(--subtext)", marginTop: "6px" }}>
                 Sign in to your work account to continue.
               </p>
             </div>
@@ -152,11 +152,11 @@ export default function Login() {
             {/* Error banner */}
             {error && (
               <div style={{
-                background: "#fef2f2", color: "#dc2626",
+                background: "var(--red-light)", color: "var(--red)",
                 borderRadius: "10px", padding: "12px 16px",
                 fontSize: "13px", fontWeight: 600,
                 marginBottom: "20px",
-                border: "1px solid #fecaca",
+                border: "1px solid var(--red)",
                 display: "flex", alignItems: "center", gap: "8px",
               }}>
                 ⚠️ {error}
@@ -168,7 +168,7 @@ export default function Login() {
 
               {/* Email */}
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                <label style={{ fontSize: "12.5px", fontWeight: 700, color: "#3d5a70", letterSpacing: "0.1px" }}>
+                <label style={{ fontSize: "12.5px", fontWeight: 700, color: "var(--label)", letterSpacing: "0.1px" }}>
                   Work Email
                 </label>
                 <input
@@ -185,7 +185,7 @@ export default function Login() {
 
               {/* Password with show/hide toggle */}
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                <label style={{ fontSize: "12.5px", fontWeight: 700, color: "#3d5a70", letterSpacing: "0.1px" }}>
+                <label style={{ fontSize: "12.5px", fontWeight: 700, color: "var(--label)", letterSpacing: "0.1px" }}>
                   Password
                 </label>
                 <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
@@ -207,13 +207,13 @@ export default function Login() {
                     style={{
                       position: "absolute", right: "12px",
                       background: "transparent", border: "none",
-                      cursor: "pointer", color: "#5a7a8e",
+                      cursor: "pointer", color: "var(--subtext)",
                       display: "flex", alignItems: "center", justifyContent: "center",
                       padding: "4px", borderRadius: "6px",
                       transition: "color 0.15s",
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = "#0f766e")}
-                    onMouseLeave={(e) => (e.currentTarget.style.color = "#5a7a8e")}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "var(--primary)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "var(--subtext)")}
                   >
                     {showPassword ? (
                       // Eye-off icon (password visible → click to hide)
@@ -240,13 +240,13 @@ export default function Login() {
                   marginTop: "4px",
                   height: "46px", border: "none", borderRadius: "12px",
                   background: busy ? "#6ba3a0" : "var(--primary)",
-                  color: "#fff", fontWeight: 700, fontSize: "14.5px",
+                  color: "var(--primary-text)", fontWeight: 700, fontSize: "14.5px",
                   cursor: busy ? "not-allowed" : "pointer",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
                   transition: "background 0.15s, box-shadow 0.15s, transform 0.1s",
                   boxShadow: busy ? "none" : "0 4px 16px rgba(15,118,110,0.3)",
                 }}
-                onMouseEnter={(e) => !busy && (e.currentTarget.style.background = "#0d6860")}
+                onMouseEnter={(e) => !busy && (e.currentTarget.style.background = "var(--primary-hover)")}
                 onMouseLeave={(e) => !busy && (e.currentTarget.style.background = "var(--primary)")}
                 onMouseDown={(e) => !busy && (e.currentTarget.style.transform = "scale(0.98)")}
                 onMouseUp={(e) => !busy && (e.currentTarget.style.transform = "scale(1)")}
@@ -258,11 +258,11 @@ export default function Login() {
             {/* ── Quick sign-in ── */}
             <div style={{ marginTop: "28px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
-                <div style={{ flex: 1, height: "1px", background: "#dde5ee" }} />
-                <span style={{ fontSize: "10.5px", fontWeight: 700, color: "#8ba3b8", textTransform: "uppercase", letterSpacing: "0.6px", whiteSpace: "nowrap" }}>
+                <div style={{ flex: 1, height: "1px", background: "var(--border)" }} />
+                <span style={{ fontSize: "10.5px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.6px", whiteSpace: "nowrap" }}>
                   Quick Sign-In
                 </span>
-                <div style={{ flex: 1, height: "1px", background: "#dde5ee" }} />
+                <div style={{ flex: 1, height: "1px", background: "var(--border)" }} />
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
@@ -274,24 +274,24 @@ export default function Login() {
                     onClick={() => submit(null, acc)}
                     style={{
                       padding: "10px 8px",
-                      border: "1.5px solid #dde5ee",
+                      border: "1.5px solid var(--border)",
                       borderRadius: "10px",
-                      background: "#f8fafc",
-                      color: "#3d5a70",
+                      background: "var(--background)",
+                      color: "var(--label)",
                       fontSize: "12.5px", fontWeight: 600,
                       cursor: busy ? "not-allowed" : "pointer",
                       transition: "border-color 0.15s, background 0.15s, color 0.15s, box-shadow 0.15s",
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = "#0f766e";
-                      e.currentTarget.style.background = "#f0fdfa";
-                      e.currentTarget.style.color = "#0f766e";
+                      e.currentTarget.style.borderColor = "var(--primary)";
+                      e.currentTarget.style.background = "var(--primary-light)";
+                      e.currentTarget.style.color = "var(--primary)";
                       e.currentTarget.style.boxShadow = "0 2px 8px rgba(15,118,110,0.12)";
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = "#dde5ee";
-                      e.currentTarget.style.background = "#f8fafc";
-                      e.currentTarget.style.color = "#3d5a70";
+                      e.currentTarget.style.borderColor = "var(--border)";
+                      e.currentTarget.style.background = "var(--background)";
+                      e.currentTarget.style.color = "var(--label)";
                       e.currentTarget.style.boxShadow = "none";
                     }}
                   >
@@ -300,7 +300,7 @@ export default function Login() {
                 ))}
               </div>
 
-              <p style={{ fontSize: "11px", color: "#8ba3b8", marginTop: "12px", textAlign: "center" }}>
+              <p style={{ fontSize: "11px", color: "var(--subtext)", marginTop: "12px", textAlign: "center" }}>
                 Use your assigned credentials or select a role above to explore.
                 <br />
                 Use <span style={{ fontWeight: "bold" }}>Password@123</span> as password to login.
@@ -325,23 +325,23 @@ const inputStyle = {
   width: "100%",
   height: "44px",
   padding: "0 14px",
-  border: "1.5px solid #dde5ee",
+  border: "1.5px solid var(--border)",
   borderRadius: "10px",
   fontSize: "14px",
-  color: "#0e1e2c",
-  background: "#f8fafc",
+  color: "var(--text)",
+  background: "var(--background)",
   outline: "none",
   transition: "border-color 0.15s, box-shadow 0.15s, background 0.15s",
 };
 
 /* ─── Focus helpers ──────────────────────────────────── */
 function applyFocus(e) {
-  e.target.style.borderColor = "#0f766e";
+  e.target.style.borderColor = "var(--primary)";
   e.target.style.boxShadow = "0 0 0 3px rgba(15,118,110,0.12)";
-  e.target.style.background = "#ffffff";
+  e.target.style.background = "var(--card)";
 }
 function removeFocus(e) {
-  e.target.style.borderColor = "#dde5ee";
+  e.target.style.borderColor = "var(--border)";
   e.target.style.boxShadow = "none";
-  e.target.style.background = "#f8fafc";
+  e.target.style.background = "var(--background)";
 }

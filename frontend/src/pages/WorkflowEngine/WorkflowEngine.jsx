@@ -130,7 +130,7 @@ function Modal({ title, onClose, children }) {
 
 const inputStyle = { width: "100%", padding: "9px 12px", fontSize: "13.5px", borderRadius: "var(--radius)", border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", boxSizing: "border-box" };
 const labelStyle = { display: "block", fontSize: "12px", fontWeight: 600, color: "var(--subtext)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.4px" };
-const btnPrimary = { display: "inline-flex", alignItems: "center", gap: "6px", padding: "9px 16px", borderRadius: "var(--radius)", background: "var(--primary)", color: "#fff", border: "none", fontSize: "13px", fontWeight: 600, cursor: "pointer" };
+const btnPrimary = { display: "inline-flex", alignItems: "center", gap: "6px", padding: "9px 16px", borderRadius: "var(--radius)", background: "var(--primary)", color: "var(--primary-text)", border: "none", fontSize: "13px", fontWeight: 600, cursor: "pointer" };
 const btnGhost = { display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "var(--radius)", background: "var(--primary-light)", color: "var(--primary)", border: "none", fontSize: "12.5px", fontWeight: 600, cursor: "pointer" };
 
 export default function WorkflowEngine() {

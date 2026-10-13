@@ -26,7 +26,7 @@ const fmtDate = (value) => value ? new Date(String(value).slice(0, 10) + "T00:00
 const errorText = (error) => error?.response?.data?.error?.message || error?.response?.data?.message || error?.message || "Something went wrong";
 
 function Button({ children, secondary, ...props }) {
-  return <button {...props} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: "var(--radius-sm)", border: secondary ? "1px solid var(--border)" : "none", background: secondary ? "var(--card)" : "var(--primary)", color: secondary ? "var(--label)" : "#fff", fontWeight: 700, fontSize: 12.5, cursor: props.disabled ? "not-allowed" : "pointer", opacity: props.disabled ? .6 : 1 }}>{children}</button>;
+  return <button {...props} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: "var(--radius-sm)", border: secondary ? "1px solid var(--border)" : "none", background: secondary ? "var(--card)" : "var(--primary)", color: secondary ? "var(--label)" : "var(--primary-text)", fontWeight: 700, fontSize: 12.5, cursor: props.disabled ? "not-allowed" : "pointer", opacity: props.disabled ? .6 : 1 }}>{children}</button>;
 }
 
 function Tabs({ active, onChange }) {

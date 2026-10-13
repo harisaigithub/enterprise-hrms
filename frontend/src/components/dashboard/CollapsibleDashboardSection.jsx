@@ -24,7 +24,7 @@ export default function CollapsibleDashboardSection({ title, subtitle, children,
         <ChevronDown size={17} style={{ color: "var(--subtext)", transform: open ? "rotate(180deg)" : "rotate(0)", transition: "transform 180ms ease" }} />
       </button>
       {open && (
-        <div style={{ border: "1px solid var(--border)", borderTop: "none", borderRadius: "0 0 12px 12px", background: "color-mix(in srgb, var(--background) 70%, white)", padding: "14px" }}>
+        <div style={{ border: "1px solid var(--border)", borderTop: "none", borderRadius: "0 0 12px 12px", background: "var(--card)", padding: "14px" }}>
           {children}
         </div>
       )}

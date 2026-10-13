@@ -135,7 +135,7 @@ export default function ConfirmDialog({
               border: "none",
               borderRadius: "var(--radius-sm)",
               background: danger ? "var(--red)" : "var(--primary)",
-              color: "#fff",
+              color: "var(--primary-text)",
               fontWeight: 600,
               fontSize: "13.5px",
               cursor: "pointer",

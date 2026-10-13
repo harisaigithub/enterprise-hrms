@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Security & Administration Page — Module 25
  * Tabs: Users & Roles • Authentication & Access • Encryption & Backup • Audit Log
  */
@@ -84,7 +84,7 @@ function PrimaryButton({ children, ...props }) {
   return (
     <button {...props} style={{
       display: "flex", alignItems: "center", gap: "6px", padding: "9px 16px",
-      background: "var(--primary)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)",
+      background: "var(--primary)", color: "var(--primary-text)", border: "none", borderRadius: "var(--radius-sm)",
       fontWeight: 600, fontSize: "13px", cursor: props.disabled ? "not-allowed" : "pointer",
       opacity: props.disabled ? 0.6 : 1, ...props.style,
     }}>

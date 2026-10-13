@@ -111,7 +111,7 @@ const button = {
   borderRadius: "var(--radius-sm)",
   padding: "8px 12px",
   background: "var(--primary)",
-  color: "#fff",
+  color: "var(--primary-text)",
   fontWeight: 700,
   cursor: "pointer",
   display: "inline-flex",

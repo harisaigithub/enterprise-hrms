@@ -347,7 +347,7 @@ function ApplyLeaveModal({ isOpen, onClose, leaveTypes, employeeId, onSaved }) {
 
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "8px" }}>
           <button type="button" onClick={onClose} style={{ padding: "9px 20px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "none", color: "var(--label)", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>Cancel</button>
-          <button type="submit" disabled={saving} style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "#fff", fontWeight: 600, fontSize: "13px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
+          <button type="submit" disabled={saving} style={{ padding: "9px 20px", border: "none", borderRadius: "var(--radius-sm)", background: "var(--primary)", color: "var(--primary-text)", fontWeight: 600, fontSize: "13px", cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
             {saving ? "Submitting…" : "Submit Request"}
           </button>
         </div>
@@ -469,7 +469,7 @@ function AnnualHolidayCalendar() {
         }}
       >
         <div style={{ display: "flex", alignItems: "flex-start", gap: "14px" }}>
-          <div style={{ width: "42px", height: "42px", borderRadius: "10px", background: "var(--primary)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <div style={{ width: "42px", height: "42px", borderRadius: "10px", background: "var(--primary)", color: "var(--primary-text)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <PartyPopper size={22} />
           </div>
           <div style={{ flex: 1 }}>
@@ -477,7 +477,7 @@ function AnnualHolidayCalendar() {
               <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "var(--text)" }}>
                 Official Corporate Calendar 2026 — Indian IT Hubs
               </h3>
-              <span style={{ fontSize: "11px", fontWeight: 700, background: "var(--primary)", color: "#fff", padding: "2px 8px", borderRadius: "4px" }}>
+              <span style={{ fontSize: "11px", fontWeight: 700, background: "var(--primary)", color: "var(--primary-text)", padding: "2px 8px", borderRadius: "4px" }}>
                 Circular HR/CAL/2026/01
               </span>
             </div>
@@ -664,7 +664,7 @@ export default function Leave() {
             <button
               id="apply-leave-btn"
               onClick={() => setShowApply(true)}
-              style={{ display: "flex", alignItems: "center", gap: "6px", padding: "9px 16px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}
+              style={{ display: "flex", alignItems: "center", gap: "6px", padding: "9px 16px", background: "var(--primary)", color: "var(--primary-text)", border: "none", borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}
             >
               <Plus size={16} /> Apply Leave
             </button>

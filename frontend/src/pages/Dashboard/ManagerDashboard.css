@@ -16,7 +16,7 @@
   padding: 24px 28px;
   border: 1px solid rgba(15, 118, 110, 0.2);
   border-radius: 20px;
-  background: linear-gradient(130deg, #f0fdfa 0%, #ffffff 50%, #eff6ff 100%);
+  background: linear-gradient(130deg, var(--primary-light) 0%, var(--card) 50%, var(--blue-light) 100%);
   box-shadow: 0 10px 30px rgba(15, 118, 110, 0.07);
 }
 
@@ -45,8 +45,8 @@
   gap: 5px;
   padding: 4px 10px;
   border-radius: 999px;
-  background: #ccfbf1;
-  color: #0f766e;
+  background: var(--primary-light);
+  color: var(--primary);
   font-size: 10.5px;
   font-weight: 800;
   letter-spacing: 0.06em;
@@ -59,8 +59,8 @@
   gap: 5px;
   padding: 4px 10px;
   border-radius: 999px;
-  background: #e0f2fe;
-  color: #0369a1;
+  background: var(--blue-light);
+  color: var(--blue);
   font-size: 10.5px;
   font-weight: 750;
 }
@@ -88,7 +88,7 @@
   flex: 0 0 auto;
   border-radius: 50%;
   border: 7px solid rgba(15, 118, 110, 0.12);
-  background: #ffffff;
+  background: var(--card);
   box-shadow: 0 8px 24px rgba(15, 118, 110, 0.1);
 }
 
@@ -101,7 +101,7 @@
 }
 
 .manager-hero-orb strong {
-  color: #0f766e;
+  color: var(--primary);
   font-size: 16px;
   font-weight: 850;
 }

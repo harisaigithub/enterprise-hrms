@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Recruitment (ATS) Page  •  Module 5
  * Tabs: Requisitions  •  Candidate Pipeline  •  Interviews  •  Offers
  */
@@ -145,7 +145,7 @@ function PrimaryButton({ children, ...props }) {
       {...props}
       style={{
         display: "flex", alignItems: "center", gap: "6px",
-        padding: "9px 16px", background: "var(--primary)", color: "#fff",
+        padding: "9px 16px", background: "var(--primary)", color: "var(--primary-text)",
         border: "none", borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: "13px",
         cursor: props.disabled ? "not-allowed" : "pointer", opacity: props.disabled ? 0.6 : 1,
         ...props.style,

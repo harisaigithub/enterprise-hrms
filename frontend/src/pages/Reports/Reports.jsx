@@ -12,7 +12,7 @@ const input = { height: 36, padding: "0 10px", border: "1px solid var(--border)"
 const errorText = (error) => error?.response?.data?.error?.message || error?.response?.data?.message || error?.message || "Unable to run report";
 
 function Button({ children, secondary, ...props }) {
-  return <button {...props} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 14px", border: secondary ? "1px solid var(--border)" : 0, borderRadius: "var(--radius-sm)", background: secondary ? "var(--card)" : "var(--primary)", color: secondary ? "var(--text)" : "#fff", fontWeight: 700, fontSize: 12.5, cursor: props.disabled ? "not-allowed" : "pointer", opacity: props.disabled ? .6 : 1 }}>{children}</button>;
+  return <button {...props} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "9px 14px", border: secondary ? "1px solid var(--border)" : 0, borderRadius: "var(--radius-sm)", background: secondary ? "var(--card)" : "var(--primary)", color: secondary ? "var(--text)" : "var(--primary-text)", fontWeight: 700, fontSize: 12.5, cursor: props.disabled ? "not-allowed" : "pointer", opacity: props.disabled ? .6 : 1 }}>{children}</button>;
 }
 
 function Filters({ scope, departments, setDepartments, location, setLocation }) {

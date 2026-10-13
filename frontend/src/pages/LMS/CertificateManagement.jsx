@@ -1710,8 +1710,8 @@ const actionButtonStyle = {
     alignItems: "center",
     gap: 6,
     cursor: "pointer",
-    background: "#f8fafc",
-    color: "#334155",
+    background: "var(--background)",
+    color: "var(--label)",
     fontWeight: 600,
 };
 
@@ -1726,7 +1726,7 @@ const primaryButtonStyle = {
     cursor: "pointer",
     background:
         "var(--primary)",
-    color: "#fff",
+    color: "var(--primary-text)",
     fontWeight: 600,
 };
 

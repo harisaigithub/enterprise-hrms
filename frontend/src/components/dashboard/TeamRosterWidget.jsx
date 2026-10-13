@@ -7,22 +7,22 @@ import { getDirectReportsList } from "../../services/managerDashboardService";
 const STATUS_CONFIG = {
   Present: {
     badgeClass: "badge-success",
-    color: "#059669",
-    bg: "#ecfdf5",
+    color: "var(--green)",
+    bg: "var(--green-light)",
     icon: CheckCircle2,
     label: "Present",
   },
   "On Leave": {
     badgeClass: "badge-warning",
-    color: "#d97706",
-    bg: "#fffbeb",
+    color: "var(--amber)",
+    bg: "var(--amber-light)",
     icon: CalendarOff,
     label: "On Leave",
   },
   "Not Checked In": {
     badgeClass: "badge-neutral",
-    color: "#64748b",
-    bg: "#f8fafc",
+    color: "var(--subtext)",
+    bg: "var(--background)",
     icon: Clock,
     label: "Not Checked In",
   },

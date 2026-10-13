@@ -342,8 +342,8 @@ function ActivityTimeline({ checkInTime, checkOutTime, breaks, onBreak, currentB
               display: "flex",
               alignItems: "center",
               gap: "6px",
-              background: "#f8fafc",
-              color: "#64748b",
+              background: "var(--background)",
+              color: "var(--subtext)",
               border: "1px solid var(--border)",
               padding: "4px 12px",
               borderRadius: "99px",
@@ -1143,7 +1143,7 @@ export default function Attendance() {
                             <div style={{ display: "inline-flex", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" }}>
                               <button
                                 onClick={() => handleDecideRegularization(reg.id, "APPROVE")}
-                                style={{ padding: "5px 10px", background: "var(--green)", color: "#fff", border: "none", borderRadius: "4px", fontSize: "11.5px", fontWeight: 700, cursor: "pointer" }}
+                                style={{ padding: "5px 10px", background: "var(--green)", color: "var(--primary-text)", border: "none", borderRadius: "4px", fontSize: "11.5px", fontWeight: 700, cursor: "pointer" }}
                               >
                                 Approve
                               </button>
@@ -1155,18 +1155,18 @@ export default function Attendance() {
                               </button>
                               <button
                                 onClick={() => handleDecideRegularization(reg.id, "REJECT")}
-                                style={{ padding: "5px 10px", background: "var(--red)", color: "#fff", border: "none", borderRadius: "4px", fontSize: "11.5px", fontWeight: 700, cursor: "pointer" }}
+                                style={{ padding: "5px 10px", background: "var(--red)", color: "var(--primary-text)", border: "none", borderRadius: "4px", fontSize: "11.5px", fontWeight: 700, cursor: "pointer" }}
                               >
                                 Reject
                               </button>
                             </div>
                           ) : ["HR", "ADMIN"].includes(user?.role) && reg.status === "Manager Approved" && reg.employeeId !== user.id ? (
                             <div style={{ display: "inline-flex", gap: "6px" }}>
-                              <button onClick={() => handleDecideRegularization(reg.id, "APPROVE")} style={{ padding: "5px 10px", background: "var(--green)", color: "#fff", border: "none", borderRadius: "4px", fontSize: "11.5px", fontWeight: 700, cursor: "pointer" }}>Verify</button>
-                              <button onClick={() => handleDecideRegularization(reg.id, "REJECT")} style={{ padding: "5px 10px", background: "var(--red)", color: "#fff", border: "none", borderRadius: "4px", fontSize: "11.5px", fontWeight: 700, cursor: "pointer" }}>Reject</button>
+                              <button onClick={() => handleDecideRegularization(reg.id, "APPROVE")} style={{ padding: "5px 10px", background: "var(--green)", color: "var(--primary-text)", border: "none", borderRadius: "4px", fontSize: "11.5px", fontWeight: 700, cursor: "pointer" }}>Verify</button>
+                              <button onClick={() => handleDecideRegularization(reg.id, "REJECT")} style={{ padding: "5px 10px", background: "var(--red)", color: "var(--primary-text)", border: "none", borderRadius: "4px", fontSize: "11.5px", fontWeight: 700, cursor: "pointer" }}>Reject</button>
                             </div>
                           ) : reg.status === "More Details Required" && reg.employeeId === user?.id ? (
-                            <button onClick={() => beginResubmit(reg)} style={{ padding: "5px 10px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: "4px", fontSize: "11.5px", fontWeight: 700, cursor: "pointer" }}>Edit & Resubmit</button>
+                            <button onClick={() => beginResubmit(reg)} style={{ padding: "5px 10px", background: "var(--primary)", color: "var(--primary-text)", border: "none", borderRadius: "4px", fontSize: "11.5px", fontWeight: 700, cursor: "pointer" }}>Edit & Resubmit</button>
                           ) : (
                             <span style={{ fontSize: "11px", color: "var(--subtext)" }}>Decided</span>
                           )}
@@ -1468,7 +1468,7 @@ export default function Attendance() {
               <button
                 type="submit"
                 disabled={submittingReg}
-                style={{ padding: "8px 20px", background: "var(--primary)", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
+                style={{ padding: "8px 20px", background: "var(--primary)", color: "var(--primary-text)", border: "none", borderRadius: "var(--radius-sm)", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
               >
                 {submittingReg ? "Submitting…" : editingRegularization ? "Resubmit Request" : "Submit Request"}
               </button>

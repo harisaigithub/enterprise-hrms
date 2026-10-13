@@ -15,7 +15,7 @@ const CustomTooltip = ({ active, payload, label }) => {
   return (
     <div
       style={{
-        background: "#fff",
+        background: "var(--card)",
         border: "1px solid var(--border)",
         borderRadius: "var(--radius-sm)",
         padding: "10px 14px",
