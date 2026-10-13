@@ -71,3 +71,71 @@
   --sidebar-collapsed: 64px;
   --navbar-height: 64px;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DARK THEME
+   Applied when <html data-theme="dark"> (set by the theme script in
+   index.html before paint and kept in sync by ThemeContext).
+   Overrides the same tokens so every var()-based surface adapts.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* ─── Brand: brighter teal for dark surfaces ─────────── */
+  --primary: #14b8a6;           /* Teal-500 — readable on dark bg */
+  --primary-hover: #2dd4bf;     /* Lighter on hover              */
+  --primary-light: rgba(20, 184, 166, 0.14);
+  --primary-text: #042f2e;      /* Dark ink for primary buttons  */
+
+  --accent: #22d3ee;
+  --accent-light: rgba(34, 211, 238, 0.14);
+
+  /* ─── Backgrounds ─────────────────────────────────────── */
+  --background: #0a1122;        /* Deep navy-slate page bg       */
+  --card: #111b2e;
+  --card-hover: #16223a;
+
+  /* ─── Sidebar — slightly deeper for contrast ──────────── */
+  --sidebar-bg: #0a1424;
+  --sidebar-gradient: linear-gradient(180deg, #0a1424 0%, #0c1c30 100%);
+  --sidebar-active: rgba(20, 184, 166, 0.18);
+  --sidebar-active-border: #14b8a6;
+  --sidebar-text: #8ba3b8;
+  --sidebar-text-active: #ffffff;
+  --sidebar-section: rgba(139, 163, 184, 0.4);
+
+  /* ─── Navbar ──────────────────────────────────────────── */
+  --navbar-bg: rgba(17, 27, 46, 0.92);
+
+  /* ─── Borders ─────────────────────────────────────────── */
+  --border: #24324d;
+  --border-focus: #2dd4bf;
+
+  /* ─── Typography ──────────────────────────────────────── */
+  --text: #e8eef7;
+  --subtext: #94a9c0;
+  --label: #b6c6d9;
+
+  /* ─── Semantic ────────────────────────────────────────── */
+  --green: #34d399;
+  --green-light: rgba(52, 211, 153, 0.14);
+  --amber: #fbbf24;
+  --amber-light: rgba(251, 191, 36, 0.14);
+  --red: #f87171;
+  --red-light: rgba(248, 113, 113, 0.14);
+  --blue: #60a5fa;
+  --blue-light: rgba(96, 165, 250, 0.14);
+  --purple: #a78bfa;
+  --purple-light: rgba(167, 139, 250, 0.14);
+
+  /* ─── Elevation (deeper blacks on dark cards) ─────────── */
+  --shadow-xs:  0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm:  0 1px 4px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md:  0 4px 16px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.35);
+  --shadow-lg:  0 8px 32px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-xl:  0 20px 60px rgba(0, 0, 0, 0.6), 0 4px 20px rgba(0, 0, 0, 0.45);
+
+  --shadow-teal: 0 8px 32px rgba(20, 184, 166, 0.22);
+  --shadow-cyan: 0 8px 32px rgba(34, 211, 238, 0.22);
+}

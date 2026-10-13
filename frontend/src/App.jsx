@@ -10,14 +10,17 @@
 
 import { AuthProvider } from "./context/AuthContext";
 import { SearchProvider } from "./context/SearchContext";
+import { ThemeProvider } from "./context/ThemeContext";
 import AppRouter from "./routes/AppRouter";
 
 export default function App() {
   return (
-    <AuthProvider>
-      <SearchProvider>
-        <AppRouter />
-      </SearchProvider>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <SearchProvider>
+          <AppRouter />
+        </SearchProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

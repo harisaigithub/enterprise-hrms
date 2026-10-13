@@ -9,6 +9,19 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <script>
+      /* Apply the stored theme before first paint to avoid a flash of the
+         wrong theme. Kept in sync afterwards by ThemeContext. */
+      (function () {
+        try {
+          var mode = localStorage.getItem("hrms_theme") || "system";
+          var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+          var theme = mode === "dark" || (mode !== "light" && prefersDark) ? "dark" : "light";
+          document.documentElement.setAttribute("data-theme", theme);
+          document.documentElement.style.colorScheme = theme;
+        } catch (e) { /* default light theme */ }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

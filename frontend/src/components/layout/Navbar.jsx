@@ -10,11 +10,13 @@
 import {
   Bell, Search, ChevronDown, X, LogOut, UserRound,
   CheckCheck, Settings, PanelLeftClose, PanelLeftOpen,
+  Sun, Moon, Monitor,
 } from "lucide-react";
 import { useRef, useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSearch } from "../../context/SearchContext";
 import { useAuth } from "../../context/AuthContext";
+import { useTheme } from "../../context/ThemeContext";
 import { getInboxNotifications, markAllRead as markAllNotificationsRead, markAsRead } from "../../services/notificationService";
 
 /* ─── Constants ──────────────────────────────────────── */
@@ -23,6 +25,12 @@ const TYPE_COLOR = {
   "Leave Request": { color: "#d97706", bg: "#fffbeb" },
   "Payroll Run":   { color: "#059669", bg: "#ecfdf5" },
 };
+
+const THEME_OPTIONS = [
+  { value: "light", label: "Light", icon: Sun },
+  { value: "dark", label: "Dark", icon: Moon },
+  { value: "system", label: "System", icon: Monitor },
+];
 
 /* ─── Helpers ────────────────────────────────────────── */
 function timeAgo(iso) {
@@ -39,6 +47,7 @@ function timeAgo(iso) {
 export default function Navbar({ onToggleSidebar, sidebarOpen }) {
   const { query, setQuery, results, isOpen, setIsOpen, clear } = useSearch();
   const { user, logout } = useAuth();
+  const { mode: themeMode, setMode: setThemeMode } = useTheme();
   const navigate = useNavigate();
   const inputRef = useRef(null);
   const dropRef  = useRef(null);
@@ -124,10 +133,10 @@ export default function Navbar({ onToggleSidebar, sidebarOpen }) {
         backdropFilter: "var(--navbar-blur)",
         WebkitBackdropFilter: "var(--navbar-blur)",
         height: "var(--navbar-height)",
-        borderBottom: "1px solid rgba(13,27,42,0.08)",
+        borderBottom: "1px solid var(--border)",
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "0 24px",
-        boxShadow: "0 1px 0 rgba(13,27,42,0.06), 0 2px 8px rgba(13,27,42,0.04)",
+        boxShadow: "0 1px 0 var(--border)",
         flexShrink: 0,
         gap: "16px",
       }}
@@ -168,7 +177,7 @@ export default function Navbar({ onToggleSidebar, sidebarOpen }) {
               setIsOpen(true);
               e.target.style.borderColor = "var(--border-focus)";
               e.target.style.boxShadow = "0 0 0 3px rgba(15,118,110,0.12)";
-              e.target.style.background = "#fff";
+              e.target.style.background = "var(--card)";
             }}
             onBlur={(e) => {
               e.target.style.borderColor = "var(--border)";
@@ -202,7 +211,7 @@ export default function Navbar({ onToggleSidebar, sidebarOpen }) {
           {isOpen && query.length >= 2 && (
             <div style={{
               position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0,
-              background: "#fff", border: "1px solid var(--border)",
+              background: "var(--card)", border: "1px solid var(--border)",
               borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg)",
               zIndex: 200, overflow: "hidden", maxHeight: "400px", overflowY: "auto",
               animation: "dialog-in 0.15s ease",
@@ -276,7 +285,7 @@ export default function Navbar({ onToggleSidebar, sidebarOpen }) {
                 borderRadius: "99px", fontSize: "9px", fontWeight: 800,
                 minWidth: "16px", height: "16px",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                border: "2px solid #fff", lineHeight: 1,
+                border: "2px solid var(--card)", lineHeight: 1,
               }}>
                 {unreadCount}
               </span>
@@ -287,7 +296,7 @@ export default function Navbar({ onToggleSidebar, sidebarOpen }) {
             <div style={{
               position: "absolute", right: 0, top: "calc(100% + 8px)",
               width: "360px", maxHeight: "440px", overflowY: "auto",
-              background: "#fff", border: "1px solid var(--border)",
+              background: "var(--card)", border: "1px solid var(--border)",
               borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg)",
               zIndex: 200, animation: "dialog-in 0.15s ease",
             }}>
@@ -380,7 +389,7 @@ export default function Navbar({ onToggleSidebar, sidebarOpen }) {
               <span style={{
                 position: "absolute", bottom: 0, right: 0,
                 width: "9px", height: "9px", borderRadius: "50%",
-                background: "#10b981", border: "2px solid #fff",
+                background: "#10b981", border: "2px solid var(--card)",
               }} />
             </div>
             <div style={{ textAlign: "left" }}>
@@ -393,7 +402,7 @@ export default function Navbar({ onToggleSidebar, sidebarOpen }) {
           {openMenu === "user" && (
             <div style={{
               position: "absolute", right: 0, top: "calc(100% + 8px)",
-              width: "240px", background: "#fff", border: "1px solid var(--border)",
+              width: "240px", background: "var(--card)", border: "1px solid var(--border)",
               borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg)",
               zIndex: 200, overflow: "hidden", animation: "dialog-in 0.15s ease",
             }}>
@@ -403,9 +412,51 @@ export default function Navbar({ onToggleSidebar, sidebarOpen }) {
                   {user.firstName} {user.lastName}
                 </p>
                 <p style={{ fontSize: "11.5px", color: "var(--subtext)", marginTop: "2px" }}>{user.email}</p>
-                <span style={{ display: "inline-block", marginTop: "8px", fontSize: "10.5px", fontWeight: 700, color: "var(--primary)", background: "#fff", padding: "2px 9px", borderRadius: "99px", border: "1px solid rgba(15,118,110,0.2)" }}>
+                <span style={{ display: "inline-block", marginTop: "8px", fontSize: "10.5px", fontWeight: 700, color: "var(--primary)", background: "var(--card)", padding: "2px 9px", borderRadius: "99px", border: "1px solid rgba(15,118,110,0.2)" }}>
                   {user.role}
                 </span>
+              </div>
+
+              {/* Appearance / theme selector */}
+              <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--border)" }}>
+                <p style={{ fontSize: "10.5px", fontWeight: 700, color: "var(--subtext)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>
+                  Appearance
+                </p>
+                <div role="radiogroup" aria-label="Theme" style={{ display: "flex", gap: "6px" }}>
+                  {THEME_OPTIONS.map((option) => {
+                    const Icon = option.icon;
+                    const active = themeMode === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        title={`${option.label} theme`}
+                        onClick={() => setThemeMode(option.value)}
+                        style={{
+                          flex: 1,
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          gap: "4px",
+                          padding: "8px 4px",
+                          borderRadius: "var(--radius-sm)",
+                          cursor: "pointer",
+                          border: active ? "1.5px solid var(--primary)" : "1.5px solid var(--border)",
+                          background: active ? "var(--primary-light)" : "none",
+                          color: active ? "var(--primary)" : "var(--label)",
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          transition: "border-color 0.15s, color 0.15s, background 0.15s",
+                        }}
+                      >
+                        <Icon size={15} />
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <button onClick={() => { setOpenMenu(null); navigate(`/employees/${user.id}`); }} style={menuItemStyle} onMouseEnter={(e) => (e.currentTarget.style.background = "var(--background)")} onMouseLeave={(e) => (e.currentTarget.style.background = "none")}>

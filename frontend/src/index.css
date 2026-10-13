@@ -22,6 +22,7 @@ body {
   background: var(--background);
   color: var(--text);
   line-height: 1.6;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -129,7 +130,7 @@ a { text-decoration: none; color: inherit; }
 
 .btn-primary {
   background: var(--primary);
-  color: #fff;
+  color: var(--primary-text);
   box-shadow: 0 2px 8px rgba(15,118,110,0.25);
 }
 .btn-primary:hover {
@@ -163,6 +164,10 @@ a { text-decoration: none; color: inherit; }
   background-size: 400px 100%;
   animation: shimmer 1.4s ease infinite;
   border-radius: var(--radius-sm);
+}
+[data-theme="dark"] .skeleton {
+  background: linear-gradient(90deg, #1a2740 25%, #223354 50%, #1a2740 75%);
+  background-size: 400px 100%;
 }
 
 /* Fade/slide in for page content */
