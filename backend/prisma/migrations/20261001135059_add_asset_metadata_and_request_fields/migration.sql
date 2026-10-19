@@ -30,4 +30,23 @@ ALTER TABLE "security_state" ALTER COLUMN "updated_at" DROP DEFAULT;
 ALTER TABLE "travel_requests" ALTER COLUMN "updated_at" DROP DEFAULT;
 
 -- RenameIndex
-ALTER INDEX "attendance_regularization_history_regularization_id_created_at_" RENAME TO "attendance_regularization_history_regularization_id_created_idx";
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM pg_class
+        WHERE relname = 'attendance_regularization_history_regularization_id_created_at_'
+          AND relkind = 'i'
+    ) THEN
+        ALTER INDEX "attendance_regularization_history_regularization_id_created_at_"
+        RENAME TO "attendance_regularization_history_regularization_id_created_idx";
+    ELSIF NOT EXISTS (
+        SELECT 1
+        FROM pg_class
+        WHERE relname = 'attendance_regularization_history_regularization_id_created_idx'
+          AND relkind = 'i'
+    ) THEN
+        CREATE INDEX "attendance_regularization_history_regularization_id_created_idx"
+        ON "attendance_regularization_history" ("regularization_id", "created_at");
+    END IF;
+END $$;

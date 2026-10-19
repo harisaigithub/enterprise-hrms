@@ -316,3 +316,16 @@ export const compareBgvVerificationFields = (id) =>
 
 export const updateBgvCandidateProfile = (candidateId, data) =>
   api.put(`/bgv/candidates/${candidateId}/profile`, data);
+
+// ─────────────────────────────────────────────────────────────
+// EXTERNAL BGV PROVIDER CHECKS
+// ─────────────────────────────────────────────────────────────
+
+export const runBgvPanProviderCheck = (verificationId, data) =>
+  api.post(`/bgv/provider-checks/${verificationId}/pan`, data);
+
+export const initiateBgvDigiLockerSession = (verificationId, data) =>
+  api.post(`/bgv/provider-checks/${verificationId}/digilocker/session`, data);
+
+export const getBgvProviderReadiness = (type) =>
+  api.get(`/bgv/provider-checks/readiness/${encodeURIComponent(type)}`);

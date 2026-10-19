@@ -10,6 +10,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // ── Core Organization ──────────────────────────────────────────────────────
@@ -218,7 +219,7 @@ model User {
   notificationPreferences      NotificationPreference[]
   notificationTemplatesCreated NotificationTemplate[]   @relation("NotificationTemplateCreator")
   notificationDeliveries       NotificationDelivery[]
-  dashboardPreference         UserDashboardPreference?
+  dashboardPreference          UserDashboardPreference?
 
   @@index([roleId])
   @@map("users")

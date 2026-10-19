@@ -34,6 +34,9 @@ import {
     requestBgvCandidateAction,
     startBgvVerification,
     completeBgvVerification,
+    runBgvPanProviderCheck,
+    initiateBgvDigiLockerSession,
+    getBgvProviderReadiness,
 } from "../../services/bgvService";
 
 const FIELD_CONFIG = {
@@ -210,6 +213,13 @@ export default function BgvVerificationEvidenceCard({
     const [error, setError] = useState("");
     const [notice, setNotice] = useState("");
     const [comparison, setComparison] = useState(null);
+    const [providerBusy, setProviderBusy] = useState("");
+    const [providerError, setProviderError] = useState("");
+    const [providerNotice, setProviderNotice] = useState("");
+    const [pan, setPan] = useState("");
+    const [panConsent, setPanConsent] = useState(false);
+    const [providerReadiness, setProviderReadiness] = useState({});
+    const [digilockerConsent, setDigilockerConsent] = useState(false);
 
     const fields = useMemo(() => {
         const existing = verification.fields || [];
@@ -380,6 +390,97 @@ export default function BgvVerificationEvidenceCard({
             setBusy("");
         }
     };
+
+    const toProviderDob = (value) => {
+        if (!value) return "";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) {
+            const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+            return match ? `${match[3]}/${match[2]}/${match[1]}` : "";
+        }
+        const dd = String(date.getDate()).padStart(2, "0");
+        const mm = String(date.getMonth() + 1).padStart(2, "0");
+        return `${dd}/${mm}/${date.getFullYear()}`;
+    };
+
+    const runPanProvider = async () => {
+        setProviderBusy("pan");
+        setProviderError("");
+        setProviderNotice("");
+        try {
+            if (verificationType !== "IDENTITY") {
+                throw new Error("PAN provider checks require an IDENTITY verification.");
+            }
+            if (!/^[A-Z]{3}[PCFTGHLABJ][A-Z][0-9]{4}[A-Z]$/.test(pan.trim().toUpperCase())) {
+                throw new Error("Enter a valid PAN format.");
+            }
+            if (!panConsent) {
+                throw new Error("Candidate consent is required before submitting PAN data.");
+            }
+            const fullName = [candidate?.firstName, candidate?.lastName].filter(Boolean).join(" ").trim();
+            if (!fullName) throw new Error("Candidate full name is missing from the profile.");
+            const dob = toProviderDob(candidate?.dateOfBirth || candidate?.dob);
+            if (!dob) throw new Error("Candidate date of birth is missing from the profile.");
+            const response = await runBgvPanProviderCheck(verification.id, {
+                pan: pan.trim().toUpperCase(),
+                nameAsPerPan: fullName,
+                dateOfBirth: dob,
+                consent: "Y",
+                reason: "Background verification with candidate consent",
+            });
+            const saved = response.data?.data || response.data;
+            setProviderNotice(`PAN provider check saved. Status: ${saved?.status || "updated"}; result: ${saved?.result || "recorded"}.`);
+            setPan("");
+            setPanConsent(false);
+            await onRefresh?.();
+        } catch (e) {
+            setProviderError(e.response?.data?.message || e.message || "PAN provider check failed.");
+        } finally {
+            setProviderBusy("");
+        }
+    };
+
+    const startDigiLocker = async () => {
+        setProviderBusy("digilocker");
+        setProviderError("");
+        setProviderNotice("");
+        try {
+            if (!digilockerConsent) {
+                throw new Error("Candidate consent is required before starting DigiLocker.");
+            }
+            const response = await initiateBgvDigiLockerSession(verification.id, {
+                candidateConsent: true,
+            });
+            const payload = response.data || {};
+            const authorizationUrl = payload?.authorizationUrl;
+            if (!authorizationUrl) throw new Error("Provider did not return an authorization URL.");
+            setProviderNotice("DigiLocker session created. Candidate must complete consent and document sharing.");
+            window.open(authorizationUrl, "_blank", "noopener,noreferrer");
+            setDigilockerConsent(false);
+            await onRefresh?.();
+        } catch (e) {
+            setProviderError(e.response?.data?.message || e.message || "Could not start DigiLocker session.");
+        } finally {
+            setProviderBusy("");
+        }
+    };
+
+    const loadProviderReadiness = async (type) => {
+        try {
+            const response = await getBgvProviderReadiness(type);
+            const payload = response.data?.data || response.data;
+            setProviderReadiness((prev) => ({ ...prev, [type]: payload }));
+        } catch (e) {
+            setProviderReadiness((prev) => ({ ...prev, [type]: { configured: false, message: e.response?.data?.message || "Readiness check unavailable." } }));
+        }
+    };
+
+    useEffect(() => {
+        const type = verificationType;
+        if (["ADDRESS", "EDUCATION", "EMPLOYMENT"].includes(type)) {
+            loadProviderReadiness(type);
+        }
+    }, [verificationType]);
 
     const mismatchCount =
         comparison?.mismatch ??
@@ -1080,6 +1181,78 @@ export default function BgvVerificationEvidenceCard({
                             <span>Pending</span>
                         </div>
                     </div>
+                </div>
+
+                <div className="bgv-field" style={{ marginBottom: 14 }}>
+                    <div className="bgv-field-top">
+                        <div className="bgv-field-label">
+                            <ShieldCheck size={16} />
+                            <span>External Provider Verification</span>
+                        </div>
+                        <span className="bgv-status bgv-status-not-checked">Provider-based</span>
+                    </div>
+
+                    {providerError && (
+                        <div className="bgv-alert bgv-alert-error" role="alert">
+                            <AlertCircle size={14} /> {providerError}
+                        </div>
+                    )}
+                    {providerNotice && (
+                        <div className="bgv-alert bgv-alert-success" role="status">
+                            <CheckCircle2 size={14} /> {providerNotice}
+                        </div>
+                    )}
+
+                    {verificationType === "IDENTITY" && (
+                        <div style={{ display: "grid", gap: 9 }}>
+                            <label className="bgv-value-label" htmlFor={`bgv-pan-${verification.id}`}>Sandbox PAN verification</label>
+                            <input
+                                id={`bgv-pan-${verification.id}`}
+                                className="bgv-input"
+                                value={pan}
+                                onChange={(e) => setPan(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10))}
+                                placeholder="PAN number"
+                                autoComplete="off"
+                                maxLength={10}
+                                disabled={!canOperate || !!providerBusy || isCompleted}
+                            />
+                            <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 11 }}>
+                                <input type="checkbox" checked={panConsent} onChange={(e) => setPanConsent(e.target.checked)} disabled={!canOperate || !!providerBusy || isCompleted} />
+                                Candidate has explicitly consented to PAN verification and processing.
+                            </label>
+                            <button type="button" className="bgv-btn" onClick={runPanProvider} disabled={!canOperate || !!providerBusy || isCompleted || !panConsent || !pan.trim()}>
+                                {providerBusy === "pan" ? <RefreshCw size={14} className="spin" /> : <ShieldCheck size={14} />}
+                                {providerBusy === "pan" ? "Checking PAN..." : "Verify PAN with provider"}
+                            </button>
+                            <small style={{ color: "var(--bgv-subtext)", fontSize: 10 }}>
+                                Requires configured Sandbox credentials and a candidate profile with name and date of birth. Test responses are not proof of production verification.
+                            </small>
+                        </div>
+                    )}
+
+                    {(verificationType === "IDENTITY" || verificationType === "ADDRESS") && (
+                        <div style={{ display: "grid", gap: 9, marginTop: verificationType === "IDENTITY" ? 16 : 0 }}>
+                            <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontSize: 11 }}>
+                                <input type="checkbox" checked={digilockerConsent} onChange={(e) => setDigilockerConsent(e.target.checked)} disabled={!canOperate || !!providerBusy || isCompleted} />
+                                Candidate explicitly consents to start a DigiLocker document-sharing session.
+                            </label>
+                            <button type="button" className="bgv-btn" onClick={startDigiLocker} disabled={!canOperate || !!providerBusy || isCompleted || !digilockerConsent}>
+                                {providerBusy === "digilocker" ? <RefreshCw size={14} /> : <FileCheck2 size={14} />}
+                                {providerBusy === "digilocker" ? "Starting session..." : "Start DigiLocker session"}
+                            </button>
+                            <small style={{ color: "var(--bgv-subtext)", fontSize: 10 }}>
+                                Starting a session does not complete verification. Callback, document retrieval and validation must be configured on the backend.
+                            </small>
+                        </div>
+                    )}
+
+                    {["ADDRESS", "EDUCATION", "EMPLOYMENT"].includes(verificationType) && (
+                        <div style={{ marginTop: 12, fontSize: 11, color: "var(--bgv-subtext)" }}>
+                            <b>{verificationType} provider readiness:</b>{" "}
+                            {providerReadiness[verificationType]?.message ||
+                                ((providerReadiness[verificationType]?.automatedProviderConfigured ?? providerReadiness[verificationType]?.configured) ? "Provider name configured; official adapter and credentials still require validation." : "No automated provider configured; this check cannot be auto-verified yet.")}
+                        </div>
+                    )}
                 </div>
 
                 <div className="bgv-fields">

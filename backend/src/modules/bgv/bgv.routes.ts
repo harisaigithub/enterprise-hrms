@@ -129,6 +129,18 @@ import {
   updateBgvCandidateProfileController,
 } from "./bgv.candidate-profile.controller";
 
+import {
+  verifyPanWithSandboxController,
+} from "./providers/sandbox-pan.controller";
+
+import { initiateDigiLockerSessionController } from "./providers/sandbox-digilocker.controller";
+import {
+  runAndSavePanCheckController,
+  submitManualProviderCheckController,
+  getProviderReadinessController,
+} from "./providers/provider-checks.controller";
+
+
 const router = Router();
 
 router.use(authenticate);
@@ -320,5 +332,19 @@ router.put(
   "/candidates/:id/profile",
   updateBgvCandidateProfileController
 );
+
+/* -------------------------------------------------------------------------- */
+/* External provider checks                                                    */
+/* -------------------------------------------------------------------------- */
+
+router.post("/provider-checks/:verificationId/digilocker/session", initiateDigiLockerSessionController);
+
+// Connectivity-only PAN check; does not mutate a BGV verification record.
+router.post("/provider-checks/pan", verifyPanWithSandboxController);
+// Persisted PAN check: stores normalized result and immutable audit event.
+router.post("/provider-checks/:verificationId/pan", runAndSavePanCheckController);
+// Manual evidence review for checks that have no universally free/authorized API.
+router.post("/provider-checks/:verificationId/manual-result", submitManualProviderCheckController);
+router.get("/provider-checks/readiness/:type", getProviderReadinessController);
 
 export default router;
